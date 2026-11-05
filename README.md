@@ -51,8 +51,6 @@ The details and implementation are **subject to change**. Follow this repository
 
 ## A little workshop mythology
 
-<p align="center"><img src="assets/paramood.svg" alt="Paramood, the Keeper of Measure" width="152"></p>
-
 In the original **4FusionLab mythology**, **Paramood** is the **Keeper of Measure**: an ancient sage who knows the laws connecting form, proportion, and number. He does not shape every piece by hand. He understands the few rules from which the whole design follows.
 
 *Every dimension has a reason.*
