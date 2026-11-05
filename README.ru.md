@@ -35,3 +35,5 @@ Paramood работает с текущей моделью Fusion. Поддер�
 Инструкции по сборке и тестированию находятся в [английском README](README.md#development).
 
 Paramood — независимый проект [4FusionLab](https://github.com/4FusionLab), не связанный с Autodesk.
+
+При каждом push в `main` CI после успешных проверок создаёт релиз. GitVersion определяет версию по тегам и сообщениям Conventional Commits; вычисленная версия записывается в manifest внутри архива.
