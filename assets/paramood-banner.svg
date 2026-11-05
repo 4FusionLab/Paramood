@@ -22,9 +22,9 @@
   <circle cx="695" cy="90" r="4" fill="#ff9251"/><circle cx="709" cy="90" r="4" fill="#91b0bd"/><circle cx="723" cy="90" r="4" fill="#91b0bd"/>
   <text x="742" y="96" font-family="Arial,Helvetica,sans-serif" font-size="15" fill="#b6c7d7">parameters</text>
   <g font-family="Consolas,Menlo,monospace" font-size="19" fill="#e1edf0">
-    <text x="695" y="136"><tspan fill="#a3cad3">width</tspan><tspan fill="#ff9251"> = </tspan>15</text>
-    <text x="695" y="165"><tspan fill="#a3cad3">height</tspan><tspan fill="#ff9251"> = </tspan>10</text>
-    <text x="695" y="194"><tspan fill="#a3cad3">length</tspan><tspan fill="#ff9251"> = </tspan>h / 2</text>
+    <text x="695" y="136"><tspan fill="#a3cad3">w</tspan><tspan fill="#ff9251"> = </tspan>15</text>
+    <text x="695" y="165"><tspan fill="#a3cad3">h</tspan><tspan fill="#ff9251"> = </tspan>10</text>
+    <text x="695" y="194"><tspan fill="#a3cad3">l</tspan><tspan fill="#ff9251"> = </tspan>h / 2</text>
   </g>
   <!-- Parametric sketch -->
   <g fill="none" stroke-linecap="round" stroke-linejoin="round">
