@@ -11,8 +11,8 @@ ROOT = Path(__file__).resolve().parents[2]
 def test_release_package_is_self_contained_and_reproducible(tmp_path):
     builder = ROOT / 'scripts' / 'build_release.py'
     subprocess.run([sys.executable, str(builder), '--output-dir', str(tmp_path)], cwd=ROOT, check=True)
-    package = tmp_path / 'Paramood-1.0.0.zip'
-    checksum = tmp_path / 'Paramood-1.0.0.zip.sha256'
+    package = tmp_path / 'Paramood-1.2.0.zip'
+    checksum = tmp_path / 'Paramood-1.2.0.zip.sha256'
     data = package.read_bytes()
     assert checksum.read_text().split()[0] == hashlib.sha256(data).hexdigest()
     with zipfile.ZipFile(package) as archive:
@@ -24,7 +24,7 @@ def test_release_package_is_self_contained_and_reproducible(tmp_path):
         assert any(name.startswith('Paramood/frontend/dist/assets/') and name.endswith('.js') for name in names)
         assert not any('__pycache__' in name or 'node_modules' in name for name in names)
         manifest = json.loads(archive.read('Paramood/Paramood.manifest'))
-        assert manifest['version'] == '1.0.0'
+        assert manifest['version'] == '1.2.0'
         assert manifest['supportedOS'] == 'windows|mac'
     subprocess.run([sys.executable, str(builder), '--output-dir', str(tmp_path)], cwd=ROOT, check=True)
     assert package.read_bytes() == data
@@ -35,7 +35,7 @@ def test_packaged_addin_imports_under_its_release_name(tmp_path, monkeypatch):
     import types
 
     subprocess.run([sys.executable, str(ROOT / 'scripts/build_release.py'), '--output-dir', str(tmp_path)], cwd=ROOT, check=True)
-    with zipfile.ZipFile(tmp_path / 'Paramood-1.0.0.zip') as archive:
+    with zipfile.ZipFile(tmp_path / 'Paramood-1.2.0.zip') as archive:
         archive.extractall(tmp_path)
     adsk = types.ModuleType('adsk')
     core = types.ModuleType('adsk.core')
@@ -47,6 +47,9 @@ def test_packaged_addin_imports_under_its_release_name(tmp_path, monkeypatch):
     adsk.core, adsk.fusion = core, fusion
     for name, module in [('adsk', adsk), ('adsk.core', core), ('adsk.fusion', fusion)]:
         monkeypatch.setitem(sys.modules, name, module)
+    for name in list(sys.modules):
+        if name == 'Paramood' or name.startswith('Paramood.'):
+            monkeypatch.delitem(sys.modules, name, raising=False)
     monkeypatch.syspath_prepend(str(tmp_path))
     module = importlib.import_module('Paramood.Paramood')
     assert module.FusionAdapter.__module__ == 'Paramood.fusion.adapter'
@@ -54,7 +57,7 @@ def test_packaged_addin_imports_under_its_release_name(tmp_path, monkeypatch):
 
 
 def test_release_version_override_is_packaged_without_changing_source(tmp_path):
-    source = ROOT / 'ParaMod/ParaMod.manifest'
+    source = ROOT / 'Paramood/Paramood.manifest'
     original = source.read_bytes()
     subprocess.run([sys.executable, str(ROOT / 'scripts/build_release.py'), '--output-dir', str(tmp_path), '--version', '1.2.3'], cwd=ROOT, check=True)
     with zipfile.ZipFile(tmp_path / 'Paramood-1.2.3.zip') as archive:

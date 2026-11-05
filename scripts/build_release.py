@@ -8,12 +8,12 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / 'ParaMod'
+SOURCE = ROOT / 'Paramood'
 FRONTEND = ROOT / 'frontend' / 'dist'
 
 
 def build(output_dir: Path, version_override: str = None) -> Path:
-    manifest = json.loads((SOURCE / 'ParaMod.manifest').read_text(encoding='utf-8'))
+    manifest = json.loads((SOURCE / 'Paramood.manifest').read_text(encoding='utf-8'))
     version = version_override if version_override is not None else manifest.get('version', '')
     if not re.fullmatch(r'\d+\.\d+\.\d+', version):
         raise ValueError('Manifest version must be a stable semantic version')
@@ -30,8 +30,6 @@ def build(output_dir: Path, version_override: str = None) -> Path:
     for path in SOURCE.rglob('*.py'):
         if '__pycache__' not in path.parts:
             relative = path.relative_to(SOURCE).as_posix()
-            if relative == 'ParaMod.py':
-                relative = 'Paramood.py'
             files['Paramood/' + relative] = path.read_bytes()
     manifest['version'] = version
     files['Paramood/Paramood.manifest'] = (json.dumps(manifest, ensure_ascii=False, indent=2) + '\n').encode('utf-8')

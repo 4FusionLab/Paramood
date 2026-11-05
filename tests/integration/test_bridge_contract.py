@@ -1,4 +1,4 @@
-from ParaMod.bridge.protocol import dispatch
+from Paramood.bridge.protocol import dispatch
 
 
 class FakeAdapter:

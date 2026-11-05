@@ -1,5 +1,5 @@
-from ParaMod.bridge.formatting import display_quantity
-from ParaMod.core.expressions import Quantity, LENGTH, ANGLE
+from Paramood.bridge.formatting import display_quantity
+from Paramood.core.expressions import Quantity, LENGTH, ANGLE
 
 
 def test_preview_converts_mm_to_inches():
@@ -12,7 +12,7 @@ def test_preview_converts_radians_to_degrees():
 
 
 def test_unitless_value_is_unchanged():
-    from ParaMod.core.expressions import SCALAR
+    from Paramood.core.expressions import SCALAR
     assert display_quantity(Quantity(5, SCALAR), '') == 5
 
 

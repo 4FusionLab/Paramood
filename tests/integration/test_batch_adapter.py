@@ -17,10 +17,10 @@ def adapter_module(monkeypatch):
     adsk.core, adsk.fusion = core, fusion
     for name, module in [('adsk', adsk), ('adsk.core', core), ('adsk.fusion', fusion)]:
         monkeypatch.setitem(sys.modules, name, module)
-    sys.modules.pop('ParaMod.fusion.adapter', None)
-    module = importlib.import_module('ParaMod.fusion.adapter')
+    sys.modules.pop('Paramood.fusion.adapter', None)
+    module = importlib.import_module('Paramood.fusion.adapter')
     yield module
-    sys.modules.pop('ParaMod.fusion.adapter', None)
+    sys.modules.pop('Paramood.fusion.adapter', None)
 
 
 class Parameters:
@@ -341,7 +341,7 @@ def test_dependency_snapshot_rejects_text_or_unsupported_units(adapter_module):
 
 
 def test_dependency_snapshot_feeds_update_planner_and_catches_cycle(adapter_module):
-    from ParaMod.core.expressions import ExpressionError, plan_batch_snapshot
+    from Paramood.core.expressions import ExpressionError, plan_batch_snapshot
     adapter, params = make_adapter(adapter_module)
     adapter_module.adsk.fusion.ParameterValueTypes = SimpleNamespace(NumericParameterValueType=0)
     a = SimpleNamespace(name='a', expression='10 mm', unit='mm', value=1.0, valueType=0)

@@ -28,7 +28,7 @@ The package targets **Windows and macOS**. CI tests run on both; interactive Fus
 
 ## Scope and limitations
 
-Paramood works with the current Fusion design. It accepts a conservative subset of expressions and units and rejects unsupported cases. Changes are previewed and revalidated before application; external components are not edited. A model feature can report an error after a parameter change, as with Fusion's native parameter editor. Parameter cleanup is not available in 1.0.0.
+Paramood works with the current Fusion design. It accepts a conservative subset of expressions and units and rejects unsupported cases. Changes are previewed and revalidated before application; external components are not edited. A model feature can report an error after a parameter change, as with Fusion's native parameter editor. Parameter cleanup is not available in 1.2.0.
 
 ## Development
 
@@ -43,12 +43,12 @@ npm test
 npm run build
 cd ..
 python -m pip install pytest ruff
-python -m ruff check ParaMod scripts tests
+python -m ruff check Paramood scripts tests
 python -m pytest -q
 python scripts/build_release.py
 ```
 
-The resulting `dist/Paramood-1.0.0.zip` includes the built interface and a SHA-256 checksum alongside it. CI publishes a release after each push to `main` once all checks pass. GitVersion derives the version from tags and Conventional Commit messages; the CI-generated version is embedded in the packaged manifest.
+The resulting `dist/Paramood-1.2.0.zip` includes the built interface and a SHA-256 checksum alongside it. CI publishes a release after each push to `main` once all checks pass. GitVersion derives the version from tags and Conventional Commit messages; the CI-generated version is embedded in the packaged manifest.
 
 ## The 4FusionLab family
 

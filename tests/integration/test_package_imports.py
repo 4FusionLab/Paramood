@@ -1,4 +1,4 @@
-"""Fusion loads ParaMod as a package; unrelated add-ins may own common names."""
+"""Fusion loads Paramood as a package; unrelated add-ins may own common names."""
 import importlib
 import sys
 import types
@@ -16,8 +16,8 @@ def test_fusion_entry_import_ignores_other_addins_common_module_names(monkeypatc
     for name in ('core', 'bridge', 'fusion'):
         monkeypatch.setitem(sys.modules, name, types.ModuleType(name))
     try:
-        module = importlib.import_module('ParaMod.ParaMod')
-        assert module.FusionAdapter.__module__ == 'ParaMod.fusion.adapter'
+        module = importlib.import_module('Paramood.Paramood')
+        assert module.FusionAdapter.__module__ == 'Paramood.fusion.adapter'
     finally:
-        sys.modules.pop('ParaMod.ParaMod', None)
-        sys.modules.pop('ParaMod.fusion.adapter', None)
+        sys.modules.pop('Paramood.Paramood', None)
+        sys.modules.pop('Paramood.fusion.adapter', None)

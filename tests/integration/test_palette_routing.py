@@ -18,12 +18,12 @@ def entry(monkeypatch):
     adsk.core, adsk.fusion = core, fusion
     for name, value in [('adsk', adsk), ('adsk.core', core), ('adsk.fusion', fusion)]:
         monkeypatch.setitem(sys.modules, name, value)
-    sys.modules.pop('ParaMod.ParaMod', None)
-    sys.modules.pop('ParaMod.fusion.adapter', None)
-    module = importlib.import_module('ParaMod.ParaMod')
+    sys.modules.pop('Paramood.Paramood', None)
+    sys.modules.pop('Paramood.fusion.adapter', None)
+    module = importlib.import_module('Paramood.Paramood')
     yield module
-    sys.modules.pop('ParaMod.ParaMod', None)
-    sys.modules.pop('ParaMod.fusion.adapter', None)
+    sys.modules.pop('Paramood.Paramood', None)
+    sys.modules.pop('Paramood.fusion.adapter', None)
 
 
 def test_reply_reaches_only_origin_and_notifications_go_to_all(entry):
@@ -223,7 +223,7 @@ def test_external_command_end_refreshes_palette_without_invalidating_document(en
     assert events == [('state.changed', {})]
     events.clear()
     entry.ExternalCommandEnded().notify(SimpleNamespace(commandId='SelectCommand'))
-    entry.ExternalCommandEnded().notify(SimpleNamespace(commandId='ParaModApply'))
+    entry.ExternalCommandEnded().notify(SimpleNamespace(commandId='ParamoodApply'))
     assert events == []
 
 

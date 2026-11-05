@@ -112,7 +112,7 @@ class HtmlHandler(adsk.core.HTMLEventHandler):
                 else:
                     _pending = message
                     _pending_palette = self.mode
-                    if not _ui.commandDefinitions.itemById('ParaModApply').execute():
+                    if not _ui.commandDefinitions.itemById('ParamoodApply').execute():
                         _pending = None
                         _pending_palette = None
                         _send(self.mode, 'response', {'requestId': message.get('requestId'), 'ok': False,
@@ -175,7 +175,7 @@ class ApplyCreated(adsk.core.CommandCreatedEventHandler):
         _listen(args.command.destroy, ApplyDestroy())
 
 
-_PALETTE_IDS = {'parameters': 'ParaModParameters', 'cleanup': 'ParaModCleanupPalette'}
+_PALETTE_IDS = {'parameters': 'ParamoodParameters', 'cleanup': 'ParamoodCleanupPalette'}
 _TITLES = {'parameters': 'Paramood', 'cleanup': 'Paramood-Cleanup'}
 
 
@@ -196,7 +196,7 @@ def _show_palette(mode):
         sibling = os.path.join(os.path.dirname(__file__), '..', 'frontend', 'dist', 'index.html')
         html = os.path.abspath(embedded if os.path.isfile(embedded) else sibling)
         if not os.path.isfile(html):
-            raise RuntimeError('Build frontend before starting ParaMod.')
+            raise RuntimeError('Build frontend before starting Paramood.')
         palette = _ui.palettes.add(_PALETTE_IDS[mode], _TITLES[mode], Path(html).as_uri() + '#' + mode,
                                    False, mode == 'cleanup', True, 359 if mode == 'cleanup' else 360,
                                    449 if mode == 'cleanup' else 260, True)
@@ -221,7 +221,7 @@ def _show_palette(mode):
                 snapped = False
             if not snapped:
                 palette.dockingState = adsk.core.PaletteDockingStates.PaletteDockStateLeft
-                _app.log('ParaMod: snap to Comments unavailable; docked to the left edge.')
+                _app.log('Paramood: snap to Comments unavailable; docked to the left edge.')
     else:
         _palettes[mode] = palette
     palette.isVisible = True
@@ -287,7 +287,7 @@ class DocumentActivated(adsk.core.DocumentEventHandler):
 
 class ExternalCommandEnded(adsk.core.ApplicationCommandEventHandler):
     def notify(self, args):
-        if args.commandId not in ('SelectCommand', 'ParaModApply'):
+        if args.commandId not in ('SelectCommand', 'ParamoodApply'):
             _broadcast('state.changed', {})
 
 
@@ -307,18 +307,18 @@ def run(context):
         _app = adsk.core.Application.get()
         _ui = _app.userInterface
         _adapter = FusionAdapter(_app)
-        _definition('ParaModApply', 'Apply ParaMod Parameter', ApplyCreated())
-        show = _definition('ParaModShow', 'Paramood', ShowCreated('parameters'))
+        _definition('ParamoodApply', 'Apply Paramood Parameter', ApplyCreated())
+        show = _definition('ParamoodShow', 'Paramood', ShowCreated('parameters'))
         panel = _ui.allToolbarPanels.itemById('SolidScriptsAddinsPanel')
         if panel:
-            control = panel.controls.itemById('ParaModShow')
+            control = panel.controls.itemById('ParamoodShow')
             if control:
                 control.deleteMe()
             _controls.append(panel.controls.addCommand(show))
-            old_calculator = panel.controls.itemById('ParaModCalculator')
+            old_calculator = panel.controls.itemById('ParamoodCalculator')
             if old_calculator:
                 old_calculator.deleteMe()
-            old_cleanup = panel.controls.itemById('ParaModCleanup')
+            old_cleanup = panel.controls.itemById('ParamoodCleanup')
             if old_cleanup:
                 old_cleanup.deleteMe()
         _listen(_app.documentActivated, DocumentActivated())

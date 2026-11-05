@@ -671,7 +671,7 @@ export function App() {
       )}
       {mode === 'cleanup' && (
         <div id="cleanup-section">
-          <Section title="Paramod-Cleanup">
+          <Section title="Paramood-Cleanup">
             <p class="helper">Analyze current parameters. Deletion is not available yet.</p>
             <button disabled={!available || busy} onClick={() => void analyze()}>
               Analyze parameters
@@ -748,7 +748,9 @@ export function App() {
         <div class="overlay">
           <div role="dialog" aria-modal="true" aria-labelledby="replace-title" class="dialog">
             <h2 id="replace-title">Replace your current input?</h2>
-            <p>Paramod already contains text. Replace it with the expression from Paramod-Calc?</p>
+            <p>
+              Paramood already contains text. Replace it with the expression from Paramood-Calc?
+            </p>
             <div class="actions">
               <button onClick={() => setConfirmPrefill(null)}>Keep current input</button>
               <button
