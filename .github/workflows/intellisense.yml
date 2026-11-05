@@ -1,0 +1,28 @@
+name: IntelliSense core tests
+
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'package.json'
+      - '.github/workflows/intellisense.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'package.json'
+      - '.github/workflows/intellisense.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test
