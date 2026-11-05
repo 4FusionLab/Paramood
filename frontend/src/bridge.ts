@@ -4,6 +4,10 @@ export interface Parameter {
   value: string | number;
   unit: string;
   comment?: string;
+  kind?: 'user' | 'model';
+  linked?: boolean;
+  bindings?: ('sketch' | 'feature' | 'other' | 'unknown')[];
+  entityToken?: string;
 }
 export interface ModelState {
   draftId?: string;

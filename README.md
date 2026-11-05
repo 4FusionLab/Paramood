@@ -48,7 +48,7 @@ python -m pytest -q
 python scripts/build_release.py
 ```
 
-The resulting `dist/Paramood-1.0.0.zip` includes the built interface and a SHA-256 checksum alongside it. CI publishes releases when a matching `v*` tag passes all checks.
+The resulting `dist/Paramood-1.0.0.zip` includes the built interface and a SHA-256 checksum alongside it. CI publishes a release after each push to `main` once all checks pass. GitVersion derives the version from tags and Conventional Commit messages; the CI-generated version is embedded in the packaged manifest.
 
 ## The 4FusionLab family
 

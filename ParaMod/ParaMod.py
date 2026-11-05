@@ -1,4 +1,4 @@
-"""Fusion entry point. Model changes run only in a command execute event."""
+"""Fusion entry point. All model changes run on Fusion's main thread."""
 import json
 import os
 from pathlib import Path
@@ -93,11 +93,22 @@ class HtmlHandler(adsk.core.HTMLEventHandler):
                             _send('parameters', 'parameters.prefill', _pending_prefill)
                     _send(self.mode, 'response', {'requestId': request_id, 'ok': True,
                           'data': {}, 'documentId': _adapter.document_id})
-            elif action == 'parameters.apply':
-                if _pending is not None or _ui.activeCommand != 'SelectCommand':
+            elif action in ('parameters.apply', 'parameters.delete'):
+                active_command = _ui.activeCommand
+                if _pending is not None:
                     _send(self.mode, 'response', {'requestId': message.get('requestId'), 'ok': False,
-                          'error': {'code': 'BUSY', 'message': 'Finish the active Fusion command before applying changes.'},
+                          'error': {'code': 'BUSY', 'message': 'Wait for the previous parameter operation to finish.'},
                           'documentId': _adapter.document_id})
+                elif active_command != 'SelectCommand' or _adapter.is_sketch_edit():
+                    _pending = message
+                    _adapter.in_direct_apply = True
+                    try:
+                        result = dispatch(_adapter, message)
+                    finally:
+                        _adapter.in_direct_apply = False
+                        _pending = None
+                    _send(self.mode, 'response', result)
+                    _broadcast('state.changed', {})
                 else:
                     _pending = message
                     _pending_palette = self.mode

@@ -37,6 +37,63 @@ def test_reply_reaches_only_origin_and_notifications_go_to_all(entry):
                     ('parameters', 'state.changed', {}), ('calculator', 'state.changed', {})]
 
 
+@pytest.mark.parametrize(('command', 'sketch'), [
+    ('SketchDimension', True), ('Extrude', False), ('Fillet', False), ('SelectCommand', True),
+])
+@pytest.mark.parametrize('success', [True, False])
+def test_apply_in_active_context_dispatches_without_starting_command(entry, monkeypatch, command, sketch, success):
+    sent = []
+    definitions = SimpleNamespace(itemById=lambda _id: pytest.fail('Must not start another command'))
+    monkeypatch.setattr(entry, '_ui', SimpleNamespace(activeCommand=command, commandDefinitions=definitions))
+    adapter = SimpleNamespace(document_id='doc', in_direct_apply=False, is_sketch_edit=lambda: sketch)
+    monkeypatch.setattr(entry, '_adapter', adapter)
+    monkeypatch.setattr(entry, '_pending', None)
+    monkeypatch.setattr(entry, '_send', lambda mode, action, data: sent.append((mode, action, data)))
+    monkeypatch.setattr(entry, '_broadcast', lambda action, data: sent.append(('all', action, data)))
+    def dispatch(a, message):
+        assert a.in_direct_apply
+        assert entry._pending == message
+        return {'requestId': 'r', 'ok': success}
+    monkeypatch.setattr(entry, 'dispatch', dispatch)
+    args = SimpleNamespace(action='request', data=json.dumps({'requestId': 'r', 'action': 'parameters.apply'}),
+                           returnData='')
+    entry.HtmlHandler('parameters').notify(args)
+    assert args.returnData == 'OK'
+    assert sent == [('parameters', 'response', {'requestId': 'r', 'ok': success}),
+                    ('all', 'state.changed', {})]
+    assert entry._pending is None
+    assert not adapter.in_direct_apply
+
+
+def test_apply_reports_pending_request_separately(entry, monkeypatch):
+    sent = []
+    monkeypatch.setattr(entry, '_ui', SimpleNamespace(activeCommand='SelectCommand'))
+    monkeypatch.setattr(entry, '_adapter', SimpleNamespace(document_id='doc'))
+    monkeypatch.setattr(entry, '_pending', {'requestId': 'previous'})
+    monkeypatch.setattr(entry, '_send', lambda mode, action, data: sent.append(data))
+    args = SimpleNamespace(action='request', data=json.dumps({'requestId': 'r', 'action': 'parameters.apply'}),
+                           returnData='')
+    entry.HtmlHandler('parameters').notify(args)
+    assert 'previous parameter operation' in sent[0]['error']['message']
+    assert entry._pending == {'requestId': 'previous'}
+
+
+def test_idle_apply_starts_transactional_command(entry, monkeypatch):
+    started = []
+    definition = SimpleNamespace(execute=lambda: started.append(True) or True)
+    monkeypatch.setattr(entry, '_ui', SimpleNamespace(
+        activeCommand='SelectCommand', commandDefinitions=SimpleNamespace(itemById=lambda _id: definition)))
+    monkeypatch.setattr(entry, '_adapter', SimpleNamespace(is_sketch_edit=lambda: False))
+    monkeypatch.setattr(entry, '_pending', None)
+    monkeypatch.setattr(entry, '_pending_palette', None)
+    args = SimpleNamespace(action='request', data=json.dumps({'requestId': 'r', 'action': 'parameters.apply'}),
+                           returnData='')
+    entry.HtmlHandler('parameters').notify(args)
+    assert started == [True]
+    assert entry._pending['requestId'] == 'r'
+    assert entry._pending_palette == 'parameters'
+
+
 def test_same_request_id_routes_to_origin(entry, monkeypatch):
     sent = []
     def palette(name):

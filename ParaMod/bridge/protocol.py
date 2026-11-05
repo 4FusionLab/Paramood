@@ -16,7 +16,7 @@ def dispatch(adapter, message):
         payload = message.get('payload', {})
         if not isinstance(payload, dict):
             raise BridgeError('BAD_REQUEST', 'Payload must be an object.')
-        if action not in {'state.get', 'parameters.preview', 'parameters.apply', 'calculator.evaluate', 'cleanup.analyze', 'cleanup.delete'}:
+        if action not in {'state.get', 'parameters.preview', 'parameters.apply', 'parameters.delete', 'calculator.evaluate', 'cleanup.analyze', 'cleanup.delete'}:
             raise BridgeError('BAD_REQUEST', 'Unknown action.')
         if action != 'state.get':
             if not adapter.document_id:

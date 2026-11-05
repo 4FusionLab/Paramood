@@ -245,3 +245,111 @@ describe('separate palette views', () => {
     expect(host.querySelector('.cm-content')).toBeTruthy();
   });
 });
+
+it('applies an inline edit on Enter with a checked snapshot and no preview controls', async () => {
+  const calls: { action: string; payload: Record<string, unknown> }[] = [];
+  window.adsk = {
+    fusionSendData: (_action, raw) => {
+      const data = JSON.parse(raw);
+      calls.push(data);
+      const response =
+        data.action === 'state.get'
+          ? {
+              documentId: 'doc',
+              documentName: 'Design',
+              parameters: [
+                { name: 'width', expression: '10 mm', value: '10 mm', unit: 'mm', kind: 'user' },
+              ],
+            }
+          : data.action === 'parameters.preview'
+            ? {
+                valid: true,
+                snapshotToken: 'token',
+                items: [{ name: 'width', status: 'Update', value: 20, unit: 'mm' }],
+              }
+            : {};
+      window.fusionJavaScriptHandler!.handle(
+        'response',
+        JSON.stringify({ requestId: data.requestId, documentId: 'doc', ok: true, data: response }),
+      );
+    },
+  };
+  host = document.createElement('div');
+  document.body.appendChild(host);
+  act(() => render(<App />, host));
+  await vi.waitFor(() => expect(host.textContent).toContain('Design'));
+  act(() => host.querySelector<HTMLButtonElement>('[aria-label="Parameter list"]')!.click());
+  act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit value width"]')!.click());
+  const input = host.querySelector<HTMLInputElement>('[aria-label="Expression for width"]')!;
+  expect(input.closest('.tree-row')?.textContent).toContain('width');
+  expect(input.value).toBe('10');
+  expect(document.activeElement).toBe(input);
+  expect(input.selectionStart).toBe(0);
+  expect(input.selectionEnd).toBe(input.value.length);
+  expect(input.closest('.tree-row')?.querySelector('.tree-unit')?.textContent).toBe('mm');
+  act(() => {
+    input.value = '20';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  expect(host.textContent).not.toContain('Preview');
+  act(() => {
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  });
+  await vi.waitFor(() => expect(calls.some((c) => c.action === 'parameters.apply')).toBe(true));
+  expect(calls.find((c) => c.action === 'parameters.preview')?.payload.text).toBe('width=20 mm');
+  expect(calls.find((c) => c.action === 'parameters.apply')?.payload).toEqual({
+    text: 'width=20 mm',
+    snapshotToken: 'token',
+  });
+});
+
+it('shows the Fusion error when deleting a parameter is refused', async () => {
+  let deleted = false;
+  window.adsk = {
+    fusionSendData: (_action, raw) => {
+      const data = JSON.parse(raw);
+      if (data.action === 'parameters.delete') {
+        deleted = data.payload.name === 'width' && data.payload.entityToken === 'identity';
+        window.fusionJavaScriptHandler!.handle(
+          'response',
+          JSON.stringify({
+            requestId: data.requestId,
+            documentId: 'doc',
+            ok: false,
+            error: { code: 'DELETE_FAILED', message: 'Fusion refused deletion' },
+          }),
+        );
+      } else {
+        window.fusionJavaScriptHandler!.handle(
+          'response',
+          JSON.stringify({
+            requestId: data.requestId,
+            documentId: 'doc',
+            ok: true,
+            data: {
+              documentId: 'doc',
+              documentName: 'Design',
+              parameters: [
+                {
+                  name: 'width',
+                  expression: '10 mm',
+                  value: '10 mm',
+                  unit: 'mm',
+                  kind: 'user',
+                  entityToken: 'identity',
+                },
+              ],
+            },
+          }),
+        );
+      }
+    },
+  };
+  host = document.createElement('div');
+  document.body.appendChild(host);
+  act(() => render(<App />, host));
+  await vi.waitFor(() => expect(host.textContent).toContain('Design'));
+  act(() => host.querySelector<HTMLButtonElement>('[aria-label="Delete width"]')!.click());
+  await vi.waitFor(() => expect(host.textContent).toContain('Fusion refused deletion'));
+  expect(deleted).toBe(true);
+});

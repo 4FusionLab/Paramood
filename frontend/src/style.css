@@ -490,3 +490,122 @@ kbd {
     'Segoe UI',
     sans-serif;
 }
+.view-tabs {
+  display: flex;
+  gap: 2px;
+  margin-left: 6px;
+}
+.view-tabs .active {
+  color: var(--accent);
+  background: var(--surface);
+}
+.palette-layout .list-pane {
+  display: none;
+}
+.palette-layout.view-list .editor-pane {
+  display: none;
+}
+.palette-layout.view-list .list-pane {
+  display: block;
+}
+.tree-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 4px;
+  min-height: 25px;
+}
+.tree-toggle {
+  padding: 2px;
+}
+.tree-spacer {
+  width: 18px;
+  flex: 0 0 18px;
+}
+.tree-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tree-value {
+  margin-left: auto;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tree-children {
+  margin-left: 14px;
+  border-left: 1px solid var(--border);
+}
+.model-parameters {
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+@media (min-width: 640px) {
+  .view-tabs {
+    display: none;
+  }
+  .palette-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .palette-layout.view-list .editor-pane,
+  .palette-layout .list-pane {
+    display: block;
+  }
+  .list-pane {
+    border-left: 1px solid var(--border);
+  }
+}
+/* Inline expression editing stays attached to its parameter row. */
+.tree-value {
+  border: 0;
+  background: transparent;
+  padding: 3px 4px;
+  text-align: right;
+  min-width: 0;
+}
+.parameter-edit {
+  margin-left: auto;
+  width: 76px;
+  min-width: 0;
+  padding: 3px 4px;
+  text-align: right;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+}
+@media (min-width: 640px) {
+  #app,
+  main {
+    height: 100%;
+  }
+  main {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .context,
+  .alert,
+  .notice {
+    flex: none;
+  }
+  .palette-layout {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .editor-pane,
+  .list-pane {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+.tree-unit {
+  flex: 0 0 28px;
+  color: var(--muted);
+  white-space: nowrap;
+}

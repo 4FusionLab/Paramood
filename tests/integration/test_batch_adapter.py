@@ -13,6 +13,7 @@ def adapter_module(monkeypatch):
     fusion = types.ModuleType('adsk.fusion')
     core.ValueInput = SimpleNamespace(createByString=lambda s: s)
     fusion.Design = SimpleNamespace(cast=lambda p: p)
+    fusion.ModelParameter = SimpleNamespace(cast=lambda p: None)
     adsk.core, adsk.fusion = core, fusion
     for name, module in [('adsk', adsk), ('adsk.core', core), ('adsk.fusion', fusion)]:
         monkeypatch.setitem(sys.modules, name, module)
@@ -105,6 +106,143 @@ def test_changed_model_after_preview_rejected_before_first_write(adapter_module)
         adapter.request('parameters.apply', {'text': text, 'snapshotToken': token})
     assert error.value.code == 'STALE_PREVIEW'
     assert params.log == []
+
+
+def test_direct_apply_creates_one_parameter_without_command(adapter_module):
+    adapter, params = make_adapter(adapter_module)
+    adapter.in_command = False
+    adapter.in_direct_apply = True
+    preview = adapter.request('parameters.preview', {'text': 'width=15'})
+    result = adapter.request('parameters.apply', {'text': 'width=15', 'snapshotToken': preview['snapshotToken']})
+    assert result == {'created': ['width'], 'updated': []}
+    assert params.entries['width'].expression == '15 mm'
+
+
+def test_direct_apply_rejects_stale_preview_before_write(adapter_module):
+    adapter, params = make_adapter(adapter_module)
+    adapter.in_command = False
+    adapter.in_direct_apply = True
+    preview = adapter.request('parameters.preview', {'text': 'width=15'})
+    params.entries['other'] = SimpleNamespace(name='other', expression='10 mm', unit='mm', value=1.0)
+    with pytest.raises(adapter_module.BridgeError) as error:
+        adapter.request('parameters.apply', {'text': 'width=15', 'snapshotToken': preview['snapshotToken']})
+    assert error.value.code == 'STALE_PREVIEW'
+    assert not params.log
+
+
+def test_sketch_edit_detection_fails_safe(adapter_module):
+    adapter, _ = make_adapter(adapter_module)
+    sketch = object()
+    adapter_module.adsk.fusion.Sketch = SimpleNamespace(cast=lambda target: target if target is sketch else None)
+    adapter.app.activeEditObject = sketch
+    assert adapter.is_sketch_edit()
+    adapter.app.activeEditObject = object()
+    assert not adapter.is_sketch_edit()
+    del adapter.app.activeEditObject
+    assert adapter.is_sketch_edit()
+
+
+def test_direct_apply_creates_batch_in_dependency_order(adapter_module):
+    adapter, params = make_adapter(adapter_module)
+    adapter.in_command = False
+    adapter.in_direct_apply = True
+    text = 'width=height/2;height=10'
+    preview = adapter.request('parameters.preview', {'text': text})
+    # The fake API evaluates this dependent expression to 5 mm.
+    original_add = params.add
+    def add(name, expression, unit, comment):
+        parameter = original_add(name, expression, unit, comment)
+        if expression == 'height/2':
+            parameter.value = 0.5
+        return parameter
+    params.add = add
+    result = adapter.request('parameters.apply', {'text': text, 'snapshotToken': preview['snapshotToken']})
+    assert result['created'] == ['height', 'width']
+    assert params.entries['width'].expression == 'height/2'
+
+
+def test_direct_batch_reports_confirmed_changes_after_later_failure(adapter_module):
+    adapter, params = make_adapter(adapter_module)
+    adapter.in_command = False
+    adapter.in_direct_apply = True
+    text = 'width=15;height=min(1,2)'
+    preview = adapter.request('parameters.preview', {'text': text})
+    with pytest.raises(adapter_module.BridgeError) as error:
+        adapter.request('parameters.apply', {'text': text, 'snapshotToken': preview['snapshotToken']})
+    assert error.value.code == 'DIRECT_PARTIAL'
+    assert 'width' in str(error.value) and 'height may also have changed' in str(error.value)
+    assert 'width' in params.entries and 'height' not in params.entries
+
+
+def test_direct_mixed_batch_updates_then_creates(adapter_module):
+    adapter, params = make_adapter(adapter_module)
+    class Editable:
+        name, unit = 'width', 'mm'
+        value = 1.0
+        _expression = '10 mm'
+        @property
+        def expression(self):
+            return self._expression
+        @expression.setter
+        def expression(self, value):
+            self._expression = value
+            self.value = 1.5
+    params.entries['width'] = Editable()
+    ops = [SimpleNamespace(name='width', status='Update', expression='15 mm', unit='mm',
+                           quantity=adapter_module.Quantity(15, adapter_module.LENGTH)),
+           SimpleNamespace(name='height', status='New', expression='10 mm', unit='mm',
+                           quantity=adapter_module.Quantity(10, adapter_module.LENGTH))]
+    assert adapter._execute_direct_batch(adapter._design(), ops) == {
+        'created': ['height'], 'updated': ['width']}
+    assert params.entries['width'].expression == '15 mm'
+    assert params.entries['height'].expression == '10 mm'
+
+
+def test_direct_apply_failure_does_not_claim_rollback(adapter_module):
+    adapter, params = make_adapter(adapter_module)
+    adapter.in_command = False
+    adapter.in_direct_apply = True
+    preview = adapter.request('parameters.preview', {'text': 'width=15'})
+    original_add = params.add
+    def wrong_value(*args):
+        result = original_add(*args)
+        result.value = 99
+        return result
+    params.add = wrong_value
+    with pytest.raises(adapter_module.BridgeError) as error:
+        adapter.request('parameters.apply', {'text': 'width=15', 'snapshotToken': preview['snapshotToken']})
+    assert error.value.code == 'DIRECT_APPLY_FAILED'
+    assert 'Refresh' in str(error.value)
+    assert 'width' in params.entries
+
+
+@pytest.mark.parametrize('succeeds', [True, False])
+def test_direct_update_batch_uses_atomic_fusion_method(adapter_module, succeeds):
+    adapter, params = make_adapter(adapter_module)
+    design = adapter._design()
+    for name in ('width', 'height'):
+        params.entries[name] = SimpleNamespace(name=name, expression='10 mm', unit='mm', value=1.0)
+    def modify(parameters, values):
+        params.log.append(('modify', list(values)))
+        if succeeds:
+            for parameter, value in zip(parameters, values):
+                parameter.expression = value
+                parameter.value = {'15 mm': 1.5, '10 mm': 1.0}[value]
+        return succeeds
+    design.modifyParameters = modify
+    ops = [SimpleNamespace(name='width', status='Update', expression='15 mm',
+                           quantity=adapter_module.Quantity(15, adapter_module.LENGTH)),
+           SimpleNamespace(name='height', status='Update', expression='10 mm',
+                           quantity=adapter_module.Quantity(10, adapter_module.LENGTH))]
+    if succeeds:
+        assert adapter._execute_direct_batch(design, ops) == {'created': [], 'updated': ['width', 'height']}
+        assert params.entries['width'].expression == '15 mm'
+    else:
+        with pytest.raises(adapter_module.BridgeError) as error:
+            adapter._execute_direct_batch(design, ops)
+        assert error.value.code == 'UPDATE_FAILED'
+        assert params.entries['width'].expression == '10 mm'
+    assert [item[0] for item in params.log] == ['validate', 'validate', 'modify']
 
 
 def test_fusion_result_different_from_preview_aborts(adapter_module):
@@ -259,15 +397,28 @@ def test_existing_user_parameter_preview_and_update(adapter_module):
     assert params.entries['width'].expression == '20 mm'
 
 
-def test_update_cannot_modify_model_parameter(adapter_module):
+def test_update_model_parameter_through_preview_and_apply(adapter_module):
     adapter, params = make_adapter(adapter_module)
     adapter_module.adsk.fusion.ParameterValueTypes = SimpleNamespace(NumericParameterValueType=0)
-    params.entries['model_width'] = SimpleNamespace(name='model_width', expression='10 mm', unit='mm', value=1.0,
-                                                    valueType=0, dependencyParameters=[], dependentParameters=[])
+    class ModelParameter:
+        name, unit, valueType = 'model_width', 'mm', 0
+        dependencyParameters, dependentParameters = [], []
+        def __init__(self):
+            self._expression, self.value = '10 mm', 1.0
+        @property
+        def expression(self):
+            return self._expression
+        @expression.setter
+        def expression(self, expression):
+            self._expression, self.value = expression, 2.0
+    param = ModelParameter()
+    adapter_module.adsk.fusion.ModelParameter = SimpleNamespace(cast=lambda p: p if isinstance(p, ModelParameter) else None)
+    params.entries['model_width'] = param
     adapter.app.activeProduct.userParameters = Parameters()
-    with pytest.raises(adapter_module.BridgeError):
-        adapter.request('parameters.preview', {'text': 'model_width=20'})
-    assert params.entries['model_width'].expression == '10 mm'
+    preview = adapter.request('parameters.preview', {'text': 'model_width=20'})
+    result = adapter.request('parameters.apply', {'text': 'model_width=20', 'snapshotToken': preview['snapshotToken']})
+    assert result['updated'] == ['model_width']
+    assert param.expression == '20 mm'
 
 
 def test_update_parameter_used_by_geometry_even_if_feature_reports_error(adapter_module):
@@ -509,7 +660,7 @@ def test_dotted_model_parameter_is_not_mistaken_for_new_parameter(adapter_module
     adapter, params = make_adapter(adapter_module)
     params.entries['box_size'] = SimpleNamespace(name='box_size', expression='10 mm', unit='mm', value=1.0)
     adapter.app.activeProduct.userParameters = Parameters()
-    with pytest.raises(adapter_module.BridgeError, match='Only user parameters'):
+    with pytest.raises(adapter_module.BridgeError, match='cannot be updated'):
         adapter.request('parameters.preview', {'text': 'box.size=25'})
 
 
@@ -560,3 +711,92 @@ def test_relative_update_rejects_snapshot_changed_since_preview(adapter_module):
     with pytest.raises(adapter_module.BridgeError, match='design changed'):
         adapter.request('parameters.apply', payload)
     assert params.entries['width'].expression == '20 mm'
+
+
+def test_state_classifies_parameters_and_marks_model_dependents(adapter_module):
+    adapter, params = make_adapter(adapter_module)
+    user = SimpleNamespace(name='width', expression='10 mm', unit='mm', value=1, comment='', dependentParameters=[])
+    model = SimpleNamespace(name='d12', expression='width', unit='mm', value=1, comment='', dependentParameters=[], createdBy=SimpleNamespace(objectType='adsk::fusion::Sketch'))
+    user.dependentParameters = [model]
+    params.entries = {'width': user, 'd12': model}
+    design = adapter._design()
+    design.userParameters = SimpleNamespace(itemByName=lambda name: user if name == 'width' else None)
+    design.fusionUnitsManager.formatValue = lambda value, unit: '10 mm'
+    adapter._document = SimpleNamespace(name='Design')
+    adapter._design = lambda: design
+    state = adapter.state()
+    assert [(p['kind'], p['linked']) for p in state['parameters']] == [('user', True), ('model', True)]
+
+
+def test_state_distinguishes_sketch_and_feature_dependents(adapter_module):
+    adapter, params = make_adapter(adapter_module)
+    sketch = SimpleNamespace(name='d1', expression='width', unit='mm', value=1, comment='',
+                             dependentParameters=[], createdBy=SimpleNamespace(objectType='adsk::fusion::Sketch'))
+    feature = SimpleNamespace(name='d2', expression='width', unit='mm', value=1, comment='',
+                              dependentParameters=[], createdBy=SimpleNamespace(objectType='adsk::fusion::ExtrudeFeature'))
+    user = SimpleNamespace(name='width', expression='10 mm', unit='mm', value=1, comment='',
+                           dependentParameters=[sketch, feature])
+    params.entries = {'width': user, 'd1': sketch, 'd2': feature}
+    design = adapter._design()
+    design.userParameters = SimpleNamespace(itemByName=lambda name: user if name == 'width' else None)
+    design.fusionUnitsManager.formatValue = lambda value, unit: '10 mm'
+    adapter._document = SimpleNamespace(name='Design')
+    adapter._design = lambda: design
+    state = adapter.state()
+    assert state['parameters'][0]['bindings'] == ['feature', 'sketch']
+    assert state['parameters'][1]['bindings'] == ['sketch']
+    assert state['parameters'][2]['bindings'] == ['feature']
+
+
+def test_isolated_unresolved_model_expression_does_not_block_unrelated_update(adapter_module):
+    adapter, params = make_adapter(adapter_module)
+    adapter_module.adsk.fusion.ParameterValueTypes = SimpleNamespace(NumericParameterValueType=0)
+    class ModelParameter:
+        name, expression, unit, value, valueType = 'd25', 'missing_name', 'mm', 3.8, 0
+        dependencyParameters, dependentParameters = [], []
+    adapter_module.adsk.fusion.ModelParameter = SimpleNamespace(cast=lambda p: p if isinstance(p, ModelParameter) else None)
+    user = SimpleNamespace(name='width', expression='10 mm', unit='mm', value=1.0, valueType=0,
+                           dependencyParameters=[], dependentParameters=[])
+    params.entries = {'width': user, 'd25': ModelParameter()}
+    adapter.app.activeProduct.userParameters = SimpleNamespace(itemByName=lambda name: user if name == 'width' else None)
+    assert adapter.request('parameters.preview', {'text': 'width=20'})['valid']
+    with pytest.raises(Exception):
+        adapter.request('parameters.preview', {'text': 'width=missing_name'})
+    with pytest.raises(Exception):
+        adapter.request('parameters.preview', {'text': 'width=d25'})
+
+
+def test_delete_parameter_checks_identity_and_reports_fusion_refusal(adapter_module):
+    adapter, params = make_adapter(adapter_module)
+    class Parameter:
+        name = 'width'
+        def __init__(self):
+            self.result = False
+            self.calls = 0
+        def deleteMe(self):
+            self.calls += 1
+            return self.result
+    parameter = Parameter()
+    params.entries['width'] = parameter
+    adapter.app.activeProduct.findEntityByToken = lambda token: [parameter] if token == 'current' else []
+    with pytest.raises(adapter_module.BridgeError, match='changed'):
+        adapter.request('parameters.delete', {'name': 'width', 'entityToken': 'old'})
+    assert parameter.calls == 0
+    with pytest.raises(adapter_module.BridgeError, match='Fusion'):
+        adapter.request('parameters.delete', {'name': 'width', 'entityToken': 'current'})
+    assert parameter.calls == 1
+    parameter.result = True
+    assert adapter.request('parameters.delete', {'name': 'width', 'entityToken': 'current'}) == {'deleted': 'width'}
+
+
+def test_delete_reports_fusion_exception(adapter_module):
+    adapter, params = make_adapter(adapter_module)
+    class Parameter:
+        name = 'width'
+        def deleteMe(self):
+            raise RuntimeError('Referenced parameter')
+    parameter = Parameter()
+    params.entries['width'] = parameter
+    adapter.app.activeProduct.findEntityByToken = lambda token: [parameter]
+    with pytest.raises(adapter_module.BridgeError, match='Referenced parameter'):
+        adapter.request('parameters.delete', {'name': 'width', 'entityToken': 'token'})

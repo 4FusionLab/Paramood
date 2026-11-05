@@ -99,6 +99,11 @@ describe('out-of-order previews', () => {
     await vi.waitFor(() => expect(applyRequests).toHaveLength(1));
     expect(applyRequests[0].payload).toEqual({ text: 'w=2', snapshotToken: 'snapshot-1' });
     await vi.waitFor(() => expect(host.textContent).toContain('Review the refreshed preview'));
+    act(() => {
+      window.fusionJavaScriptHandler!.handle('state.changed', '{}');
+    });
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(host.textContent).toContain('Review the refreshed preview');
     await vi.waitFor(() => expect(pending.length).toBe(3), { timeout: 2000 });
     expect(apply.disabled).toBe(true);
     act(() => render(null, host));

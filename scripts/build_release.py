@@ -12,9 +12,9 @@ SOURCE = ROOT / 'ParaMod'
 FRONTEND = ROOT / 'frontend' / 'dist'
 
 
-def build(output_dir: Path) -> Path:
+def build(output_dir: Path, version_override: str = None) -> Path:
     manifest = json.loads((SOURCE / 'ParaMod.manifest').read_text(encoding='utf-8'))
-    version = manifest.get('version', '')
+    version = version_override if version_override is not None else manifest.get('version', '')
     if not re.fullmatch(r'\d+\.\d+\.\d+', version):
         raise ValueError('Manifest version must be a stable semantic version')
     if manifest.get('supportedOS') != 'windows|mac':
@@ -33,7 +33,8 @@ def build(output_dir: Path) -> Path:
             if relative == 'ParaMod.py':
                 relative = 'Paramood.py'
             files['Paramood/' + relative] = path.read_bytes()
-    files['Paramood/Paramood.manifest'] = (SOURCE / 'ParaMod.manifest').read_bytes()
+    manifest['version'] = version
+    files['Paramood/Paramood.manifest'] = (json.dumps(manifest, ensure_ascii=False, indent=2) + '\n').encode('utf-8')
     for path in FRONTEND.rglob('*'):
         if path.is_file():
             files['Paramood/frontend/dist/' + path.relative_to(FRONTEND).as_posix()] = path.read_bytes()
@@ -53,5 +54,6 @@ def build(output_dir: Path) -> Path:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--output-dir', type=Path, default=ROOT / 'dist')
+    parser.add_argument('--version', help='Stable release version to embed in the package')
     args = parser.parse_args()
-    print(build(args.output_dir))
+    print(build(args.output_dir, args.version))

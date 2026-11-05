@@ -1,6 +1,7 @@
 import { render, type ComponentChildren } from 'preact';
-import { useEffect, useRef, useState } from 'preact/hooks';
-import { Copy, History, RefreshCw, X } from 'lucide-preact';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { Calculator, Copy, History, ListTree, RefreshCw, X } from 'lucide-preact';
+import { ParameterList, expressionWithoutUnit } from './parameter-list';
 import { ExpressionEditor } from './editor';
 import {
   onStateChanged,
@@ -11,6 +12,7 @@ import {
   type ModelState,
   type Preview,
   type Prefill,
+  type Parameter,
 } from './bridge';
 import './style.css';
 import { canApplyPreview } from './guards';
@@ -37,6 +39,18 @@ export function App() {
     [previewText, setPreviewText] = useState(''),
     [previewDoc, setPreviewDoc] = useState(''),
     [previewRevision, setPreviewRevision] = useState(0);
+  const [view, setView] = useState<'editor' | 'list'>('editor');
+  const [editing, setEditing] = useState<Parameter | null>(null);
+  const [editText, setEditText] = useState('');
+  const [editError, setEditError] = useState('');
+  const editGeneration = useRef(0);
+  const editInput = useRef<HTMLInputElement>(null);
+  useLayoutEffect(() => {
+    if (editing) {
+      editInput.current?.focus();
+      editInput.current?.select();
+    }
+  }, [editing]);
   const expression = text;
   const assignment = text.includes('=');
   const [result, setResult] = useState<Calculation | null>(null),
@@ -74,17 +88,19 @@ export function App() {
     doc.current = null;
     setLoading(true);
     setModel(null);
+    ++editGeneration.current;
+    setEditing(null);
     setPreview(null);
     setResult(null);
     setCleanup(null);
     setConfirm(false);
     setConfirmPrefill(null);
-    setProblem('');
     try {
       const next = await request<ModelState>('state.get');
       if (gen !== generation.current) return;
       const draftId = next.draftId || next.documentId;
       if (lastDocument.current !== draftId) {
+        setProblem('');
         if (lastDocument.current) {
           drafts.current.set(lastDocument.current, {
             text: textRef.current,
@@ -137,6 +153,8 @@ export function App() {
         setPreview(null);
         setResult(null);
         setCleanup(null);
+        ++editGeneration.current;
+        setEditing(null);
         setModel(next);
       }
     } catch {
@@ -257,6 +275,83 @@ export function App() {
       setBusy(false);
     }
   }
+  async function applyEdit() {
+    const id = doc.current;
+    if (!id || !editing || busyRef.current) return;
+    const expression = editText.trim();
+    if (!expression || /[;\n\r]/.test(expression)) {
+      setEditError('Enter a single expression.');
+      return;
+    }
+    if (expression === expressionWithoutUnit(editing).trim()) {
+      setEditing(null);
+      return;
+    }
+    const numeric = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(expression);
+    const submitted = `${editing.name}=${expression}${numeric && editing.unit ? ` ${editing.unit}` : ''}`;
+    const gen = ++editGeneration.current;
+    busyRef.current = true;
+    setBusy(true);
+    setEditError('');
+    try {
+      const preview = await request<Preview>('parameters.preview', { text: submitted }, id);
+      if (gen !== editGeneration.current || doc.current !== id) return;
+      if (
+        !preview.valid ||
+        !preview.snapshotToken ||
+        preview.items.length !== 1 ||
+        preview.items[0].name !== editing.name ||
+        preview.items[0].status !== 'Update'
+      ) {
+        setEditError(preview.items[0]?.message || 'Cannot apply this expression.');
+        return;
+      }
+      await request(
+        'parameters.apply',
+        { text: submitted, snapshotToken: preview.snapshotToken },
+        id,
+      );
+      if (refreshFlight.current) await refreshFlight.current;
+      if (doc.current === id) {
+        setNotice('Parameter updated.');
+        await refresh();
+      }
+    } catch (e) {
+      if (gen === editGeneration.current && doc.current === id) setEditError(message(e));
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
+  async function deleteParameter(parameter: Parameter) {
+    const id = doc.current;
+    if (!id || busyRef.current) return;
+    if (!parameter.entityToken) {
+      setProblem('Parameter identity is unavailable. Refresh and try again.');
+      return;
+    }
+    busyRef.current = true;
+    setBusy(true);
+    setProblem('');
+    try {
+      await request(
+        'parameters.delete',
+        { name: parameter.name, entityToken: parameter.entityToken },
+        id,
+      );
+      if (refreshFlight.current) await refreshFlight.current;
+      if (doc.current === id) {
+        setNotice(`Deleted ${parameter.name}.`);
+        await refresh();
+      }
+    } catch (e) {
+      if (refreshFlight.current) await refreshFlight.current;
+      if (doc.current === id) setProblem(message(e));
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
   async function copy(value: string) {
     try {
       await navigator.clipboard.writeText(value);
@@ -319,6 +414,30 @@ export function App() {
               ? model.documentName || 'Active design'
               : 'No active design'}
         </span>
+        {mode === 'parameters' && (
+          <div class="view-tabs" role="tablist" aria-label="Palette views">
+            <button
+              class={`icon ${view === 'editor' ? 'active' : ''}`}
+              role="tab"
+              aria-selected={view === 'editor'}
+              aria-label="Calculator"
+              title="Calculator"
+              onClick={() => setView('editor')}
+            >
+              <Calculator size={15} />
+            </button>
+            <button
+              class={`icon ${view === 'list' ? 'active' : ''}`}
+              role="tab"
+              aria-selected={view === 'list'}
+              aria-label="Parameter list"
+              title="Parameter list"
+              onClick={() => setView('list')}
+            >
+              <ListTree size={15} />
+            </button>
+          </div>
+        )}
         <span class="unit">{model?.defaultLengthUnit || ''}</span>
         <button
           class="icon refresh"
@@ -346,148 +465,209 @@ export function App() {
         </div>
       )}
       {mode === 'parameters' && (
-        <Section title="Paramood">
-          <p class="helper">Calculate an expression or assign it to a parameter</p>
-          <ExpressionEditor
-            value={text}
-            onChange={setText}
-            onFocus={() => void refreshOnFocus()}
-            onSubmit={assignment ? () => void apply() : undefined}
-            parameters={model?.parameters || []}
-            batch={assignment}
-            disabled={!available || busy}
-            label="Parameter definitions"
-            hint="2+3  or  width=15; height=width/2"
-          />
-          <div class="hint">
-            {assignment
-              ? 'Separate definitions with semicolons'
-              : 'Use model parameters in expressions'}{' '}
-            <span>{assignment ? 'Enter to apply' : ''}</span>
-          </div>
-          {assignment && previewError && (
-            <div class="error" role="alert">
-              {previewError}
-            </div>
-          )}
-          {assignment && preview && (
-            <div class="preview">
-              <div class="minor-label">Preview</div>
-              {preview.items.map((item) => (
-                <div class="preview-row" key={item.name}>
-                  <div>
-                    <strong>{item.name}</strong>
-                    <span class="formula">{item.expression}</span>
-                    {item.message && <span class="error">{item.message}</span>}
-                  </div>
-                  <div class="row-end">
-                    <span>
-                      {item.previous ? `${item.previous} → ` : ''}
-                      {item.value ?? ''} {item.unit ?? ''}
-                    </span>
-                    <span class={`badge ${item.status.toLowerCase()}`}>{item.status}</span>
-                  </div>
+        <div class={`palette-layout view-${view}`}>
+          <div class="editor-pane">
+            {mode === 'parameters' && (
+              <Section title="Paramood">
+                <p class="helper">Calculate an expression or assign it to a parameter</p>
+                <ExpressionEditor
+                  value={text}
+                  onChange={setText}
+                  onFocus={() => void refreshOnFocus()}
+                  onSubmit={assignment ? () => void apply() : undefined}
+                  parameters={model?.parameters || []}
+                  batch={assignment}
+                  disabled={!available || busy}
+                  label="Parameter definitions"
+                  hint="2+3  or  width=15; height=width/2"
+                />
+                <div class="hint">
+                  {assignment
+                    ? 'Separate definitions with semicolons'
+                    : 'Use model parameters in expressions'}{' '}
+                  <span>{assignment ? 'Enter to apply' : ''}</span>
                 </div>
-              ))}
-            </div>
-          )}
-          <div class="actions parameter-actions">
-            {CLEANUP_ENABLED && (
-              <button
-                disabled={!available || busy}
-                onClick={() => {
-                  const id = doc.current;
-                  if (id) void request('cleanup.open', {}, id).catch((e) => setProblem(message(e)));
-                }}
-              >
-                Clean unused…
-              </button>
-            )}
-            <button
-              class="icon"
-              aria-label="Calculation history"
-              title="Calculation history"
-              disabled={assignment}
-              onClick={() => setShowHistory(!showHistory)}
-            >
-              <History size={15} />
-            </button>
-            {assignment && (
-              <button
-                class="primary"
-                disabled={
-                  !available ||
-                  busy ||
-                  !canApplyPreview(
-                    preview
-                      ? {
-                          valid: preview.valid,
-                          text: previewText,
-                          documentId: previewDoc,
-                          snapshotToken: preview.snapshotToken,
-                        }
-                      : null,
-                    text,
-                    model?.documentId ?? null,
-                  )
-                }
-                onClick={() => void apply()}
-              >
-                Apply parameters <kbd>Enter</kbd>
-              </button>
-            )}
-          </div>
-          {showHistory && !assignment && (
-            <div class="history">
-              {history.length ? (
-                history.map((item) => (
+                {assignment && previewError && (
+                  <div class="error" role="alert">
+                    {previewError}
+                  </div>
+                )}
+                {assignment && preview && (
+                  <div class="preview">
+                    <div class="minor-label">Preview</div>
+                    {preview.items.map((item) => (
+                      <div class="preview-row" key={item.name}>
+                        <div>
+                          <strong>{item.name}</strong>
+                          <span class="formula">{item.expression}</span>
+                          {item.message && <span class="error">{item.message}</span>}
+                        </div>
+                        <div class="row-end">
+                          <span>
+                            {item.previous ? `${item.previous} → ` : ''}
+                            {item.value ?? ''} {item.unit ?? ''}
+                          </span>
+                          <span class={`badge ${item.status.toLowerCase()}`}>{item.status}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div class="actions parameter-actions">
+                  {CLEANUP_ENABLED && (
+                    <button
+                      disabled={!available || busy}
+                      onClick={() => {
+                        const id = doc.current;
+                        if (id)
+                          void request('cleanup.open', {}, id).catch((e) => setProblem(message(e)));
+                      }}
+                    >
+                      Clean unused…
+                    </button>
+                  )}
                   <button
-                    onClick={() => {
-                      setText(item);
-                      setShowHistory(false);
-                    }}
+                    class="icon"
+                    aria-label="Calculation history"
+                    title="Calculation history"
+                    disabled={assignment}
+                    onClick={() => setShowHistory(!showHistory)}
                   >
-                    {item}
+                    <History size={15} />
                   </button>
-                ))
-              ) : (
-                <span>No calculations yet.</span>
-              )}
-            </div>
-          )}
-        </Section>
+                  {assignment && (
+                    <button
+                      class="primary"
+                      disabled={
+                        !available ||
+                        busy ||
+                        !canApplyPreview(
+                          preview
+                            ? {
+                                valid: preview.valid,
+                                text: previewText,
+                                documentId: previewDoc,
+                                snapshotToken: preview.snapshotToken,
+                              }
+                            : null,
+                          text,
+                          model?.documentId ?? null,
+                        )
+                      }
+                      onClick={() => void apply()}
+                    >
+                      Apply parameters <kbd>Enter</kbd>
+                    </button>
+                  )}
+                </div>
+                {showHistory && !assignment && (
+                  <div class="history">
+                    {history.length ? (
+                      history.map((item) => (
+                        <button
+                          onClick={() => {
+                            setText(item);
+                            setShowHistory(false);
+                          }}
+                        >
+                          {item}
+                        </button>
+                      ))
+                    ) : (
+                      <span>No calculations yet.</span>
+                    )}
+                  </div>
+                )}
+              </Section>
+            )}
+            {mode === 'parameters' && !assignment && !!text.trim() && (
+              <Section title="Result">
+                {calcError && (
+                  <div class="error" role="alert">
+                    {calcError}
+                  </div>
+                )}
+                <div class="result">
+                  <div>
+                    <span class="minor-label">Result</span>
+                    <div class="result-value">{result?.formatted ?? '—'}</div>
+                  </div>
+                  <button
+                    class="icon"
+                    title="Copy value and unit"
+                    aria-label="Copy value and unit"
+                    disabled={!result}
+                    onClick={() => result && void copy(result.formatted)}
+                  >
+                    <Copy size={15} />
+                  </button>
+                </div>
+                <div class="actions secondary-actions">
+                  <button
+                    disabled={!result}
+                    onClick={() => result && void copy(String(result.value))}
+                  >
+                    Copy number
+                  </button>
+                  <button disabled={!expression} onClick={() => void copy(expression)}>
+                    Copy expression
+                  </button>
+                </div>
+              </Section>
+            )}
+          </div>
+          <div class="list-pane">
+            <ParameterList
+              parameters={model?.parameters || []}
+              onDelete={(parameter) => void deleteParameter(parameter)}
+              editingName={editing?.name}
+              editor={
+                editing && (
+                  <input
+                    class="parameter-edit"
+                    ref={editInput}
+                    aria-label={`Expression for ${editing.name}`}
+                    aria-invalid={!!editError}
+                    title={editError || 'Enter to apply, Escape to cancel'}
+                    value={editText}
+                    disabled={busy}
+                    onInput={(e) => {
+                      ++editGeneration.current;
+                      setEditText(e.currentTarget.value);
+                      setEditError('');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        void applyEdit();
+                      }
+                      if (e.key === 'Escape') {
+                        ++editGeneration.current;
+                        setEditing(null);
+                        setEditError('');
+                      }
+                    }}
+                  />
+                )
+              }
+              onEdit={(parameter) => {
+                if (busyRef.current) return;
+                ++editGeneration.current;
+                setEditing(parameter);
+                setEditText(expressionWithoutUnit(parameter));
+                setEditError('');
+              }}
+            />
+          </div>
+        </div>
       )}
-      {mode === 'parameters' && !assignment && !!text.trim() && (
-        <Section title="Result">
-          {calcError && (
-            <div class="error" role="alert">
-              {calcError}
-            </div>
-          )}
-          <div class="result">
-            <div>
-              <span class="minor-label">Result</span>
-              <div class="result-value">{result?.formatted ?? '—'}</div>
-            </div>
-            <button
-              class="icon"
-              title="Copy value and unit"
-              aria-label="Copy value and unit"
-              disabled={!result}
-              onClick={() => result && void copy(result.formatted)}
-            >
-              <Copy size={15} />
-            </button>
-          </div>
-          <div class="actions secondary-actions">
-            <button disabled={!result} onClick={() => result && void copy(String(result.value))}>
-              Copy number
-            </button>
-            <button disabled={!expression} onClick={() => void copy(expression)}>
-              Copy expression
-            </button>
-          </div>
-        </Section>
+      {editError && (
+        <div class="alert" role="alert">
+          {editError}
+          <button class="icon" aria-label="Dismiss edit error" onClick={() => setEditError('')}>
+            <X size={13} />
+          </button>
+        </div>
       )}
       {mode === 'cleanup' && (
         <div id="cleanup-section">

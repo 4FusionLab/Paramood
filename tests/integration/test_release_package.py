@@ -51,3 +51,18 @@ def test_packaged_addin_imports_under_its_release_name(tmp_path, monkeypatch):
     module = importlib.import_module('Paramood.Paramood')
     assert module.FusionAdapter.__module__ == 'Paramood.fusion.adapter'
     assert (Path(module.__file__).parent / 'frontend/dist/index.html').is_file()
+
+
+def test_release_version_override_is_packaged_without_changing_source(tmp_path):
+    source = ROOT / 'ParaMod/ParaMod.manifest'
+    original = source.read_bytes()
+    subprocess.run([sys.executable, str(ROOT / 'scripts/build_release.py'), '--output-dir', str(tmp_path), '--version', '1.2.3'], cwd=ROOT, check=True)
+    with zipfile.ZipFile(tmp_path / 'Paramood-1.2.3.zip') as archive:
+        assert json.loads(archive.read('Paramood/Paramood.manifest'))['version'] == '1.2.3'
+    assert source.read_bytes() == original
+
+
+def test_release_version_override_rejects_prerelease(tmp_path):
+    result = subprocess.run([sys.executable, str(ROOT / 'scripts/build_release.py'), '--output-dir', str(tmp_path), '--version', '1.2.3-beta'], cwd=ROOT, capture_output=True)
+    assert result.returncode != 0
+    assert not list(tmp_path.glob('*.zip'))
