@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+  <title id="title">Paramood — Keeper of Measure</title>
+  <desc id="desc">4FusionLab's parameter sage, with an engineering grid, geometric dimension lines, and formulas.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#101f31"/><stop offset="1" stop-color="#142e42"/></linearGradient>
+    <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse"><path d="M30 0H0V30" fill="none" stroke="#456275" stroke-width="1" opacity=".65"/></pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0l10 5-10 5" fill="#ff9251"/></marker>
+  </defs>
+  <rect width="1200" height="360" rx="24" fill="url(#bg)"/>
+  <path d="M630 0h546a24 24 0 0 1 24 24v312a24 24 0 0 1-24 24H630Z" fill="url(#grid)" opacity=".6"/>
+  <path d="M625 60v238" stroke="#3b576b" stroke-width="2"/>
+  <rect x="62" y="49" width="7" height="7" rx="1.5" fill="#ff9251"/>
+  <text x="82" y="59" font-family="Arial,Helvetica,sans-serif" font-size="17" font-weight="700" letter-spacing="3" fill="#b6c7d7">4FUSIONLAB</text>
+  <text x="62" y="153" font-family="Arial,Helvetica,sans-serif" font-size="76" font-weight="700" letter-spacing="-2.7" fill="#f4f1e9">Paramood</text>
+  <text x="65" y="209" font-family="Arial,Helvetica,sans-serif" font-size="32" font-weight="600" letter-spacing="-.6" fill="#ff9251">Keeper of Measure</text>
+  <text x="65" y="267" font-family="Arial,Helvetica,sans-serif" font-size="23" fill="#b6c7d7">Every dimension has a reason.</text>
+  <rect x="65" y="302" width="210" height="2" fill="#506a7d"/>
+  <rect x="65" y="302" width="72" height="2" fill="#ff9251"/>
+  <!-- Parameter input card -->
+  <rect x="675" y="73" width="224" height="134" rx="13" fill="#142b40" stroke="#7095a5" stroke-width="2"/>
+  <path d="M675 106h224" stroke="#42637a"/>
+  <circle cx="695" cy="90" r="4" fill="#ff9251"/><circle cx="709" cy="90" r="4" fill="#91b0bd"/><circle cx="723" cy="90" r="4" fill="#91b0bd"/>
+  <text x="742" y="96" font-family="Arial,Helvetica,sans-serif" font-size="15" fill="#b6c7d7">parameters</text>
+  <g font-family="Consolas,Menlo,monospace" font-size="19" fill="#e1edf0">
+    <text x="695" y="136"><tspan fill="#a3cad3">width</tspan><tspan fill="#ff9251"> = </tspan>15</text>
+    <text x="695" y="165"><tspan fill="#a3cad3">height</tspan><tspan fill="#ff9251"> = </tspan>10</text>
+    <text x="695" y="194"><tspan fill="#a3cad3">length</tspan><tspan fill="#ff9251"> = </tspan>h / 2</text>
+  </g>
+  <!-- Parametric sketch -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="947" y="117" width="176" height="132" rx="4" fill="#31556a" fill-opacity=".38" stroke="#9bc7d0" stroke-width="3"/>
+    <path d="M947 117l47-38h129l-47 38M1123 117l-47 38v94" stroke="#588ba3" stroke-width="2"/>
+    <path d="M947 105V73M1123 105V73M960 85h150" stroke="#ff9251" stroke-width="1.8" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+    <path d="M1135 117h30M1135 249h30M1151 131v104" stroke="#ff9251" stroke-width="1.8" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+    <path d="M1035 117v132M947 183h176" stroke="#7fa8b7" stroke-dasharray="5 6" opacity=".65"/>
+  </g>
+  <g font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="700" fill="#ffb486">
+    <text x="1035" y="71" text-anchor="middle">w</text>
+    <text x="1165" y="189">h</text>
+  </g>
+  <g stroke="#ff9251" fill="#ff9251"><circle cx="1035" cy="183" r="5"/><circle cx="947" cy="117" r="4"/><circle cx="1123" cy="249" r="4"/></g>
+  <path d="M899 159h36M904 153l-6 6 6 6" fill="none" stroke="#ff9251" stroke-width="2"/>
+  <text x="718" y="267" font-family="Arial,Helvetica,sans-serif" font-size="19" fill="#b6c7d7">Relationships become geometry.</text>
+  <path d="M718 283h391" stroke="#48677c" stroke-width="1.5"/>
+  <g fill="#ff9251"><circle cx="718" cy="283" r="4"/><circle cx="1109" cy="283" r="4"/></g>
+</svg>
