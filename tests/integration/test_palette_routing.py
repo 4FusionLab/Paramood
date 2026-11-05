@@ -1,0 +1,198 @@
+import importlib
+import json
+import sys
+import types
+from types import SimpleNamespace
+
+import pytest
+
+
+@pytest.fixture
+def entry(monkeypatch):
+    adsk = types.ModuleType('adsk')
+    core, fusion = types.ModuleType('adsk.core'), types.ModuleType('adsk.fusion')
+    for name in ('HTMLEventHandler', 'CommandEventHandler', 'CommandCreatedEventHandler',
+                 'DocumentEventHandler', 'WorkspaceEventHandler', 'UserInterfaceGeneralEventHandler',
+                 'ApplicationCommandEventHandler'):
+        setattr(core, name, type(name, (), {}))
+    adsk.core, adsk.fusion = core, fusion
+    for name, value in [('adsk', adsk), ('adsk.core', core), ('adsk.fusion', fusion)]:
+        monkeypatch.setitem(sys.modules, name, value)
+    sys.modules.pop('ParaMod.ParaMod', None)
+    sys.modules.pop('ParaMod.fusion.adapter', None)
+    module = importlib.import_module('ParaMod.ParaMod')
+    yield module
+    sys.modules.pop('ParaMod.ParaMod', None)
+    sys.modules.pop('ParaMod.fusion.adapter', None)
+
+
+def test_reply_reaches_only_origin_and_notifications_go_to_all(entry):
+    sent = []
+    def palette(name):
+        return SimpleNamespace(isValid=True, sendInfoToHTML=lambda action, data: sent.append((name, action, json.loads(data))))
+    entry._palettes = {'parameters': palette('parameters'), 'calculator': palette('calculator')}
+    entry._send('calculator', 'response', {'requestId': 'x'})
+    entry._broadcast('state.changed', {})
+    assert sent == [('calculator', 'response', {'requestId': 'x'}),
+                    ('parameters', 'state.changed', {}), ('calculator', 'state.changed', {})]
+
+
+def test_same_request_id_routes_to_origin(entry, monkeypatch):
+    sent = []
+    def palette(name):
+        return SimpleNamespace(isValid=True, sendInfoToHTML=lambda action, data: sent.append((name, action, json.loads(data))))
+    entry._palettes = {'parameters': palette('parameters'), 'calculator': palette('calculator')}
+    entry._adapter = SimpleNamespace(document_id='doc')
+    monkeypatch.setattr(entry, 'dispatch', lambda adapter, msg: {'requestId': msg['requestId'], 'ok': True, 'data': msg['action']})
+    for mode in ('calculator', 'parameters'):
+        args = SimpleNamespace(action='request', data=json.dumps({'requestId': 'same', 'action': 'state.get'}), returnData='')
+        entry.HtmlHandler(mode).notify(args)
+    assert [(name, data['requestId']) for name, action, data in sent if action == 'response'] == [('calculator', 'same'), ('parameters', 'same')]
+
+
+def test_prefill_delayed_once_until_ack_and_cleared_on_document_change(entry, monkeypatch):
+    sent = []
+    def palette(name):
+        return SimpleNamespace(isValid=True, sendInfoToHTML=lambda action, data: sent.append((name, action, json.loads(data))))
+    entry._palettes = {'parameters': palette('parameters'), 'calculator': palette('calculator')}
+    entry._adapter = SimpleNamespace(document_id='doc', invalidate=lambda: None)
+    entry._ready_modes.clear()
+    monkeypatch.setattr(entry, '_show_palette', lambda mode: None)
+    monkeypatch.setattr(entry, 'dispatch', lambda adapter, msg: {'requestId': msg['requestId'], 'ok': True, 'data': {}})
+    def request(mode, message):
+        entry.HtmlHandler(mode).notify(SimpleNamespace(action='request', data=json.dumps(message), returnData=''))
+    request('calculator', {'requestId': 'open', 'action': 'parameters.open', 'documentId': 'doc', 'payload': {'text': 'a=1'}})
+    assert not [item for item in sent if item[1] == 'parameters.prefill']
+    request('parameters', {'requestId': 'state', 'action': 'state.get'})
+    prefill = [item[2] for item in sent if item[1] == 'parameters.prefill'][0]
+    assert prefill['text'] == 'a=1' and prefill['documentId'] == 'doc'
+    request('parameters', {'requestId': 'ack', 'action': 'parameters.prefill.ack', 'documentId': 'doc', 'payload': {'prefillId': prefill['prefillId']}})
+    sent.clear()
+    request('parameters', {'requestId': 'state2', 'action': 'state.get'})
+    assert not [item for item in sent if item[1] == 'parameters.prefill']
+    entry._ready_modes.clear()
+    request('calculator', {'requestId': 'open2', 'action': 'parameters.open', 'documentId': 'doc', 'payload': {'text': 'b=2'}})
+    entry.DocumentChanged().notify(None)
+    entry._adapter.document_id = 'next-doc'
+    sent.clear()
+    request('parameters', {'requestId': 'state3', 'action': 'state.get'})
+    assert not [item for item in sent if item[1] == 'parameters.prefill']
+
+
+def test_cleanup_is_resized_after_becoming_visible(entry, monkeypatch):
+    events = []
+    class Palette:
+        isValid = True
+        width = 359
+        height = 449
+        def __init__(self):
+            self.incomingFromHTML = object()
+            self.closed = object()
+            self._visible = False
+        @property
+        def isVisible(self):
+            return self._visible
+        @isVisible.setter
+        def isVisible(self, value):
+            self._visible = value
+            events.append(('visible', value))
+        def setSize(self, width, height):
+            events.append(('resize', width, height, self._visible))
+    palette = Palette()
+    class Palettes:
+        def itemById(self, identifier):
+            return None
+        def add(self, *args):
+            events.append(('add', args[7], args[8]))
+            return palette
+    entry._ui = SimpleNamespace(palettes=Palettes())
+    entry._palettes = {}
+    monkeypatch.setattr(entry.os.path, 'isfile', lambda path: True)
+    monkeypatch.setattr(entry, '_listen', lambda event, handler: None)
+    entry._show_palette('cleanup')
+    assert ('resize', 360, 450, True) in events
+
+
+def test_failed_apply_marks_fusion_transaction_for_abort(entry, monkeypatch):
+    entry._pending = {'requestId': 'batch', 'documentId': 'doc'}
+    entry._adapter = SimpleNamespace(in_command=False)
+    monkeypatch.setattr(entry, 'dispatch', lambda adapter, msg: {
+        'requestId': msg['requestId'], 'ok': False,
+        'error': {'code': 'INVALID_EXPRESSION', 'message': 'Invalid second expression'},
+    })
+    args = SimpleNamespace(executeFailed=False, executeFailedMessage='')
+    entry.ApplyExecute().notify(args)
+    assert args.executeFailed is True
+    assert args.executeFailedMessage == 'Invalid second expression'
+    assert entry._adapter.in_command is False
+
+
+def test_palette_titles_identify_each_tool(entry):
+    assert entry._TITLES == {'parameters': 'Paramood', 'cleanup': 'Paramood-Cleanup'}
+
+
+@pytest.mark.parametrize('mode,expected', [('parameters', False), ('cleanup', True)])
+def test_close_button_only_on_cleanup(entry, monkeypatch, mode, expected):
+    calls = []
+    class Palette:
+        isValid = True
+        width, height = 359, 449
+        left, top = 0, 0
+        isDockedInCanvas = False
+        incomingFromHTML, closed = object(), object()
+        def snapTo(self, target, option):
+            return True
+        def setSize(self, width, height):
+            return True
+    class Palettes:
+        def itemById(self, identifier):
+            return Palette() if identifier == 'ActivityFeedPalette' else None
+        def add(self, *args):
+            calls.append(args)
+            return Palette()
+    entry._ui = SimpleNamespace(palettes=Palettes())
+    entry._palettes = {}
+    monkeypatch.setattr(entry.os.path, 'isfile', lambda path: True)
+    monkeypatch.setattr(entry, '_listen', lambda event, handler: None)
+    entry.adsk.core.PaletteSnapOptions = SimpleNamespace(PaletteSnapOptionsTop=0)
+    entry._show_palette(mode)
+    assert calls[0][4] is expected
+
+
+def test_external_command_end_refreshes_palette_without_invalidating_document(entry, monkeypatch):
+    events = []
+    monkeypatch.setattr(entry, '_broadcast', lambda action, data: events.append((action, data)))
+    entry.ExternalCommandEnded().notify(SimpleNamespace(commandId='ChangeParametersCommand'))
+    assert events == [('state.changed', {})]
+    events.clear()
+    entry.ExternalCommandEnded().notify(SimpleNamespace(commandId='SelectCommand'))
+    entry.ExternalCommandEnded().notify(SimpleNamespace(commandId='ParaModApply'))
+    assert events == []
+
+
+def test_document_activation_shows_deferred_palette_only_when_design_exists(entry, monkeypatch):
+    shown = []
+    entry._palettes = {}
+    entry._desired_visibility = {'parameters': True, 'cleanup': False}
+    entry._adapter = SimpleNamespace(invalidate=lambda: None, _design=lambda: object())
+    monkeypatch.setattr(entry, '_show_palette', lambda mode: shown.append(mode))
+    monkeypatch.setattr(entry, '_broadcast', lambda action, data: None)
+    entry.DocumentActivated().notify(None)
+    assert shown == ['parameters']
+    shown.clear()
+    entry._adapter._design = lambda: None
+    entry.DocumentActivated().notify(None)
+    assert shown == []
+
+
+def test_release_blocks_hidden_cleanup_entry(entry, monkeypatch):
+    sent = []
+    shown = []
+    entry._adapter = SimpleNamespace(document_id='doc')
+    monkeypatch.setattr(entry, '_send', lambda mode, action, payload: sent.append(payload))
+    monkeypatch.setattr(entry, '_show_palette', lambda mode: shown.append(mode))
+    message = {'requestId': 'r', 'action': 'cleanup.open', 'documentId': 'doc', 'payload': {}}
+    entry.HtmlHandler('parameters').notify(SimpleNamespace(action='request', data=json.dumps(message), returnData=''))
+    assert not shown
+    assert sent[0]['ok'] is False
+    assert sent[0]['error']['code'] == 'UNSUPPORTED'

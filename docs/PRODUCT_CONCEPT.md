@@ -1,6 +1,6 @@
 # Paramood — product concept
 
-> **Status: design concept.** This document captures intended behavior, not features already implemented or tested in Autodesk Fusion.
+> **Status: product concept.** This document describes the broader direction, including planned features. For what is available in version 1.0.0, see the [README](../README.md).
 
 ## Purpose
 
@@ -13,7 +13,7 @@ Paramood helps Fusion users manage the **meaning** behind dimensions: names, exp
 A compact editor accepts multiple named definitions, for example:
 
 ~~~text
-w=15; h=10; l=h/2
+width=15; height=10; length=height/2
 ~~~
 
 The editor should provide completion, syntax highlighting, in-place errors, and a preview of interpreted assignments **before** any changes are applied. Expressions referring to other parameters must remain expressions rather than being flattened to numeric values.

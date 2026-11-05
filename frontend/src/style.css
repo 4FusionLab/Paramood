@@ -1,0 +1,492 @@
+:root {
+  font:
+    12px/1.45 -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  color: #27323b;
+  background: var(--surface);
+  color-scheme: light dark;
+  --surface: #fff;
+  --subtle: #f1f3f4;
+  --border: #cbd1d5;
+  --text: #27323b;
+  --muted: #667580;
+  --accent: #087bbd;
+  --error: #a42f2f;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#app {
+  min-height: 100%;
+  background: var(--surface);
+}
+html,
+body {
+  height: 100%;
+}
+body {
+  margin: 0;
+  color: var(--text);
+}
+#app {
+  min-height: 100vh;
+}
+button,
+input {
+  font: inherit;
+}
+button {
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+button:hover:not(:disabled) {
+  background: var(--subtle);
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+main {
+  min-width: 245px;
+}
+.icon {
+  border: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
+}
+.context {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  background: var(--subtle);
+  color: var(--muted);
+  border-block: 1px solid var(--border);
+}
+.unit {
+  margin-left: auto;
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #aaa;
+}
+.dot.online {
+  background: #3e9866;
+}
+section {
+  border-bottom: 1px solid var(--border);
+}
+.section-title {
+  border: 0;
+  border-radius: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 11px 10px;
+  text-align: left;
+  font-weight: 650;
+  font-size: 13px;
+}
+.section-body {
+  padding: 0 14px 14px;
+}
+.helper {
+  margin: 0 0 9px;
+  color: var(--muted);
+}
+.expression-editor {
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--surface);
+  min-height: 42px;
+}
+.expression-editor.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.expression-editor:focus-within {
+  border-color: var(--accent);
+}
+.cm-editor {
+  font:
+    12px/1.5 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+}
+.expression-editor .cm-editor .cm-scroller .cm-content {
+  padding: 7px 5px;
+  min-height: 40px;
+  caret-color: var(--text);
+}
+.expression-editor .cm-editor.cm-focused {
+  outline: none;
+}
+.cm-scroller {
+  overflow: auto;
+  max-height: 145px;
+}
+.cm-tooltip-autocomplete {
+  max-width: 290px !important;
+}
+.cm-tooltip-autocomplete ul {
+  max-height: 160px !important;
+}
+.parameter-tooltip {
+  padding: 6px;
+  max-width: 260px;
+  white-space: normal;
+}
+.hint {
+  color: var(--muted);
+  font-size: 10px;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+  gap: 4px;
+}
+kbd {
+  font: inherit;
+  color: var(--muted);
+}
+.actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 11px;
+}
+.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+  font-weight: 600;
+}
+.primary kbd {
+  color: #d9effa;
+  margin-left: 8px;
+  font-size: 10px;
+}
+.preview {
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 9px;
+}
+.minor-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: normal;
+  color: var(--muted);
+}
+.preview-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--subtle);
+  padding: 8px 0;
+}
+.preview-row strong,
+.formula,
+.preview-row .error {
+  display: block;
+}
+.formula {
+  font-family: ui-monospace, monospace;
+  color: var(--muted);
+  font-size: 11px;
+}
+.row-end {
+  text-align: right;
+  white-space: nowrap;
+}
+.badge {
+  display: block;
+  font-size: 10px;
+  color: var(--accent);
+}
+.badge.error,
+.error {
+  color: var(--error);
+}
+.badge.warning {
+  color: #a06d1d;
+}
+.error {
+  margin-top: 6px;
+}
+.result {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+  padding-top: 9px;
+}
+.result-value {
+  font:
+    18px/1.5 ui-monospace,
+    monospace;
+}
+.secondary-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+.secondary-actions button {
+  font-size: 11px;
+}
+.history {
+  margin-top: 8px;
+  display: grid;
+  gap: 3px;
+  color: var(--muted);
+}
+.history button {
+  text-align: left;
+}
+.inline-form {
+  margin-top: 9px;
+  display: flex;
+  align-items: end;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.inline-form label {
+  flex: 1;
+  min-width: 100px;
+}
+.inline-form input,
+.cleanup > input {
+  width: 100%;
+  margin-top: 3px;
+}
+.cleanup {
+  margin-top: 10px;
+}
+.cleanup-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 8px 0;
+}
+.cleanup-actions span {
+  margin-left: auto;
+  color: var(--muted);
+}
+.cleanup-row {
+  display: flex;
+  gap: 7px;
+  border-top: 1px solid var(--border);
+  padding: 8px 0;
+}
+.cleanup-row small {
+  display: block;
+  color: var(--muted);
+}
+.danger {
+  color: #a42f2f;
+  border-color: #c77c7c;
+}
+.alert,
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 14px;
+  background: #fff2ef;
+  color: #913a31;
+}
+.notice {
+  background: #e8f5ed;
+  color: #216b40;
+}
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #0007;
+  padding: 16px;
+}
+.dialog {
+  background: var(--surface);
+  padding: 16px;
+  border-radius: 4px;
+  max-width: 330px;
+  box-shadow: 0 8px 32px #0004;
+}
+.dialog h2 {
+  font-size: 15px;
+  margin: 0;
+}
+.dialog p {
+  color: var(--muted);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #292d30;
+    --subtle: #343a3e;
+    --border: #525c62;
+    --text: #e8edef;
+    --muted: #aebbc3;
+    --accent: #42a9df;
+    --error: #ff9b91;
+  }
+  .alert {
+    background: #542c2b;
+    color: #ffb3aa;
+  }
+  .notice {
+    background: #274637;
+    color: #b9e9c9;
+  }
+  .danger {
+    color: #ff9b91;
+  }
+}
+.token-number {
+  color: #9a5e11;
+}
+.token-function {
+  color: #8c50a3;
+}
+.token-unit {
+  color: #317a64;
+}
+.token-parameter {
+  color: #087bbd;
+}
+.token-new {
+  color: #5065a6;
+}
+.token-operator {
+  color: var(--muted);
+}
+.token-unknown {
+  text-decoration: underline wavy var(--error);
+  text-underline-offset: 2px;
+}
+@media (prefers-color-scheme: dark) {
+  .token-number {
+    color: #e9b66d;
+  }
+  .token-function {
+    color: #d5a6e6;
+  }
+  .token-unit {
+    color: #91d4b9;
+  }
+  .token-parameter {
+    color: #80cfff;
+  }
+  .token-new {
+    color: #b0bcff;
+  }
+}
+/* Compact controls sized for Fusion palettes. */
+.context {
+  padding: 4px 8px 4px 12px;
+  min-height: 32px;
+}
+.context .refresh {
+  margin-left: 4px;
+}
+.section-body {
+  padding: 9px 11px 10px;
+}
+.helper {
+  margin-bottom: 6px;
+}
+.actions {
+  margin-top: 8px;
+}
+.parameter-actions {
+  justify-content: space-between;
+}
+.preview {
+  margin-top: 8px;
+  padding-top: 6px;
+}
+.preview-row {
+  padding: 5px 0;
+}
+.result {
+  margin-top: 8px;
+  padding-top: 6px;
+}
+.cm-tooltip.cm-tooltip-autocomplete,
+.cm-tooltip.cm-completionInfo {
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: 0 4px 14px #0003;
+  overflow: hidden;
+}
+.cm-tooltip-autocomplete > ul {
+  font:
+    12px/1.4 -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  padding: 3px;
+}
+.cm-tooltip-autocomplete > ul > li {
+  border-radius: 3px;
+  padding: 4px 7px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.cm-tooltip-autocomplete > ul > li[aria-selected] {
+  background: var(--accent);
+  color: white;
+}
+.cm-completionMatchedText {
+  text-decoration: none;
+  font-weight: 700;
+}
+.cm-completionLabel {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.cm-completionDetail {
+  margin-left: auto;
+  color: var(--muted);
+  font-style: normal;
+  font-size: 10px;
+}
+.cm-tooltip-autocomplete > ul > li[aria-selected] .cm-completionDetail {
+  color: inherit;
+  opacity: 0.85;
+}
+.cm-completionIcon {
+  opacity: 0.75;
+  width: 1em;
+  text-align: center;
+}
+.cm-tooltip.cm-completionInfo {
+  padding: 7px 9px;
+  max-width: 240px;
+  white-space: normal;
+  font:
+    11px/1.4 -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+}
