@@ -31,6 +31,18 @@ _LITERAL = re.compile(
 )
 _NAME = re.compile(r'^[A-Za-z_][A-Za-z_0-9]*$')
 _NUMERIC = re.compile(r'^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$')
+_NUMERIC_WITH_UNIT = re.compile(
+    r'^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?\s*(mm|cm|deg|rad|in|ft|m|n)$'
+)
+
+
+def _literal_unit(expression, dimension, fallback):
+    match = _NUMERIC_WITH_UNIT.fullmatch(expression.strip())
+    if match and UNITS[match.group(1)][1] == dimension:
+        return '' if match.group(1) == 'n' else match.group(1)
+    return fallback
+
+
 _FUNCTIONS = {'sqrt', 'sin', 'cos', 'tan', 'abs', 'floor', 'ceil', 'round', 'min', 'max'}
 _DOTTED = re.compile(r'(?<![\w.])[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z0-9]+)+(?![\w.])')
 
@@ -308,6 +320,8 @@ def plan_batch(text: str, existing: Mapping[str, Quantity], default_unit: str) -
             if value.dimension == LENGTH
             else ('deg' if value.dimension == ANGLE else '')
         )
+        if name not in existing:
+            unit = _literal_unit(expr, value.dimension, unit)
         operations.append(
             Operation(
                 name,
@@ -464,6 +478,8 @@ def plan_batch_snapshot(
                 if value.dimension == LENGTH
                 else ('deg' if value.dimension == ANGLE else '')
             )
+            if name not in snapshot:
+                unit = _literal_unit(expr, value.dimension, unit)
             fusion_expr = re.sub(r'(?<=\d)\s*n\b', '', expr)
             operations.append(
                 Operation(

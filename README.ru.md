@@ -26,11 +26,15 @@ Paramood объединяет **редактор выражений, кальк�
 
 ## Paramood в Fusion
 
-На снимках показана палитра Paramood рядом с реальной моделью Fusion. Дерево группирует именованные параметры и размеры модели, оставляя модель на экране.
+Палитра подстраивается под ширину: в широком режиме калькулятор и дерево параметров расположены рядом, в компактном — переключаются вкладками.
 
-![Дерево параметров Paramood рядом с моделью Fusion](assets/screenshots/fusion-parameters.jpg)
+**Двухколоночный вид**
 
-![Параметры модели и справочные размеры в Paramood](assets/screenshots/fusion-model.jpg)
+![Палитра Paramood: калькулятор и дерево параметров рядом](assets/screenshots/palette-two-column.jpg)
+
+**Компактный вид**
+
+<img src="assets/screenshots/palette-compact-list.jpg" alt="Компактное дерево параметров" width="390"> <img src="assets/screenshots/palette-compact-calculator.jpg" alt="Компактный калькулятор" width="390">
 
 ## Что уже реализовано
 

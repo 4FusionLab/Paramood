@@ -2,10 +2,20 @@
 import { afterEach, expect, it } from 'vitest';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
-import { ParameterList } from './parameter-list';
+import { ParameterList, expressionWithoutUnit } from './parameter-list';
 
 afterEach(() => {
   document.body.innerHTML = '';
+});
+it('edits a literal radian expression in the parameter degree unit', () => {
+  expect(
+    expressionWithoutUnit({
+      name: 'angle',
+      expression: '1.0471975511965976 rad',
+      value: '60 deg',
+      unit: 'deg',
+    }),
+  ).toBe('60');
 });
 it('groups hierarchical user parameters before model parameters and edits a leaf', () => {
   const host = document.createElement('div');

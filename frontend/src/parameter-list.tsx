@@ -7,7 +7,13 @@ export function expressionWithoutUnit(parameter: Parameter): string {
   const match = parameter.expression
     .trim()
     .match(/^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*([A-Za-z]+)$/);
-  return match && match[2] === parameter.unit ? match[1] : parameter.expression;
+  if (!match) return parameter.expression;
+  if (match[2] === parameter.unit) return match[1];
+  if (match[2] === 'rad' && parameter.unit === 'deg')
+    return String(Number(((Number(match[1]) * 180) / Math.PI).toPrecision(15)));
+  if (match[2] === 'deg' && parameter.unit === 'rad')
+    return String(Number(((Number(match[1]) * Math.PI) / 180).toPrecision(15)));
+  return parameter.expression;
 }
 function displayValue(parameter: Parameter): string {
   const text = String(parameter.value);

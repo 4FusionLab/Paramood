@@ -26,11 +26,15 @@ The idea is simple: **use the precision of parametric CAD with the speed of an I
 
 ## Paramood in Fusion
 
-The screenshots show Paramood alongside a real Fusion design. The parameter browser groups named parameters and model dimensions while keeping the model visible.
+The palette adapts to its width: the wide layout shows the calculator and parameter tree side by side, while the compact layout uses tabs.
 
-![Paramood parameter tree alongside a Fusion model](assets/screenshots/fusion-parameters.jpg)
+**Two-column view**
 
-![Paramood displaying model parameters and driven dimensions](assets/screenshots/fusion-model.jpg)
+![Paramood palette with the calculator and parameter tree side by side](assets/screenshots/palette-two-column.jpg)
+
+**Compact view**
+
+<img src="assets/screenshots/palette-compact-list.jpg" alt="Compact parameter tree" width="390"> <img src="assets/screenshots/palette-compact-calculator.jpg" alt="Compact calculator" width="390">
 
 ## What works today
 

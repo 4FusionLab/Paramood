@@ -33,10 +33,20 @@ def _value_expression(parameter):
     if not unit:
         return repr(value) + 'n'
     if unit in UNITS and UNITS[unit][1] == LENGTH:
-        return repr(value) + ' cm'
-    if unit in UNITS and UNITS[unit][1] == ANGLE:
-        return repr(value) + ' rad'
-    raise ValueError('Unsupported parameter unit')
+        base = value * 10.0
+    elif unit in UNITS and UNITS[unit][1] == ANGLE:
+        base = value
+    else:
+        raise ValueError('Unsupported parameter unit')
+    factor = UNITS[unit][0]
+    converted = base / factor
+    if not math.isfinite(converted):
+        raise ValueError('Non-finite converted value')
+    if abs(converted) < 1e12:
+        integer = round(converted)
+        if integer * factor == base:
+            converted = float(integer)
+    return repr(converted) + ' ' + unit
 
 
 def _is_driven(parameter):

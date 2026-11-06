@@ -474,3 +474,12 @@ def test_exponential_self_expansion_is_bounded():
     text = 'width=1;' + ';'.join('width+=width' for _ in range(20))
     with pytest.raises(ExpressionError, match='Expanded expression is too long'):
         plan_batch(text, {}, 'mm')
+
+
+def test_new_parameter_preserves_the_explicit_literal_unit():
+    from Paramood.core.expressions import ParameterSnapshot, plan_batch_snapshot
+
+    snapshot = {'angle': ParameterSnapshot('60 deg', 'deg', Quantity(math.pi / 3, (0, 1)), set())}
+    operations = plan_batch_snapshot('new_angle=1.0 rad;angle=new_angle', snapshot, 'mm')
+    created = next(op for op in operations if op.name == 'new_angle')
+    assert created.unit == 'rad'

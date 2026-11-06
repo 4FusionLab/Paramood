@@ -1224,9 +1224,13 @@ def test_preview_rejects_changed_source_value_before_planning(adapter_module, mo
 def test_value_expression_uses_unrounded_internal_values(adapter_module):
     assert (
         adapter_module._value_expression(SimpleNamespace(unit='mm', value=1.2345678901234567))
-        == '1.2345678901234567 cm'
+        == '12.345678901234567 mm'
     )
-    assert adapter_module._value_expression(SimpleNamespace(unit='deg', value=0.125)) == '0.125 rad'
+    assert (
+        adapter_module._value_expression(SimpleNamespace(unit='deg', value=1.0471975511965976))
+        == '60.0 deg'
+    )
+    assert adapter_module._value_expression(SimpleNamespace(unit='rad', value=0.125)) == '0.125 rad'
     assert adapter_module._value_expression(SimpleNamespace(unit='', value=2.0)) == '2.0n'
 
 

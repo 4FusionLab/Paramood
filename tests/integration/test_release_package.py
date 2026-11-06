@@ -13,8 +13,8 @@ def test_release_package_is_self_contained_and_reproducible(tmp_path):
     subprocess.run(
         [sys.executable, str(builder), '--output-dir', str(tmp_path)], cwd=ROOT, check=True
     )
-    package = tmp_path / 'Paramood-1.3.0.zip'
-    checksum = tmp_path / 'Paramood-1.3.0.zip.sha256'
+    package = tmp_path / 'Paramood-1.3.1.zip'
+    checksum = tmp_path / 'Paramood-1.3.1.zip.sha256'
     data = package.read_bytes()
     assert checksum.read_text().split()[0] == hashlib.sha256(data).hexdigest()
     with zipfile.ZipFile(package) as archive:
@@ -29,7 +29,7 @@ def test_release_package_is_self_contained_and_reproducible(tmp_path):
         )
         assert not any('__pycache__' in name or 'node_modules' in name for name in names)
         manifest = json.loads(archive.read('Paramood/Paramood.manifest'))
-        assert manifest['version'] == '1.3.0'
+        assert manifest['version'] == '1.3.1'
         assert manifest['supportedOS'] == 'windows|mac'
     subprocess.run(
         [sys.executable, str(builder), '--output-dir', str(tmp_path)], cwd=ROOT, check=True
@@ -46,7 +46,7 @@ def test_packaged_addin_imports_under_its_release_name(tmp_path, monkeypatch):
         cwd=ROOT,
         check=True,
     )
-    with zipfile.ZipFile(tmp_path / 'Paramood-1.3.0.zip') as archive:
+    with zipfile.ZipFile(tmp_path / 'Paramood-1.3.1.zip') as archive:
         archive.extractall(tmp_path)
     adsk = types.ModuleType('adsk')
     core = types.ModuleType('adsk.core')
