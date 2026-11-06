@@ -2,10 +2,10 @@
   <img src="assets/paramood-banner.svg" alt="Paramood — Keeper of Measure" width="100%">
 </p>
 
-<h1 align="center">Paramood for Autodesk Fusion</h1>
+<h1 align="center">Paramood — Parameter Manager for Autodesk Fusion</h1>
 <p align="center">
   <strong>Keeper of Measure. Every dimension has a reason.</strong><br>
-  A compact, keyboard-friendly workspace for parameters, formulas, and calculations — without leaving Fusion.
+  A Fusion 360 add-in for editing parameters, formulas, and dimensions in a compact palette.
 </p>
 
 <p align="center">
@@ -18,23 +18,23 @@
   <a href="https://github.com/4FusionLab/Paramood/actions/workflows/ci.yml"><img src="https://github.com/4FusionLab/Paramood/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
 </p>
 
-## Parameters should feel like code
+## Manage Fusion parameters without leaving your model
 
-Paramood puts an expression editor, calculator, and a browsable parameter list into **one Fusion palette**. Define several dimensions at once, inspect the preview, and apply changes without navigating the native Parameters dialog for every edit.
+Paramood is an add-in for **Autodesk Fusion**, formerly Fusion 360, that puts a parameter editor, calculator, and browsable parameter list into **one Fusion palette**. Create and edit user parameters, inspect model dimensions, and work with formulas while your design remains visible. Define several dimensions at once, inspect the preview, and apply changes without navigating the native Parameters dialog for every edit.
 
 The idea is simple: **use the precision of parametric CAD with the speed of an IDE**. Paramood is an interface over real Fusion parameters, not a separate parameter storage system.
 
-## Paramood in Fusion
+## Fusion parameter palette screenshots
 
 The palette adapts to its width: the wide layout shows the calculator and parameter tree side by side, while the compact layout uses tabs.
 
 **Two-column view**
 
-![Paramood palette with the calculator and parameter tree side by side](assets/screenshots/palette-two-column.jpg)
+![Autodesk Fusion parameter manager showing the calculator and parameter tree side by side](assets/screenshots/palette-two-column.jpg)
 
 **Compact view**
 
-<img src="assets/screenshots/palette-compact-list.jpg" alt="Compact parameter tree" width="390"> <img src="assets/screenshots/palette-compact-calculator.jpg" alt="Compact calculator" width="390">
+<img src="assets/screenshots/palette-compact-list.jpg" alt="Compact Autodesk Fusion user and model parameter list" width="390"> <img src="assets/screenshots/palette-compact-calculator.jpg" alt="Compact Autodesk Fusion parameter calculator" width="390">
 
 ## What works today
 
@@ -94,7 +94,7 @@ Click an editable value in the parameter tree. The inline editor supports the sa
 
 Creation and linking are validated together. Equation solving supports one new name multiplied or divided by numbers or existing dimensionless parameters; other forms are rejected. When a Fusion command or sketch edit prevents a transaction, finish it before creating and linking a parameter. Existing names are never overwritten by a new definition.
 
-## Install
+## Install the Fusion 360 add-in
 
 1. Download the latest **Paramood ZIP** from [Releases](https://github.com/4FusionLab/Paramood/releases), then extract it.
 2. In Autodesk Fusion, open **Utilities → Scripts and Add-Ins → Add-Ins**.
@@ -110,6 +110,20 @@ The packaged add-in includes the compiled frontend. **Node.js is not required fo
 - **Safety:** assignment previews are validated again against the current document before applying. Unsupported expressions, dimensions, and stale previews are rejected rather than guessed. Fusion may still report downstream feature errors after a legitimate parameter change.
 - **Deletion:** per-parameter deletion is available, subject to Fusion's restrictions. **Automatic unused-parameter cleanup is not available in the current release.**
 - **Known limitations:** expression and unit support is intentionally conservative. Virtual dotted names do not create objects inside Fusion; they are a convenience in Paramood.
+
+## Frequently asked questions
+
+### Can I edit user parameters and model parameters in Autodesk Fusion?
+
+Yes. Paramood lists user parameters and model parameters and lets you edit values where Fusion permits it. Driven sketch dimensions are shown in parentheses and cannot be edited from the palette.
+
+### Can I use formulas and reference other parameters?
+
+Yes. Enter an expression such as `height=width/2` to retain a dependency on `width`. The editor offers parameter completion, and the preview checks assignments before they are applied.
+
+### Does the add-in work on Windows and macOS?
+
+The package declares support for both platforms, and automated checks run on both. Interactive testing inside Fusion has been performed on macOS; native Windows validation remains outstanding.
 
 ## Build from source
 
