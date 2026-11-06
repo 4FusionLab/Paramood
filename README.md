@@ -24,6 +24,14 @@ Paramood puts an expression editor, calculator, and a browsable parameter list i
 
 The idea is simple: **use the precision of parametric CAD with the speed of an IDE**. Paramood is an interface over real Fusion parameters, not a separate parameter storage system.
 
+## Paramood in Fusion
+
+The screenshots show Paramood alongside a real Fusion design. The parameter browser groups named parameters and model dimensions while keeping the model visible.
+
+![Paramood parameter tree alongside a Fusion model](assets/screenshots/fusion-parameters.jpg)
+
+![Paramood displaying model parameters and driven dimensions](assets/screenshots/fusion-model.jpg)
+
 ## What works today
 
 | Area | Capability |
@@ -32,7 +40,9 @@ The idea is simple: **use the precision of parametric CAD with the speed of an I
 | **Batch parameters** | Create and update parameters from semicolon-separated definitions, preserving formula references. |
 | **IntelliSense** | CodeMirror completion for parameter names, nested virtual paths, and keyboard navigation. |
 | **Parameter browser** | A collapsible, hierarchical list of named parameters and Fusion-generated model parameters, with displayed values and units. |
-| **Inline editing** | Click a parameter value to edit its expression; press **Enter** to validate/apply or **Escape** to cancel. |
+| **Inline editing** | Click a value to edit with IntelliSense. Press **Enter** to validate and apply or **Escape** to cancel. |
+| **Naming and dependencies** | Click an editable parameter name to rename it. A model value such as `20 (d_min)` shows its expression; driven sketch dimensions are displayed in parentheses and are read-only. |
+| **Create while editing** | Enter a new name, `name=25`, or a supported equation such as `-name/5=50` in an editable value to create and link a new parameter. |
 | **Parameter removal** | Delete individual parameters from the list when Fusion permits it; failed or unsupported deletions return an error. |
 | **Model awareness** | Refresh on document changes; show indicators for known sketch, feature, or other parameter links. |
 | **Calculator** | Evaluate expressions against the current design, see formatted results, reuse recent calculations, and copy results or expressions. |
@@ -68,6 +78,18 @@ height = width / 2    # retain the parameter dependency
 
 These are separate examples: enter the expression or definition without the explanatory comments.
 
+### Create a parameter while editing a value
+
+Click an editable value in the parameter tree. The inline editor supports the same parameter completion and virtual dotted names as the main editor.
+
+| Input | Result |
+| --- | --- |
+| `height` | If `height` exists, link to it. If it is new, create it from the edited parameter's current value and link to it. |
+| `height=25` | Create `height` with value 25 and link to it. A bare number uses the edited parameter's unit. |
+| `-height/5=50` | Create `height=-250` and set the edited expression to `-height/5`, yielding 50 in its unit. |
+
+Creation and linking are validated together. Equation solving supports one new name multiplied or divided by numbers or existing dimensionless parameters; other forms are rejected. When a Fusion command or sketch edit prevents a transaction, finish it before creating and linking a parameter. Existing names are never overwritten by a new definition.
+
 ## Install
 
 1. Download the latest **Paramood ZIP** from [Releases](https://github.com/4FusionLab/Paramood/releases), then extract it.
@@ -97,8 +119,10 @@ npm run format:check
 npm test
 npm run build
 cd ..
-python -m pip install pytest ruff
+python -m pip install pytest ruff==0.17.3
 python -m ruff check Paramood scripts tests
+python -m ruff format --check Paramood scripts tests
+npm test
 python -m pytest -q
 python scripts/build_release.py
 ```

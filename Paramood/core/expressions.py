@@ -3,6 +3,7 @@
 Only explicit supported units and a restricted arithmetic grammar are accepted.
 Fusion must validate planned expressions again before any model modification.
 """
+
 from __future__ import annotations
 
 import ast
@@ -15,10 +16,19 @@ Dimension = Tuple[int, int]  # powers of length and angle
 SCALAR = (0, 0)
 LENGTH = (1, 0)
 ANGLE = (0, 1)
-UNITS = {'mm': (1.0, LENGTH), 'cm': (10.0, LENGTH), 'm': (1000.0, LENGTH),
-         'in': (25.4, LENGTH), 'ft': (304.8, LENGTH),
-         'deg': (math.pi / 180, ANGLE), 'rad': (1.0, ANGLE), 'n': (1.0, SCALAR)}
-_LITERAL = re.compile(r'(?<![\w.])((?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*(mm|cm|deg|rad|in|ft|m|n)\b')
+UNITS = {
+    'mm': (1.0, LENGTH),
+    'cm': (10.0, LENGTH),
+    'm': (1000.0, LENGTH),
+    'in': (25.4, LENGTH),
+    'ft': (304.8, LENGTH),
+    'deg': (math.pi / 180, ANGLE),
+    'rad': (1.0, ANGLE),
+    'n': (1.0, SCALAR),
+}
+_LITERAL = re.compile(
+    r'(?<![\w.])((?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*(mm|cm|deg|rad|in|ft|m|n)\b'
+)
 _NAME = re.compile(r'^[A-Za-z_][A-Za-z_0-9]*$')
 _NUMERIC = re.compile(r'^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$')
 _FUNCTIONS = {'sqrt', 'sin', 'cos', 'tan', 'abs', 'floor', 'ceil', 'round', 'min', 'max'}
@@ -100,12 +110,17 @@ def evaluate(expression: str, parameters: Mapping[str, Quantity]) -> Quantity:
         if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
             q = calc(node.operand)
             return Quantity(q.value if isinstance(node.op, ast.UAdd) else -q.value, q.dimension)
-        if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div)):
+        if isinstance(node, ast.BinOp) and isinstance(
+            node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div)
+        ):
             a, b = calc(node.left), calc(node.right)
             if isinstance(node.op, (ast.Add, ast.Sub)):
                 if a.dimension != b.dimension:
                     raise ExpressionError('Incompatible dimensions')
-                return Quantity(a.value + b.value if isinstance(node.op, ast.Add) else a.value - b.value, a.dimension)
+                return Quantity(
+                    a.value + b.value if isinstance(node.op, ast.Add) else a.value - b.value,
+                    a.dimension,
+                )
             sign = 1 if isinstance(node.op, ast.Mult) else -1
             dim = tuple(x + sign * y for x, y in zip(a.dimension, b.dimension))
             if sign == -1 and b.value == 0:
@@ -113,7 +128,11 @@ def evaluate(expression: str, parameters: Mapping[str, Quantity]) -> Quantity:
             return Quantity(a.value * b.value if sign == 1 else a.value / b.value, dim)
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and not node.keywords:
             name = node.func.id
-            if name == '__unit__' and len(node.args) == 2 and isinstance(node.args[1], ast.Constant):
+            if (
+                name == '__unit__'
+                and len(node.args) == 2
+                and isinstance(node.args[1], ast.Constant)
+            ):
                 unit = node.args[1].value
                 if unit not in UNITS:
                     raise ExpressionError('Unsupported unit')
@@ -142,7 +161,12 @@ def evaluate(expression: str, parameters: Mapping[str, Quantity]) -> Quantity:
                 return Quantity(getattr(math, name)(q.value))
             if name in {'floor', 'ceil', 'round'} and q.dimension != SCALAR:
                 raise ExpressionError('Function requires a dimensionless value')
-            return Quantity(getattr(math, name)(q.value) if name in {'floor', 'ceil'} else (round(q.value) if name == 'round' else abs(q.value)), q.dimension)
+            return Quantity(
+                getattr(math, name)(q.value)
+                if name in {'floor', 'ceil'}
+                else (round(q.value) if name == 'round' else abs(q.value)),
+                q.dimension,
+            )
         raise ExpressionError('Unsupported expression')
 
     try:
@@ -156,8 +180,9 @@ def evaluate(expression: str, parameters: Mapping[str, Quantity]) -> Quantity:
     return result
 
 
-def _increment_unit(expression: str, raw: Mapping[str, str],
-                    existing: Mapping[str, Quantity], default_unit: str) -> str:
+def _increment_unit(
+    expression: str, raw: Mapping[str, str], existing: Mapping[str, Quantity], default_unit: str
+) -> str:
     """Infer the unit of a previously declared parameter for a bare increment."""
     values = {name: value for name, value in existing.items() if name not in raw}
     active: set[str] = set()
@@ -187,9 +212,13 @@ def _increment_unit(expression: str, raw: Mapping[str, str],
     raise ExpressionError('Unsupported resulting dimension')
 
 
-def _fold_assignments(text: str, existing: Mapping[str, Quantity],
-                      original_exprs: Mapping[str, str], units: Mapping[str, str],
-                      default_unit: str) -> dict[str, str]:
+def _fold_assignments(
+    text: str,
+    existing: Mapping[str, Quantity],
+    original_exprs: Mapping[str, str],
+    units: Mapping[str, str],
+    default_unit: str,
+) -> dict[str, str]:
     """Fold sequential updates into one expression per parameter, without self references."""
     entries = [_assignment(item) for item in re.split(r'[;\n]+', text) if item.strip()]
     if not entries:
@@ -199,7 +228,9 @@ def _fold_assignments(text: str, existing: Mapping[str, Quantity],
     for name, operator, expression in entries:
         if name not in initial and not operator:
             expression = normalize_expression(expression, known)
-            initial[name] = expression + ' ' + default_unit if _NUMERIC.fullmatch(expression) else expression
+            initial[name] = (
+                expression + ' ' + default_unit if _NUMERIC.fullmatch(expression) else expression
+            )
     raw: dict[str, str] = {}
     for name, operator, expression in entries:
         if name in _FUNCTIONS or name in {'__unit__', 'this'}:
@@ -272,13 +303,28 @@ def plan_batch(text: str, existing: Mapping[str, Quantity], default_unit: str) -
         if name in existing and existing[name].dimension != value.dimension:
             raise ExpressionError('Cannot change existing parameter dimension: ' + name)
         fusion_expr = re.sub(r'(?<=\d)\s*n\b', '', expr)
-        unit = default_unit if value.dimension == LENGTH else ('deg' if value.dimension == ANGLE else '')
-        operations.append(Operation(name, fusion_expr, value, unit, 'Update' if name in existing else 'New', existing.get(name)))
+        unit = (
+            default_unit
+            if value.dimension == LENGTH
+            else ('deg' if value.dimension == ANGLE else '')
+        )
+        operations.append(
+            Operation(
+                name,
+                fusion_expr,
+                value,
+                unit,
+                'Update' if name in existing else 'New',
+                existing.get(name),
+            )
+        )
         values[name] = value
     return operations
 
 
-def validate_final_graph(operations: list[Operation], existing_graph: Mapping[str, set[str]]) -> None:
+def validate_final_graph(
+    operations: list[Operation], existing_graph: Mapping[str, set[str]]
+) -> None:
     """Reject hidden cycles and stale previews using a complete parameter graph.
 
     Graph includes all user/model parameters, with edges to dependencies. A
@@ -328,14 +374,16 @@ class ParameterSnapshot:
     Dependencies must come from Fusion's parameter API, not from this parser.
     Values use mm/rad, regardless of the parameter's displayed unit.
     """
+
     expression: str
     unit: str
     quantity: Quantity
     dependencies: set[str]
 
 
-def plan_batch_snapshot(text: str, snapshot: Mapping[str, ParameterSnapshot],
-                        default_unit: str) -> list[Operation]:
+def plan_batch_snapshot(
+    text: str, snapshot: Mapping[str, ParameterSnapshot], default_unit: str
+) -> list[Operation]:
     """Conservatively project a batch through a complete dependency snapshot.
 
     This pure approximation does not replace Fusion validation. A caller must
@@ -368,10 +416,17 @@ def plan_batch_snapshot(text: str, snapshot: Mapping[str, ParameterSnapshot],
     for name, expr in original_exprs.items():
         actual = evaluate(expr, original_values)
         expected = snapshot[name].quantity
-        if actual.dimension != expected.dimension or not math.isclose(actual.value, expected.value, rel_tol=1e-10, abs_tol=1e-10):
+        if actual.dimension != expected.dimension or not math.isclose(
+            actual.value, expected.value, rel_tol=1e-10, abs_tol=1e-10
+        ):
             raise ExpressionError('Inconsistent snapshot value: ' + name)
-    raw = _fold_assignments(text, original_values, original_exprs,
-                            {name: item.unit for name, item in snapshot.items()}, default_unit)
+    raw = _fold_assignments(
+        text,
+        original_values,
+        original_exprs,
+        {name: item.unit for name, item in snapshot.items()},
+        default_unit,
+    )
     graph = dict(original_graph)
     graph.update({name: _dependencies(_tree(expr)) for name, expr in raw.items()})
     if any(not deps <= graph.keys() for deps in graph.values()):
@@ -404,11 +459,22 @@ def plan_batch_snapshot(text: str, snapshot: Mapping[str, ParameterSnapshot],
                 raise ExpressionError('Unsupported resulting dimension')
             if name in snapshot and snapshot[name].quantity.dimension != value.dimension:
                 raise ExpressionError('Cannot change existing parameter dimension: ' + name)
-            unit = default_unit if value.dimension == LENGTH else ('deg' if value.dimension == ANGLE else '')
+            unit = (
+                default_unit
+                if value.dimension == LENGTH
+                else ('deg' if value.dimension == ANGLE else '')
+            )
             fusion_expr = re.sub(r'(?<=\d)\s*n\b', '', expr)
-            operations.append(Operation(name, fusion_expr, value, unit,
-                                        'Update' if name in snapshot else 'New',
-                                        snapshot[name].quantity if name in snapshot else None))
+            operations.append(
+                Operation(
+                    name,
+                    fusion_expr,
+                    value,
+                    unit,
+                    'Update' if name in snapshot else 'New',
+                    snapshot[name].quantity if name in snapshot else None,
+                )
+            )
         else:
             value = evaluate(original_exprs[name], values)
             if value.dimension != snapshot[name].quantity.dimension:

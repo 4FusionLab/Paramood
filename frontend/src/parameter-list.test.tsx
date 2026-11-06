@@ -57,3 +57,87 @@ it('groups hierarchical user parameters before model parameters and edits a leaf
   );
   expect(selected).toBe('box_inner_size');
 });
+
+it('shows model expressions and makes driven dimensions read-only', () => {
+  const host = document.createElement('div');
+  act(() =>
+    render(
+      <ParameterList
+        parameters={[
+          { name: 'd1', expression: 'd_min', value: '20 mm', unit: 'mm', kind: 'model' },
+          {
+            name: 'd24',
+            expression: '25 mm',
+            value: '25 mm',
+            unit: 'mm',
+            kind: 'model',
+            driven: true,
+          },
+        ]}
+        onDelete={() => {}}
+        onEdit={() => {}}
+      />,
+      host,
+    ),
+  );
+  expect(host.textContent).toContain('20 (d_min)');
+  expect(host.textContent).toContain('(25)');
+  expect(host.querySelector('[aria-label="Edit value d24"]')).toBeNull();
+});
+
+it('renames a user parameter with its full hierarchical name', async () => {
+  const host = document.createElement('div');
+  let renamed = '';
+  act(() =>
+    render(
+      <ParameterList
+        parameters={[
+          { name: 'box_width', expression: '10 mm', value: '10 mm', unit: 'mm', kind: 'user' },
+        ]}
+        onDelete={() => {}}
+        onEdit={() => {}}
+        onRename={async (_, name) => {
+          renamed = name;
+          return true;
+        }}
+      />,
+      host,
+    ),
+  );
+  const nameButton = host.querySelector(
+    'button[aria-label="Rename box_width"]',
+  ) as HTMLButtonElement;
+  expect(nameButton.textContent).toBe('width');
+  act(() => nameButton.click());
+  const input = host.querySelector('input[aria-label="Rename box_width"]') as HTMLInputElement;
+  expect(input.value).toBe('box_width');
+  act(() => {
+    input.value = 'box_length';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () => {
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  });
+  expect(renamed).toBe('box_length');
+});
+
+it('opens rename for a named model parameter', () => {
+  const host = document.createElement('div');
+  act(() =>
+    render(
+      <ParameterList
+        parameters={[
+          { name: 'champher', expression: '5 mm', value: '5 mm', unit: 'mm', kind: 'model' },
+        ]}
+        onDelete={() => {}}
+        onEdit={() => {}}
+        onRename={async () => true}
+      />,
+      host,
+    ),
+  );
+  const name = host.querySelector('button[aria-label="Rename champher"]') as HTMLButtonElement;
+  expect(name).not.toBeNull();
+  act(() => name.click());
+  expect(host.querySelector('input[aria-label="Rename champher"]')).not.toBeNull();
+});

@@ -1,4 +1,5 @@
 """Fusion loads Paramood as a package; unrelated add-ins may own common names."""
+
 import importlib
 import sys
 import types
@@ -8,7 +9,15 @@ def test_fusion_entry_import_ignores_other_addins_common_module_names(monkeypatc
     adsk = types.ModuleType('adsk')
     core = types.ModuleType('adsk.core')
     fusion = types.ModuleType('adsk.fusion')
-    for name in ('HTMLEventHandler', 'CommandEventHandler', 'CommandCreatedEventHandler', 'DocumentEventHandler', 'WorkspaceEventHandler', 'UserInterfaceGeneralEventHandler', 'ApplicationCommandEventHandler'):
+    for name in (
+        'HTMLEventHandler',
+        'CommandEventHandler',
+        'CommandCreatedEventHandler',
+        'DocumentEventHandler',
+        'WorkspaceEventHandler',
+        'UserInterfaceGeneralEventHandler',
+        'ApplicationCommandEventHandler',
+    ):
         setattr(core, name, type(name, (), {}))
     adsk.core, adsk.fusion = core, fusion
     for name, module in [('adsk', adsk), ('adsk.core', core), ('adsk.fusion', fusion)]:

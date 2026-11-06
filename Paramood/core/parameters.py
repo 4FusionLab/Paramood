@@ -1,4 +1,5 @@
 """Best-effort batch application; this is not a Fusion transaction."""
+
 from __future__ import annotations
 from typing import Protocol, Sequence
 from .expressions import Operation

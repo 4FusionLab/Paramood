@@ -1,4 +1,5 @@
 """Fusion-only adapter. All public methods run on Fusion's main thread."""
+
 import hashlib
 import json
 import math
@@ -8,10 +9,53 @@ import uuid
 import adsk.core
 import adsk.fusion
 
-from ..core.expressions import (ANGLE, LENGTH, SCALAR, UNITS, ParameterSnapshot,
-                                Quantity, evaluate, normalize_expression, plan_batch, plan_batch_snapshot)
+from ..core.expressions import (
+    ANGLE,
+    LENGTH,
+    SCALAR,
+    UNITS,
+    ParameterSnapshot,
+    Quantity,
+    evaluate,
+    normalize_expression,
+    plan_batch,
+    plan_batch_snapshot,
+)
+from ..core.inline_equation import solve_inline_equation
 from ..bridge.protocol import BridgeError
 from ..bridge.formatting import display_quantity
+
+
+def _value_expression(parameter):
+    unit, value = parameter.unit, parameter.value
+    if not math.isfinite(value):
+        raise ValueError('Non-finite parameter value')
+    if not unit:
+        return repr(value) + 'n'
+    if unit in UNITS and UNITS[unit][1] == LENGTH:
+        return repr(value) + ' cm'
+    if unit in UNITS and UNITS[unit][1] == ANGLE:
+        return repr(value) + ' rad'
+    raise ValueError('Unsupported parameter unit')
+
+
+def _is_driven(parameter):
+    try:
+        owner = parameter.createdBy
+        if not owner:
+            return False
+        type_name = owner.objectType.rsplit('::', 1)[-1]
+        if type_name == 'Sketch':
+            try:
+                for dimension in owner.sketchDimensions:
+                    if dimension.parameter == parameter:
+                        return not dimension.isDriving
+            except Exception:
+                return True
+            return True  # Do not allow a write when the sketch dimension cannot be verified.
+        return bool(type_name.startswith('Sketch') and owner.isDriving is False)
+    except (AttributeError, RuntimeError):
+        return False
 
 
 class FusionAdapter:
@@ -47,9 +91,14 @@ class FusionAdapter:
         if self._document is None or self._document != doc:
             self._document = doc
             self._document_id = uuid.uuid4().hex
-            self._draft_documents = [(item, identity) for item, identity in self._draft_documents
-                                     if getattr(item, 'isValid', True)]
-            self._draft_id = next((identity for item, identity in self._draft_documents if item == doc), None)
+            self._draft_documents = [
+                (item, identity)
+                for item, identity in self._draft_documents
+                if getattr(item, 'isValid', True)
+            ]
+            self._draft_id = next(
+                (identity for item, identity in self._draft_documents if item == doc), None
+            )
             if self._draft_id is None:
                 self._draft_id = uuid.uuid4().hex
                 self._draft_documents.append((doc, self._draft_id))
@@ -119,8 +168,9 @@ class FusionAdapter:
                     raise ValueError('Non-finite parameter value: ' + name)
                 dependencies[name] = names_of(parameter.dependencyParameters)
                 dependents[name] = names_of(parameter.dependentParameters)
-                result[name] = ParameterSnapshot(parameter.expression, unit,
-                                                 Quantity(value, dimension), dependencies[name])
+                result[name] = ParameterSnapshot(
+                    parameter.expression, unit, Quantity(value, dimension), dependencies[name]
+                )
             expected_dependents = {name: set() for name in by_name}
             for name, deps in dependencies.items():
                 for dependency in deps:
@@ -130,7 +180,9 @@ class FusionAdapter:
                     raise ValueError('Inconsistent parameter dependency graph: ' + name)
             return result
         except Exception as exc:
-            raise BridgeError('INCOMPLETE_SNAPSHOT', 'Cannot verify parameter dependencies: ' + str(exc)) from exc
+            raise BridgeError(
+                'INCOMPLETE_SNAPSHOT', 'Cannot verify parameter dependencies: ' + str(exc)
+            ) from exc
 
     def _healthy_timeline_snapshot(self, design):
         """Capture only healthy timeline objects for future geometry validation.
@@ -144,11 +196,14 @@ class FusionAdapter:
                 raise ValueError('No timeline objects available')
             healthy = adsk.fusion.FeatureHealthStates.HealthyFeatureHealthState
             snapshot = []
+
             def capture(item):
                 if not item or not item.isValid:
                     raise ValueError('Invalid timeline item')
                 is_group = item.isGroup
-                if item.isSuppressed or (not (is_group and not item.isCollapsed) and item.isRolledBack):
+                if item.isSuppressed or (
+                    not (is_group and not item.isCollapsed) and item.isRolledBack
+                ):
                     raise ValueError('Timeline item is not computed: ' + item.name)
                 snapshot.append((item, item.name))
                 if is_group:
@@ -174,7 +229,9 @@ class FusionAdapter:
                 groups.append((group, group.name, group.isCollapsed, children))
             return snapshot, timeline.markerPosition, groups
         except Exception as exc:
-            raise BridgeError('UNHEALTHY_MODEL', 'Cannot verify model timeline: ' + str(exc)) from exc
+            raise BridgeError(
+                'UNHEALTHY_MODEL', 'Cannot verify model timeline: ' + str(exc)
+            ) from exc
 
     def _verify_timeline_health(self, design, baseline):
         current, marker, groups = self._healthy_timeline_snapshot(design)
@@ -193,11 +250,18 @@ class FusionAdapter:
         parameters = []
         for param in design.allParameters:
             try:
-                display = manager.formatValue(param.value, param.unit) if param.unit else str(param.value)
+                display = (
+                    manager.formatValue(param.value, param.unit) if param.unit else str(param.value)
+                )
             except Exception:
                 display = ''
             user_param = design.userParameters.itemByName(param.name)
             is_user = bool(user_param and user_param == param)
+            driven = not is_user and _is_driven(param)
+            try:
+                value_expression = _value_expression(param)
+            except (AttributeError, ValueError, TypeError, RuntimeError):
+                value_expression = None
             bindings = set()
             try:
                 pending, visited = [param], set()
@@ -218,12 +282,28 @@ class FusionAdapter:
                     pending.extend(current.dependentParameters)
             except Exception:
                 bindings.add('unknown')
-            parameters.append({'name': param.name, 'expression': param.expression,
-                               'value': display, 'unit': param.unit, 'comment': param.comment,
-                               'kind': 'user' if is_user else 'model', 'linked': bool(bindings),
-                               'bindings': sorted(bindings), 'entityToken': getattr(param, 'entityToken', '')})
-        return {'documentId': self._document_id, 'draftId': self._draft_id, 'documentName': self._document.name,
-                'defaultLengthUnit': manager.defaultLengthUnits, 'parameters': parameters}
+            parameters.append(
+                {
+                    'name': param.name,
+                    'expression': param.expression,
+                    'value': display,
+                    'unit': param.unit,
+                    'comment': param.comment,
+                    'kind': 'user' if is_user else 'model',
+                    'linked': bool(bindings),
+                    'bindings': sorted(bindings),
+                    'entityToken': getattr(param, 'entityToken', ''),
+                    'driven': driven,
+                    'valueExpression': value_expression,
+                }
+            )
+        return {
+            'documentId': self._document_id,
+            'draftId': self._draft_id,
+            'documentName': self._document.name,
+            'defaultLengthUnit': manager.defaultLengthUnits,
+            'parameters': parameters,
+        }
 
     def _snapshot_token(self, design, text):
         parameters = []
@@ -231,10 +311,19 @@ class FusionAdapter:
             try:
                 value = param.value
             except Exception:
-                value = None  # Text/unsupported parameter, expression is still part of the snapshot.
+                value = (
+                    None  # Text/unsupported parameter, expression is still part of the snapshot.
+                )
             parameters.append((param.name, param.expression, param.unit, value))
-        payload = [self._document_id, text, design.fusionUnitsManager.defaultLengthUnits, sorted(parameters)]
-        return hashlib.sha256(json.dumps(payload, ensure_ascii=True, allow_nan=False).encode('utf-8')).hexdigest()
+        payload = [
+            self._document_id,
+            text,
+            design.fusionUnitsManager.defaultLengthUnits,
+            sorted(parameters),
+        ]
+        return hashlib.sha256(
+            json.dumps(payload, ensure_ascii=True, allow_nan=False).encode('utf-8')
+        ).hexdigest()
 
     def _editable_parameter(self, design, name):
         parameter = design.allParameters.itemByName(name)
@@ -244,7 +333,11 @@ class FusionAdapter:
         if user_parameter and user_parameter == parameter:
             return parameter
         model_parameter = adsk.fusion.ModelParameter.cast(parameter)
-        return parameter if model_parameter and model_parameter == parameter else None
+        return (
+            parameter
+            if model_parameter and model_parameter == parameter and not _is_driven(parameter)
+            else None
+        )
 
     def _plan(self, text):
         design = self._design()
@@ -252,8 +345,11 @@ class FusionAdapter:
             raise BridgeError('NO_DESIGN', 'Open a Fusion design first.')
         if not isinstance(text, str) or len(text) > 10000:
             raise BridgeError('BAD_REQUEST', 'Expression is missing or too long.')
-        names = [re.sub(r'[+*/-]$', '', item.split('=', 1)[0].strip()).strip().replace('.', '_') for item in re.split(r'[;\n]+', text)
-                 if item.strip()]
+        names = [
+            re.sub(r'[+*/-]$', '', item.split('=', 1)[0].strip()).strip().replace('.', '_')
+            for item in re.split(r'[;\n]+', text)
+            if item.strip()
+        ]
         existing = [design.allParameters.itemByName(name) for name in names]
         if any(existing):
             for parameter in existing:
@@ -269,18 +365,28 @@ class FusionAdapter:
             isolated = []
             for name, item in snapshot.items():
                 expression = item.expression.strip()
-                if (not re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*', expression)
-                        or expression in snapshot or name in mentioned or expression in mentioned
-                        or item.dependencies
-                        or any(name in other.dependencies for other in snapshot.values())):
+                if (
+                    not re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*', expression)
+                    or expression in snapshot
+                    or name in mentioned
+                    or expression in mentioned
+                    or item.dependencies
+                    or any(name in other.dependencies for other in snapshot.values())
+                ):
                     continue
                 parameter = design.allParameters.itemByName(name)
                 if parameter and adsk.fusion.ModelParameter.cast(parameter):
                     isolated.append(name)
-            planned_snapshot = {name: item for name, item in snapshot.items() if name not in isolated}
-            ops = plan_batch_snapshot(text, planned_snapshot, design.fusionUnitsManager.defaultLengthUnits)
+            planned_snapshot = {
+                name: item for name, item in snapshot.items() if name not in isolated
+            }
+            ops = plan_batch_snapshot(
+                text, planned_snapshot, design.fusionUnitsManager.defaultLengthUnits
+            )
         else:
-            ops = plan_batch(text, self._quantities(design), design.fusionUnitsManager.defaultLengthUnits)
+            ops = plan_batch(
+                text, self._quantities(design), design.fusionUnitsManager.defaultLengthUnits
+            )
         for op in ops:
             if op.status != 'New':
                 continue
@@ -289,8 +395,10 @@ class FusionAdapter:
             except RuntimeError:
                 unit_name = ''
             if unit_name:
-                raise BridgeError('INVALID_PARAMETER_NAME',
-                                  "Parameter '" + op.name + "' is a Fusion unit name. Choose another name.")
+                raise BridgeError(
+                    'INVALID_PARAMETER_NAME',
+                    "Parameter '" + op.name + "' is a Fusion unit name. Choose another name.",
+                )
         return design, ops
 
     def _execute_new_batch(self, design, ops):
@@ -306,22 +414,36 @@ class FusionAdapter:
                 unit = created.unit
             else:
                 if existing:
-                    raise BridgeError('CONFLICT', 'A parameter with this name already exists: ' + op.name)
+                    raise BridgeError(
+                        'CONFLICT', 'A parameter with this name already exists: ' + op.name
+                    )
                 unit = op.unit
             if not design.fusionUnitsManager.isValidExpression(op.expression, unit):
-                raise BridgeError('INVALID_EXPRESSION', 'Fusion cannot validate expression for ' + op.name + '.')
+                raise BridgeError(
+                    'INVALID_EXPRESSION', 'Fusion cannot validate expression for ' + op.name + '.'
+                )
             if op.status == 'Update':
                 created.expression = op.expression
                 if ''.join(created.expression.split()) != ''.join(op.expression.split()):
-                    raise BridgeError('RESULT_MISMATCH', 'Fusion returned a different expression for ' + op.name + '.')
+                    raise BridgeError(
+                        'RESULT_MISMATCH',
+                        'Fusion returned a different expression for ' + op.name + '.',
+                    )
                 updated_names.append(op.name)
             else:
                 try:
-                    created = design.userParameters.add(op.name, adsk.core.ValueInput.createByString(op.expression), op.unit, '')
+                    created = design.userParameters.add(
+                        op.name, adsk.core.ValueInput.createByString(op.expression), op.unit, ''
+                    )
                 except RuntimeError as exc:
-                    raise BridgeError('CREATE_FAILED', "Fusion could not create parameter '" + op.name + "': " + str(exc)) from exc
+                    raise BridgeError(
+                        'CREATE_FAILED',
+                        "Fusion could not create parameter '" + op.name + "': " + str(exc),
+                    ) from exc
                 if not created:
-                    raise BridgeError('CREATE_FAILED', 'Fusion could not create parameter ' + op.name + '.')
+                    raise BridgeError(
+                        'CREATE_FAILED', 'Fusion could not create parameter ' + op.name + '.'
+                    )
                 created_names.append(op.name)
             self._verify_value(created, op)
         return {'created': created_names, 'updated': updated_names}
@@ -335,9 +457,13 @@ class FusionAdapter:
         elif unit in UNITS and UNITS[unit][1] == ANGLE and op.quantity.dimension == ANGLE:
             actual = parameter.value
         else:
-            raise BridgeError('RESULT_MISMATCH', 'Fusion returned an unexpected unit for ' + op.name + '.')
+            raise BridgeError(
+                'RESULT_MISMATCH', 'Fusion returned an unexpected unit for ' + op.name + '.'
+            )
         if not math.isclose(actual, op.quantity.value, rel_tol=1e-9, abs_tol=1e-9):
-            raise BridgeError('RESULT_MISMATCH', 'Fusion result differs from preview for ' + op.name + '.')
+            raise BridgeError(
+                'RESULT_MISMATCH', 'Fusion result differs from preview for ' + op.name + '.'
+            )
 
     def _execute_direct_batch(self, design, ops):
         if len(ops) == 1:
@@ -352,10 +478,15 @@ class FusionAdapter:
                 except Exception as exc:
                     completed = created + updated
                     summary = ', '.join(completed) if completed else 'none confirmed'
-                    raise BridgeError('DIRECT_PARTIAL',
-                                      'The batch did not finish. Confirmed changes: ' + summary +
-                                      '. ' + op.name + ' may also have changed. '
-                                      'Refresh the model before retrying: ' + str(exc)) from exc
+                    raise BridgeError(
+                        'DIRECT_PARTIAL',
+                        'The batch did not finish. Confirmed changes: '
+                        + summary
+                        + '. '
+                        + op.name
+                        + ' may also have changed. '
+                        'Refresh the model before retrying: ' + str(exc),
+                    ) from exc
             return {'created': created, 'updated': updated}
         if not ops:
             return {'created': [], 'updated': []}
@@ -366,65 +497,209 @@ class FusionAdapter:
             if not parameter or parameter != existing:
                 raise BridgeError('CONFLICT', 'Parameter changed: ' + op.name)
             if not design.fusionUnitsManager.isValidExpression(op.expression, parameter.unit):
-                raise BridgeError('INVALID_EXPRESSION', 'Fusion cannot validate expression for ' + op.name + '.')
+                raise BridgeError(
+                    'INVALID_EXPRESSION', 'Fusion cannot validate expression for ' + op.name + '.'
+                )
             parameters.append(parameter)
             values.append(adsk.core.ValueInput.createByString(op.expression))
         if not design.modifyParameters(parameters, values):
             raise BridgeError('UPDATE_FAILED', 'Fusion could not update the parameter batch.')
         for parameter, op in zip(parameters, ops):
             if ''.join(parameter.expression.split()) != ''.join(op.expression.split()):
-                raise BridgeError('RESULT_MISMATCH', 'Fusion returned a different expression for ' + op.name + '.')
+                raise BridgeError(
+                    'RESULT_MISMATCH', 'Fusion returned a different expression for ' + op.name + '.'
+                )
             self._verify_value(parameter, op)
         return {'created': [], 'updated': [op.name for op in ops]}
 
     def request(self, action, payload):
-        if action == 'parameters.delete':
+        if action == 'parameters.rename':
             if not self.in_command and not self.in_direct_apply:
                 raise BridgeError('BAD_CONTEXT', 'Changes require a Fusion command.')
-            name, token = payload.get('name'), payload.get('entityToken')
-            if not isinstance(name, str) or not name or not isinstance(token, str) or not token:
-                raise BridgeError('BAD_REQUEST', 'Parameter identity is missing. Refresh and try again.')
+            name, token, new_name = (
+                payload.get('name'),
+                payload.get('entityToken'),
+                payload.get('newName'),
+            )
+            if (
+                not isinstance(name, str)
+                or not isinstance(token, str)
+                or not token
+                or not isinstance(new_name, str)
+            ):
+                raise BridgeError('BAD_REQUEST', 'Parameter identity or name is missing.')
+            if not re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*', new_name):
+                raise BridgeError('INVALID_PARAMETER_NAME', 'Enter a valid parameter name.')
             design = self._design()
             parameter = design.allParameters.itemByName(name) if design else None
             matches = design.findEntityByToken(token) if design else []
             if not parameter or len(matches) != 1 or matches[0] != parameter:
                 raise BridgeError('CONFLICT', 'The parameter changed. Refresh and try again.')
+            if not self._editable_parameter(design, name):
+                raise BridgeError('READ_ONLY', 'This parameter cannot be renamed.')
+            if parameter.expression != payload.get('expression') or parameter.unit != payload.get(
+                'unit'
+            ):
+                raise BridgeError('CONFLICT', 'The parameter changed. Refresh and try again.')
+            existing = design.allParameters.itemByName(new_name)
+            if existing and existing != parameter:
+                raise BridgeError('CONFLICT', 'A parameter with this name already exists.')
+            try:
+                parameter.name = new_name
+                if parameter.name != new_name:
+                    raise ValueError('Fusion did not accept the name.')
+            except Exception as exc:
+                raise BridgeError(
+                    'RENAME_FAILED', 'Fusion could not rename the parameter: ' + str(exc)
+                ) from exc
+            return {'renamed': new_name}
+        if action == 'parameters.delete':
+            if not self.in_command and not self.in_direct_apply:
+                raise BridgeError('BAD_CONTEXT', 'Changes require a Fusion command.')
+            name, token = payload.get('name'), payload.get('entityToken')
+            if not isinstance(name, str) or not name or not isinstance(token, str) or not token:
+                raise BridgeError(
+                    'BAD_REQUEST', 'Parameter identity is missing. Refresh and try again.'
+                )
+            design = self._design()
+            parameter = design.allParameters.itemByName(name) if design else None
+            matches = design.findEntityByToken(token) if design else []
+            if not parameter or len(matches) != 1 or matches[0] != parameter:
+                raise BridgeError('CONFLICT', 'The parameter changed. Refresh and try again.')
+            if _is_driven(parameter):
+                raise BridgeError(
+                    'READ_ONLY', 'Driven dimensions cannot be deleted from this panel.'
+                )
             try:
                 deleted = parameter.deleteMe()
             except Exception as exc:
-                raise BridgeError('DELETE_FAILED', 'Fusion could not delete ' + name + ': ' + str(exc)) from exc
+                raise BridgeError(
+                    'DELETE_FAILED', 'Fusion could not delete ' + name + ': ' + str(exc)
+                ) from exc
             if not deleted:
                 raise BridgeError('DELETE_FAILED', 'Fusion could not delete ' + name + '.')
             return {'deleted': name}
         if action == 'parameters.preview':
+            equation = payload.get('inlineEquation')
+            if equation is not None:
+                if (
+                    not isinstance(equation, dict)
+                    or not isinstance(equation.get('target'), str)
+                    or not isinstance(equation.get('expression'), str)
+                ):
+                    raise BridgeError('BAD_REQUEST', 'The equation is invalid.')
+                design = self._design()
+                target = self._editable_parameter(design, equation['target']) if design else None
+                if not target:
+                    raise BridgeError(
+                        'CONFLICT', 'The target parameter changed. Refresh and try again.'
+                    )
+                text = solve_inline_equation(
+                    equation['expression'],
+                    target.name,
+                    target.unit,
+                    self._quantities(design),
+                    [p.name for p in design.allParameters],
+                )
+                design, ops = self._plan(text)
+                created = [op.name for op in ops if op.status == 'New']
+                updated = [op.name for op in ops if op.status == 'Update']
+                if len(ops) != 2 or len(created) != 1 or updated != [target.name]:
+                    raise BridgeError(
+                        'BAD_REQUEST',
+                        'The equation must create one parameter and update the target.',
+                    )
+                return {
+                    'snapshotToken': self._snapshot_token(design, text),
+                    'resolvedText': text,
+                    'newName': created[0],
+                    'items': [
+                        {
+                            'name': op.name,
+                            'expression': op.expression,
+                            'value': display_quantity(op.quantity, op.unit),
+                            'unit': op.unit,
+                            'status': op.status,
+                        }
+                        for op in ops
+                    ],
+                    'valid': True,
+                }
+            if 'sourceValueExpression' in payload:
+                design = self._design()
+                name = payload.get('sourceName')
+                expected = payload.get('sourceValueExpression')
+                if not isinstance(name, str) or not isinstance(expected, str):
+                    raise BridgeError('BAD_REQUEST', 'The source parameter value is missing.')
+                parameter = design.allParameters.itemByName(name) if design else None
+                try:
+                    current = _value_expression(parameter) if parameter else None
+                except (AttributeError, ValueError, TypeError, RuntimeError):
+                    current = None
+                if current != expected:
+                    raise BridgeError(
+                        'CONFLICT', 'The parameter value changed. Refresh and try again.'
+                    )
             design, ops = self._plan(payload.get('text'))
             token = self._snapshot_token(design, payload.get('text'))
-            return {'snapshotToken': token, 'items': [{'name': op.name, 'expression': op.expression,
-                               'value': display_quantity(op.quantity, op.unit), 'unit': op.unit,
-                               'status': op.status,
-                               'previous': str(display_quantity(op.previous, op.unit)) if op.previous else None}
-                              for op in ops], 'valid': bool(ops)}
+            return {
+                'snapshotToken': token,
+                'items': [
+                    {
+                        'name': op.name,
+                        'expression': op.expression,
+                        'value': display_quantity(op.quantity, op.unit),
+                        'unit': op.unit,
+                        'status': op.status,
+                        'previous': str(display_quantity(op.previous, op.unit))
+                        if op.previous
+                        else None,
+                    }
+                    for op in ops
+                ],
+                'valid': bool(ops),
+            }
         if action == 'parameters.apply':
             if not self.in_command and not self.in_direct_apply:
                 raise BridgeError('BAD_CONTEXT', 'Changes require a Fusion command.')
+            if payload.get('requireTransaction') is True and self.in_direct_apply:
+                raise BridgeError(
+                    'TRANSACTION_REQUIRED',
+                    'Finish the active Fusion command or sketch before creating and linking a parameter.',
+                )
             design = self._design()
             text = payload.get('text')
-            if not design or not isinstance(text, str) or payload.get('snapshotToken') != self._snapshot_token(design, text):
-                raise BridgeError('STALE_PREVIEW', 'The design changed. Refresh the preview and try again.')
+            if (
+                not design
+                or not isinstance(text, str)
+                or payload.get('snapshotToken') != self._snapshot_token(design, text)
+            ):
+                raise BridgeError(
+                    'STALE_PREVIEW', 'The design changed. Refresh the preview and try again.'
+                )
             design, ops = self._plan(text)
             if self.in_direct_apply:
                 try:
                     return self._execute_direct_batch(design, ops)
                 except BridgeError as exc:
-                    if exc.code in {'DIRECT_PARTIAL', 'CONFLICT', 'INVALID_EXPRESSION', 'UPDATE_FAILED'}:
+                    if exc.code in {
+                        'DIRECT_PARTIAL',
+                        'CONFLICT',
+                        'INVALID_EXPRESSION',
+                        'UPDATE_FAILED',
+                    }:
                         raise
-                    raise BridgeError('DIRECT_APPLY_FAILED',
-                                      'Fusion could not confirm the change. Refresh the model before retrying: '
-                                      + str(exc)) from exc
+                    raise BridgeError(
+                        'DIRECT_APPLY_FAILED',
+                        'Fusion could not confirm the change. Refresh the model before retrying: '
+                        + str(exc),
+                    ) from exc
                 except Exception as exc:
-                    raise BridgeError('DIRECT_APPLY_FAILED',
-                                      'Fusion could not confirm the change. Refresh the model before retrying: '
-                                      + str(exc)) from exc
+                    raise BridgeError(
+                        'DIRECT_APPLY_FAILED',
+                        'Fusion could not confirm the change. Refresh the model before retrying: '
+                        + str(exc),
+                    ) from exc
             return self._execute_new_batch(design, ops)
         if action == 'calculator.evaluate':
             design = self._design()
@@ -434,7 +709,11 @@ class FusionAdapter:
             quantities = self._quantities(design)
             expression = normalize_expression(expression, quantities)
             quantity = evaluate(expression, quantities)
-            unit = {LENGTH: design.fusionUnitsManager.defaultLengthUnits, ANGLE: 'deg', SCALAR: ''}.get(quantity.dimension)
+            unit = {
+                LENGTH: design.fusionUnitsManager.defaultLengthUnits,
+                ANGLE: 'deg',
+                SCALAR: '',
+            }.get(quantity.dimension)
             if unit is None:
                 raise BridgeError('UNSUPPORTED', 'This result dimension is not supported yet.')
             manager = design.fusionUnitsManager
@@ -442,20 +721,37 @@ class FusionAdapter:
                 raise BridgeError('INVALID_EXPRESSION', 'Fusion cannot validate this expression.')
             value = manager.evaluateExpression(expression, unit)
             formatted = manager.formatValue(value, unit) if unit else str(value)
-            display_value = value if not unit else manager.convert(value, 'cm' if quantity.dimension == LENGTH else 'rad', unit)
+            display_value = (
+                value
+                if not unit
+                else manager.convert(value, 'cm' if quantity.dimension == LENGTH else 'rad', unit)
+            )
             return {'value': display_value, 'unit': unit, 'formatted': formatted}
         if action == 'cleanup.analyze':
             design = self._design()
             items = []
             for p in design.userParameters:
                 try:
-                    formatted = design.fusionUnitsManager.formatValue(p.value, p.unit) if p.unit else str(p.value)
+                    formatted = (
+                        design.fusionUnitsManager.formatValue(p.value, p.unit)
+                        if p.unit
+                        else str(p.value)
+                    )
                 except Exception:
                     formatted = ''
-                items.append({'name': p.name, 'expression': p.expression, 'value': formatted,
-                              'unit': p.unit, 'comment': p.comment, 'favorite': p.isFavorite,
-                              'protected': True, 'selected': False,
-                              'reason': 'Protected: dependency coverage has not yet been verified.'})
+                items.append(
+                    {
+                        'name': p.name,
+                        'expression': p.expression,
+                        'value': formatted,
+                        'unit': p.unit,
+                        'comment': p.comment,
+                        'favorite': p.isFavorite,
+                        'protected': True,
+                        'selected': False,
+                        'reason': 'Protected: dependency coverage has not yet been verified.',
+                    }
+                )
             return {'items': items}
 
         raise BridgeError('BAD_REQUEST', 'Unknown action.')

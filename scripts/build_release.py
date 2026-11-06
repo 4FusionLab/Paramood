@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Build a deterministic, self-contained Paramood Fusion add-in archive."""
+
 import argparse
 import hashlib
 import json
@@ -32,20 +33,28 @@ def build(output_dir: Path, version_override: str = None) -> Path:
             relative = path.relative_to(SOURCE).as_posix()
             files['Paramood/' + relative] = path.read_bytes()
     manifest['version'] = version
-    files['Paramood/Paramood.manifest'] = (json.dumps(manifest, ensure_ascii=False, indent=2) + '\n').encode('utf-8')
+    files['Paramood/Paramood.manifest'] = (
+        json.dumps(manifest, ensure_ascii=False, indent=2) + '\n'
+    ).encode('utf-8')
     for path in FRONTEND.rglob('*'):
         if path.is_file():
-            files['Paramood/frontend/dist/' + path.relative_to(FRONTEND).as_posix()] = path.read_bytes()
+            files['Paramood/frontend/dist/' + path.relative_to(FRONTEND).as_posix()] = (
+                path.read_bytes()
+            )
     output_dir.mkdir(parents=True, exist_ok=True)
     package = output_dir / ('Paramood-' + version + '.zip')
-    with zipfile.ZipFile(package, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
+    with zipfile.ZipFile(
+        package, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9
+    ) as archive:
         for name, content in sorted(files.items()):
             info = zipfile.ZipInfo(name, date_time=(2020, 1, 1, 0, 0, 0))
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = 0o100644 << 16
             archive.writestr(info, content, compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
     digest = hashlib.sha256(package.read_bytes()).hexdigest()
-    (output_dir / (package.name + '.sha256')).write_text(digest + '  ' + package.name + '\n', encoding='ascii')
+    (output_dir / (package.name + '.sha256')).write_text(
+        digest + '  ' + package.name + '\n', encoding='ascii'
+    )
     return package
 
 

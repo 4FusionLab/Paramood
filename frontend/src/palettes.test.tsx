@@ -280,22 +280,26 @@ it('applies an inline edit on Enter with a checked snapshot and no preview contr
   await vi.waitFor(() => expect(host.textContent).toContain('Design'));
   act(() => host.querySelector<HTMLButtonElement>('[aria-label="Parameter list"]')!.click());
   act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit value width"]')!.click());
-  const input = host.querySelector<HTMLInputElement>('[aria-label="Expression for width"]')!;
+  const input = host.querySelector<HTMLElement>('[aria-label="Expression for width"]')!;
+  const inline = EditorView.findFromDOM(input)!;
   expect(input.closest('.tree-row')?.textContent).toContain('width');
-  expect(input.value).toBe('10');
+  expect(inline.state.doc.toString()).toBe('10');
   expect(document.activeElement).toBe(input);
-  expect(input.selectionStart).toBe(0);
-  expect(input.selectionEnd).toBe(input.value.length);
+  expect(inline.state.selection.main.from).toBe(0);
+  expect(inline.state.selection.main.to).toBe(2);
   expect(input.closest('.tree-row')?.querySelector('.tree-unit')?.textContent).toBe('mm');
   act(() => {
-    input.value = '20';
-    input.dispatchEvent(new Event('input', { bubbles: true }));
+    inline.dispatch({ changes: { from: 0, to: inline.state.doc.length, insert: '20' } });
   });
   expect(host.textContent).not.toContain('Preview');
   act(() => {
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
   });
   await vi.waitFor(() => expect(calls.some((c) => c.action === 'parameters.apply')).toBe(true));
+  await vi.waitFor(() =>
+    expect(host.querySelector('[aria-label="Expression for width"]')).toBeNull(),
+  );
+  expect(host.textContent).not.toContain('Parameter updated.');
   expect(calls.find((c) => c.action === 'parameters.preview')?.payload.text).toBe('width=20 mm');
   expect(calls.find((c) => c.action === 'parameters.apply')?.payload).toEqual({
     text: 'width=20 mm',
@@ -352,4 +356,344 @@ it('shows the Fusion error when deleting a parameter is refused', async () => {
   act(() => host.querySelector<HTMLButtonElement>('[aria-label="Delete width"]')!.click());
   await vi.waitFor(() => expect(host.textContent).toContain('Fusion refused deletion'));
   expect(deleted).toBe(true);
+});
+
+it('keeps the editor mounted during an unchanged state notification', async () => {
+  let pending: { requestId: string } | undefined;
+  let stateCalls = 0;
+  window.adsk = {
+    fusionSendData: (_action, raw) => {
+      const data = JSON.parse(raw);
+      if (data.action !== 'state.get') return;
+      stateCalls++;
+      if (stateCalls > 1) {
+        pending = data;
+        return;
+      }
+      window.fusionJavaScriptHandler!.handle(
+        'response',
+        JSON.stringify({
+          requestId: data.requestId,
+          ok: true,
+          documentId: 'doc',
+          data: { documentId: 'doc', documentName: 'Design', parameters: [] },
+        }),
+      );
+    },
+  };
+  host = document.createElement('div');
+  document.body.appendChild(host);
+  act(() => render(<App />, host));
+  await vi.waitFor(() => expect(host.textContent).toContain('Design'));
+  const editor = host.querySelector('.cm-content');
+  act(() => {
+    window.fusionJavaScriptHandler!.handle('state.changed', '{}');
+  });
+  await vi.waitFor(() => expect(pending).toBeDefined());
+  expect(host.querySelector('.cm-content')).toBe(editor);
+  expect(host.textContent).toContain('Design');
+  expect(host.textContent).not.toContain('Connecting to Fusion');
+  await act(async () => {
+    window.fusionJavaScriptHandler!.handle(
+      'response',
+      JSON.stringify({
+        requestId: pending!.requestId,
+        ok: true,
+        documentId: 'doc',
+        data: { documentId: 'doc', documentName: 'Design', parameters: [] },
+      }),
+    );
+  });
+  expect(host.querySelector('.cm-content')).toBe(editor);
+});
+
+it('updates changed parameters after a background state notification without resetting the editor', async () => {
+  let value = '10 mm';
+  window.adsk = {
+    fusionSendData: (_action, raw) => {
+      const data = JSON.parse(raw);
+      const response =
+        data.action === 'state.get'
+          ? {
+              documentId: 'doc',
+              documentName: 'Design',
+              parameters: [{ name: 'width', kind: 'user', expression: value, value, unit: 'mm' }],
+            }
+          : { value: 0, unit: '', formatted: '0' };
+      window.fusionJavaScriptHandler!.handle(
+        'response',
+        JSON.stringify({ requestId: data.requestId, ok: true, documentId: 'doc', data: response }),
+      );
+    },
+  };
+  host = document.createElement('div');
+  document.body.appendChild(host);
+  act(() => render(<App />, host));
+  await vi.waitFor(() => expect(host.textContent).toContain('10'));
+  const editor = host.querySelector('.cm-content');
+  value = '20 mm';
+  act(() => {
+    window.fusionJavaScriptHandler!.handle('state.changed', '{}');
+  });
+  await vi.waitFor(() => expect(host.textContent).toContain('20'));
+  expect(host.querySelector('.cm-content')).toBe(editor);
+});
+
+it('keeps the model visible while applying an inline change and receiving a Fusion notification', async () => {
+  const pending: { requestId: string }[] = [];
+  let initial = true;
+  window.adsk = {
+    fusionSendData: (_action, raw) => {
+      const data = JSON.parse(raw);
+      if (data.action === 'state.get' && !initial) {
+        pending.push(data);
+        return;
+      }
+      let response: unknown = {};
+      if (data.action === 'state.get') {
+        initial = false;
+        response = {
+          documentId: 'doc',
+          documentName: 'Design',
+          parameters: [
+            { name: 'width', expression: '10 mm', value: '10 mm', unit: 'mm', kind: 'user' },
+          ],
+        };
+      }
+      if (data.action === 'parameters.preview')
+        response = {
+          valid: true,
+          snapshotToken: 'token',
+          items: [{ name: 'width', status: 'Update', value: 20, unit: 'mm' }],
+        };
+      window.fusionJavaScriptHandler!.handle(
+        'response',
+        JSON.stringify({ requestId: data.requestId, documentId: 'doc', ok: true, data: response }),
+      );
+      if (data.action === 'parameters.apply')
+        window.fusionJavaScriptHandler!.handle('state.changed', '{}');
+    },
+  };
+  host = document.createElement('div');
+  document.body.appendChild(host);
+  act(() => render(<App />, host));
+  await vi.waitFor(() => expect(host.textContent).toContain('Design'));
+  act(() => host.querySelector<HTMLButtonElement>('[aria-label="Parameter list"]')!.click());
+  act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit value width"]')!.click());
+  const input = host.querySelector<HTMLElement>('[aria-label="Expression for width"]')!;
+  const inline = EditorView.findFromDOM(input)!;
+  act(() => {
+    inline.dispatch({ changes: { from: 0, to: inline.state.doc.length, insert: '20' } });
+  });
+  act(() => {
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  });
+  await vi.waitFor(() => expect(pending.length).toBeGreaterThan(0));
+  expect(host.textContent).toContain('Design');
+  expect(host.textContent).toContain('width');
+  expect(host.textContent).not.toContain('Connecting to Fusion');
+  await act(async () => {
+    for (const request of pending)
+      window.fusionJavaScriptHandler!.handle(
+        'response',
+        JSON.stringify({
+          requestId: request.requestId,
+          documentId: 'doc',
+          ok: true,
+          data: {
+            documentId: 'doc',
+            documentName: 'Design',
+            parameters: [
+              { name: 'width', expression: '20 mm', value: '20 mm', unit: 'mm', kind: 'user' },
+            ],
+          },
+        }),
+      );
+  });
+  await vi.waitFor(() => expect(host.textContent).toContain('20'));
+});
+
+it('creates a parameter and links the edited value in one checked transaction', async () => {
+  const calls: { action: string; payload: Record<string, unknown> }[] = [];
+  window.adsk = {
+    fusionSendData: (_action, raw) => {
+      const data = JSON.parse(raw);
+      calls.push(data);
+      const result =
+        data.action === 'state.get'
+          ? {
+              documentId: 'doc',
+              documentName: 'Design',
+              parameters: [
+                { name: 'width', expression: '10 mm', value: '10 mm', unit: 'mm', kind: 'user' },
+              ],
+            }
+          : data.action === 'parameters.preview'
+            ? {
+                valid: true,
+                snapshotToken: 'snapshot',
+                items: [
+                  { name: 'x', status: 'New', expression: '25 mm' },
+                  { name: 'width', status: 'Update', expression: 'x' },
+                ],
+              }
+            : {};
+      window.fusionJavaScriptHandler!.handle(
+        'response',
+        JSON.stringify({ requestId: data.requestId, documentId: 'doc', ok: true, data: result }),
+      );
+    },
+  };
+  host = document.createElement('div');
+  document.body.appendChild(host);
+  act(() => render(<App />, host));
+  await vi.waitFor(() => expect(host.textContent).toContain('Design'));
+  act(() => host.querySelector<HTMLButtonElement>('[aria-label="Parameter list"]')!.click());
+  act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit value width"]')!.click());
+  const content = host.querySelector<HTMLElement>('[aria-label="Expression for width"]')!;
+  const view = EditorView.findFromDOM(content)!;
+  act(() => view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: 'x=25' } }));
+  act(() => {
+    content.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+    );
+  });
+  await vi.waitFor(() => expect(calls.some((c) => c.action === 'parameters.apply')).toBe(true));
+  expect(calls.find((c) => c.action === 'parameters.preview')?.payload.text).toBe(
+    'x=25 mm;width=x',
+  );
+  expect(calls.find((c) => c.action === 'parameters.apply')?.payload).toEqual({
+    text: 'x=25 mm;width=x',
+    snapshotToken: 'snapshot',
+    requireTransaction: true,
+  });
+});
+
+it('creates an unknown bare name from the current precise value and checks it before applying', async () => {
+  const calls: { action: string; payload: Record<string, unknown> }[] = [];
+  window.adsk = {
+    fusionSendData: (_action, raw) => {
+      const request = JSON.parse(raw);
+      calls.push(request);
+      const data =
+        request.action === 'state.get'
+          ? {
+              documentId: 'doc',
+              documentName: 'Design',
+              parameters: [
+                {
+                  name: 'width',
+                  expression: '10 mm',
+                  value: '10 mm',
+                  valueExpression: '1.0000000123 cm',
+                  unit: 'mm',
+                  kind: 'user',
+                },
+              ],
+            }
+          : request.action === 'parameters.preview'
+            ? {
+                valid: true,
+                snapshotToken: 'token',
+                items: [
+                  { name: 'x', status: 'New', expression: '1.0000000123 cm' },
+                  { name: 'width', status: 'Update', expression: 'x' },
+                ],
+              }
+            : {};
+      window.fusionJavaScriptHandler!.handle(
+        'response',
+        JSON.stringify({ requestId: request.requestId, documentId: 'doc', ok: true, data }),
+      );
+    },
+  };
+  host = document.createElement('div');
+  document.body.appendChild(host);
+  act(() => render(<App />, host));
+  await vi.waitFor(() => expect(host.textContent).toContain('Design'));
+  act(() => host.querySelector<HTMLButtonElement>('[aria-label="Parameter list"]')!.click());
+  act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit value width"]')!.click());
+  const content = host.querySelector<HTMLElement>('[aria-label="Expression for width"]')!;
+  const editor = EditorView.findFromDOM(content)!;
+  act(() => editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: 'x' } }));
+  act(() => {
+    content.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+    );
+  });
+  await vi.waitFor(() => expect(calls.some((c) => c.action === 'parameters.apply')).toBe(true));
+  expect(calls.find((c) => c.action === 'parameters.preview')?.payload).toEqual({
+    text: 'x=1.0000000123 cm;width=x',
+    sourceName: 'width',
+    sourceValueExpression: '1.0000000123 cm',
+  });
+  expect(calls.find((c) => c.action === 'parameters.apply')?.payload.requireTransaction).toBe(true);
+});
+
+it('applies a solved inline equation as one checked transaction', async () => {
+  const calls: { action: string; payload: Record<string, unknown> }[] = [];
+  window.adsk = {
+    fusionSendData: (_action, raw) => {
+      const request = JSON.parse(raw);
+      calls.push(request);
+      const data =
+        request.action === 'state.get'
+          ? {
+              documentId: 'doc',
+              documentName: 'Design',
+              parameters: [
+                {
+                  name: 'depth',
+                  expression: '10 mm',
+                  value: '10 mm',
+                  valueExpression: '1.0 cm',
+                  unit: 'mm',
+                  kind: 'user',
+                },
+              ],
+            }
+          : request.action === 'parameters.preview'
+            ? {
+                valid: true,
+                snapshotToken: 'token',
+                resolvedText: 'width=-250.0 mm;depth=-width/5',
+                newName: 'width',
+                items: [
+                  { name: 'width', status: 'New', expression: '-250.0 mm' },
+                  { name: 'depth', status: 'Update', expression: '-width/5' },
+                ],
+              }
+            : {};
+      window.fusionJavaScriptHandler!.handle(
+        'response',
+        JSON.stringify({ requestId: request.requestId, documentId: 'doc', ok: true, data }),
+      );
+    },
+  };
+  host = document.createElement('div');
+  document.body.appendChild(host);
+  act(() => render(<App />, host));
+  await vi.waitFor(() => expect(host.textContent).toContain('Design'));
+  act(() => host.querySelector<HTMLButtonElement>('[aria-label="Parameter list"]')!.click());
+  act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit value depth"]')!.click());
+  const content = host.querySelector<HTMLElement>('[aria-label="Expression for depth"]')!;
+  const editor = EditorView.findFromDOM(content)!;
+  act(() =>
+    editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: '-width/5=50' } }),
+  );
+  act(() => {
+    content.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+    );
+  });
+  await vi.waitFor(() => expect(calls.some((c) => c.action === 'parameters.apply')).toBe(true));
+  expect(calls.find((c) => c.action === 'parameters.preview')?.payload.inlineEquation).toEqual({
+    target: 'depth',
+    expression: '-width/5=50',
+  });
+  expect(calls.find((c) => c.action === 'parameters.apply')?.payload).toEqual({
+    text: 'width=-250.0 mm;depth=-width/5',
+    snapshotToken: 'token',
+    requireTransaction: true,
+  });
 });

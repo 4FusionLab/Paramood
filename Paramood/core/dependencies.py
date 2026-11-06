@@ -1,10 +1,15 @@
 """Conservative cleanup planning for a verified, complete dependency snapshot."""
+
 from __future__ import annotations
 from typing import Mapping, AbstractSet
 
 
-def cleanup_plan(graph: Mapping[str, AbstractSet[str]], roots: AbstractSet[str],
-                 favorites: AbstractSet[str], selected: AbstractSet[str] | None = None) -> list[str]:
+def cleanup_plan(
+    graph: Mapping[str, AbstractSet[str]],
+    roots: AbstractSet[str],
+    favorites: AbstractSet[str],
+    selected: AbstractSet[str] | None = None,
+) -> list[str]:
     """Return dependents before dependencies; all graph nodes must be user parameters.
 
     Caller must establish completeness, map every model/external dependency into

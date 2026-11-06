@@ -6,8 +6,9 @@
   "scripts": {
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
-    "lint": "eslint src",
-    "format:check": "prettier --check src"
+    "lint": "cd .. && eslint frontend/src src tests/intellisense.test.mjs eslint.config.js frontend/vite.config.ts",
+    "format:check": "prettier --check --ignore-path ../.prettierignore \"src/**/*.{ts,tsx,css}\" \"../src/**/*.ts\" \"../tests/*.mjs\" \"*.{js,ts,json,html}\" \"../*.{js,json,yml}\" \"../.github/workflows/*.yml\" \"../Paramood/*.manifest\"",
+    "format": "prettier --write --ignore-path ../.prettierignore \"src/**/*.{ts,tsx,css}\" \"../src/**/*.ts\" \"../tests/*.mjs\" \"*.{js,ts,json,html}\" \"../*.{js,json,yml}\" \"../.github/workflows/*.yml\" \"../Paramood/*.manifest\""
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.18.0",

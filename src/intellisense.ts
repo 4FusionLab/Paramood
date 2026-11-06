@@ -47,15 +47,23 @@ export class ParameterIndex {
   private byName = new Map<string, string>();
   private rawParameters = new Map<string, FusionParameter>();
 
-  constructor(parameters: readonly FusionParameter[], aliases: Readonly<Record<string, string>> = {}) {
+  constructor(
+    parameters: readonly FusionParameter[],
+    aliases: Readonly<Record<string, string>> = {},
+  ) {
     for (const parameter of parameters) {
-      if (!IDENTIFIER.test(parameter.name)) throw new Error("Invalid Fusion parameter identifier: " + parameter.name);
-      if (this.rawParameters.has(parameter.name)) throw new Error("Duplicate Fusion parameter: " + parameter.name);
+      if (!IDENTIFIER.test(parameter.name))
+        throw new Error('Invalid Fusion parameter identifier: ' + parameter.name);
+      if (this.rawParameters.has(parameter.name))
+        throw new Error('Duplicate Fusion parameter: ' + parameter.name);
       const inferredPath = parameter.name.split('_').join('.');
       // Legal native names such as _internal or a__b cannot be losslessly split.
-      const path = aliases[parameter.name] ?? (VIRTUAL_PATH.test(inferredPath) ? inferredPath : parameter.name);
-      if (!VIRTUAL_PATH.test(path)) throw new Error("Invalid virtual path for " + parameter.name + ": " + path);
-      if (this.byPath.has(path)) throw new Error("Virtual path collision: " + path);
+      const path =
+        aliases[parameter.name] ??
+        (VIRTUAL_PATH.test(inferredPath) ? inferredPath : parameter.name);
+      if (!VIRTUAL_PATH.test(path))
+        throw new Error('Invalid virtual path for ' + parameter.name + ': ' + path);
+      if (this.byPath.has(path)) throw new Error('Virtual path collision: ' + path);
       this.rawParameters.set(parameter.name, parameter);
       this.byName.set(parameter.name, path);
       this.byPath.set(path, parameter);
@@ -94,11 +102,12 @@ export class ParameterIndex {
       if (child.parameter) entries.push(this.toEntry(label, child.path, child.parameter));
     }
     // Also offer native flat identifiers, at lower priority, for compatibility.
-    if (!path) for (const parameter of this.rawParameters.values()) {
-      if (!parameter.name.includes('_')) continue;
-      if (!parameter.name.toLowerCase().startsWith(prefix.toLowerCase())) continue;
-      entries.push(this.toEntry(parameter.name, parameter.name, parameter));
-    }
+    if (!path)
+      for (const parameter of this.rawParameters.values()) {
+        if (!parameter.name.includes('_')) continue;
+        if (!parameter.name.toLowerCase().startsWith(prefix.toLowerCase())) continue;
+        entries.push(this.toEntry(parameter.name, parameter.name, parameter));
+      }
     return entries.sort((a, b) => {
       if (a.kind !== b.kind) return a.kind === 'namespace' ? -1 : 1;
       const aFlat = a.path.includes('_') && !a.path.includes('.');
@@ -108,9 +117,16 @@ export class ParameterIndex {
     });
   }
   private toEntry(label: string, path: string, parameter: FusionParameter): SymbolEntry {
-    return { label, path, kind: 'parameter', nativeName: parameter.name,
-      unit: parameter.unit, comment: parameter.comment, value: parameter.value,
-      isReadOnly: parameter.isReadOnly };
+    return {
+      label,
+      path,
+      kind: 'parameter',
+      nativeName: parameter.name,
+      unit: parameter.unit,
+      comment: parameter.comment,
+      value: parameter.value,
+      isReadOnly: parameter.isReadOnly,
+    };
   }
   private findNode(path: string): Node | undefined {
     if (!path) return this.root;
@@ -120,7 +136,12 @@ export class ParameterIndex {
   }
 }
 
-interface Token { value: string; from: number; to: number; kind: 'identifier' | 'number' | 'string'; }
+interface Token {
+  value: string;
+  from: number;
+  to: number;
+  kind: 'identifier' | 'number' | 'string';
+}
 /** Preserve quoted strings, decimal points and scientific notation. */
 function* tokens(input: string): Generator<Token> {
   let i = 0;
@@ -131,10 +152,16 @@ function* tokens(input: string): Generator<Token> {
       const quote = ch;
       i++;
       while (i < input.length) {
-        if (input[i] === '\\') { i += Math.min(2, input.length - i); continue; }
+        if (input[i] === '\\') {
+          i += Math.min(2, input.length - i);
+          continue;
+        }
         if (input[i] === quote) {
           i++;
-          if (input[i] === quote) { i++; continue; }
+          if (input[i] === quote) {
+            i++;
+            continue;
+          }
           break;
         }
         i++;
@@ -153,7 +180,10 @@ function* tokens(input: string): Generator<Token> {
     if (IDENTIFIER_START.test(ch)) {
       i++;
       while (i < input.length) {
-        if (IDENTIFIER_PART.test(input[i])) { i++; continue; }
+        if (IDENTIFIER_PART.test(input[i])) {
+          i++;
+          continue;
+        }
         if (input[i] === '.' && i + 1 < input.length && IDENTIFIER_START.test(input[i + 1])) {
           i += 2;
           continue;
@@ -176,17 +206,30 @@ function rewrite(input: string, transform: (token: Token) => string): string {
   }
   return output + input.slice(offset);
 }
-export function compileExpression(expression: string, index: ParameterIndex): { expression: string; diagnostics: Diagnostic[] } {
+export function compileExpression(
+  expression: string,
+  index: ParameterIndex,
+): { expression: string; diagnostics: Diagnostic[] } {
   const diagnostics: Diagnostic[] = [];
-  const compiled = rewrite(expression, token => {
+  const compiled = rewrite(expression, (token) => {
     const native = index.nativeName(token.value);
     if (native) return native;
     if (index.hasNamespace(token.value)) {
-      diagnostics.push({ code: 'namespace-as-value', from: token.from, to: token.to,
-        path: token.value, message: '“' + token.value + '” is a group, not a parameter.' });
+      diagnostics.push({
+        code: 'namespace-as-value',
+        from: token.from,
+        to: token.to,
+        path: token.value,
+        message: '“' + token.value + '” is a group, not a parameter.',
+      });
     } else if (token.value.includes('.')) {
-      diagnostics.push({ code: 'unknown-path', from: token.from, to: token.to,
-        path: token.value, message: 'Unknown parameter path: ' + token.value });
+      diagnostics.push({
+        code: 'unknown-path',
+        from: token.from,
+        to: token.to,
+        path: token.value,
+        message: 'Unknown parameter path: ' + token.value,
+      });
     }
     // Unknown plain names, functions and units are validated by Fusion.
     return token.value;
@@ -194,27 +237,58 @@ export function compileExpression(expression: string, index: ParameterIndex): { 
   return { expression: compiled, diagnostics };
 }
 /** Resolve the left-hand side of a new or existing named definition. */
-export function resolveParameterTarget(path: string, index: ParameterIndex):
-  { nativeName: string | null; diagnostics: Diagnostic[] } {
+export function resolveParameterTarget(
+  path: string,
+  index: ParameterIndex,
+): { nativeName: string | null; diagnostics: Diagnostic[] } {
   if (!VIRTUAL_PATH.test(path)) {
-    return { nativeName: null, diagnostics: [{ code: 'invalid-target', from: 0, to: path.length,
-      path, message: 'Invalid parameter path: ' + path }] };
+    return {
+      nativeName: null,
+      diagnostics: [
+        {
+          code: 'invalid-target',
+          from: 0,
+          to: path.length,
+          path,
+          message: 'Invalid parameter path: ' + path,
+        },
+      ],
+    };
   }
   const existing = index.nativeName(path);
   if (existing) return { nativeName: existing, diagnostics: [] };
   const candidate = path.replaceAll('.', '_');
   if (index.nativeName(candidate)) {
-    return { nativeName: null, diagnostics: [{ code: 'name-collision', from: 0, to: path.length,
-      path, message: '“' + candidate + '” exists with a different virtual path.' }] };
+    return {
+      nativeName: null,
+      diagnostics: [
+        {
+          code: 'name-collision',
+          from: 0,
+          to: path.length,
+          path,
+          message: '“' + candidate + '” exists with a different virtual path.',
+        },
+      ],
+    };
   }
   return { nativeName: candidate, diagnostics: [] };
 }
 export function displayExpression(fusionExpression: string, index: ParameterIndex): string {
-  return rewrite(fusionExpression, token => index.virtualPath(token.value) ?? token.value);
+  return rewrite(fusionExpression, (token) => index.virtualPath(token.value) ?? token.value);
 }
-export interface SuggestionResult { from: number; to: number; options: SymbolEntry[]; }
+export interface SuggestionResult {
+  from: number;
+  to: number;
+  options: SymbolEntry[];
+}
 /** Caret-aware suggestions. No completion inside quoted strings. */
-export function suggestCompletions(text: string, cursor: number, index: ParameterIndex, explicit = false): SuggestionResult | null {
+export function suggestCompletions(
+  text: string,
+  cursor: number,
+  index: ParameterIndex,
+  explicit = false,
+): SuggestionResult | null {
   if (!Number.isInteger(cursor) || cursor < 0 || cursor > text.length) return null;
   for (const token of tokens(text)) {
     if (token.kind === 'string' && token.from < cursor && cursor <= token.to) return null;

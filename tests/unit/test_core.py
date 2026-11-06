@@ -17,11 +17,15 @@ def test_batch_resolves_forward_references_and_preserves_formula():
 
 def test_units_and_functions():
     assert evaluate('sin(45deg)', {}).value == pytest.approx(math.sqrt(0.5))
-    assert evaluate('sqrt(w*w+h*h)', {'w': Quantity(3, (1, 0)), 'h': Quantity(4, (1, 0))}).value == 5
+    assert (
+        evaluate('sqrt(w*w+h*h)', {'w': Quantity(3, (1, 0)), 'h': Quantity(4, (1, 0))}).value == 5
+    )
     assert plan_batch('wall=2.4cm', {}, 'mm')[0].quantity.value == 24
 
 
-@pytest.mark.parametrize('text', ['a=b;b=a', 'a=unknown', 'a=1mm+2deg', 'a=3**2', 'a=1;a=2', 'a=1/0'])
+@pytest.mark.parametrize(
+    'text', ['a=b;b=a', 'a=unknown', 'a=1mm+2deg', 'a=3**2', 'a=1;a=2', 'a=1/0']
+)
 def test_invalid_batches_are_rejected(text):
     with pytest.raises(ExpressionError):
         plan_batch(text, {}, 'mm')
@@ -34,7 +38,9 @@ def test_existing_dimension_is_protected():
 
 def test_cleanup_protects_roots_favorites_and_retained_dependencies():
     graph = {'used': {'base'}, 'base': set(), 'a': {'b'}, 'b': set(), 'fav': {'b'}, 'free': set()}
-    assert cleanup_plan(graph, {'used'}, {'fav'}) == ['free', 'a'] or cleanup_plan(graph, {'used'}, {'fav'}) == ['a', 'free']
+    assert cleanup_plan(graph, {'used'}, {'fav'}) == ['free', 'a'] or cleanup_plan(
+        graph, {'used'}, {'fav'}
+    ) == ['a', 'free']
     assert cleanup_plan(graph, {'used'}, set(), selected={'b'}) == []
     assert cleanup_plan({'a': {'b'}, 'b': set()}, set(), set(), selected={'a', 'b'}) == ['a', 'b']
 
@@ -50,14 +56,18 @@ def test_batch_failure_compensates_applied_changes():
     class Store:
         def __init__(self):
             self.items = {'w': '10 mm'}
+
         def get_expression(self, name):
             return self.items[name]
+
         def update(self, name, expression):
             self.items[name] = expression
+
         def create(self, name, expression, unit):
             if name == 'bad':
                 raise RuntimeError('failure')
             self.items[name] = expression
+
         def delete(self, name):
             del self.items[name]
 
@@ -71,6 +81,7 @@ def test_batch_failure_compensates_applied_changes():
 
 def test_final_graph_catches_hidden_cycle_and_stale_intermediate():
     from Paramood.core.expressions import validate_final_graph
+
     cycle = plan_batch('a=b', {'a': Quantity(1, (1, 0)), 'b': Quantity(2, (1, 0))}, 'mm')
     with pytest.raises(ExpressionError, match='Cyclic'):
         validate_final_graph(cycle, {'a': set(), 'b': {'a'}})
@@ -96,14 +107,18 @@ def test_partial_batch_failure_reports_compensation_failure():
     class Store:
         def __init__(self):
             self.items = {}
+
         def get_expression(self, name):
             return self.items[name]
+
         def update(self, name, expression):
             self.items[name] = expression
+
         def create(self, name, expression, unit):
             if name == 'second':
                 raise RuntimeError('create failed')
             self.items[name] = expression
+
         def delete(self, name):
             raise RuntimeError('delete failed')
 
@@ -117,6 +132,7 @@ def test_partial_batch_failure_reports_compensation_failure():
 
 def test_batch_graph_rejects_unknown_dependencies():
     from Paramood.core.expressions import validate_final_graph
+
     operations = plan_batch('new=1', {}, 'mm')
     with pytest.raises(ExpressionError, match='Incomplete'):
         validate_final_graph(operations, {'existing': {'unobserved'}})
@@ -124,6 +140,7 @@ def test_batch_graph_rejects_unknown_dependencies():
 
 def test_batch_graph_accepts_changed_dependency_order_without_cycle():
     from Paramood.core.expressions import validate_final_graph
+
     existing = {'a': Quantity(1, (1, 0)), 'b': Quantity(2, (1, 0))}
     operations = plan_batch('a=b; b=3', existing, 'mm')
     assert [operation.name for operation in operations] == ['b', 'a']
@@ -132,6 +149,7 @@ def test_batch_graph_accepts_changed_dependency_order_without_cycle():
 
 def test_batch_graph_blocks_stale_reference_through_unchanged_parameter():
     from Paramood.core.expressions import validate_final_graph
+
     existing = {'a': Quantity(1, (1, 0)), 'middle': Quantity(2, (1, 0))}
     operations = plan_batch('a=3; result=middle', existing, 'mm')
     with pytest.raises(ExpressionError, match='stale'):
@@ -140,6 +158,7 @@ def test_batch_graph_blocks_stale_reference_through_unchanged_parameter():
 
 def test_snapshot_plan_recalculates_existing_chain_and_orders_new_operations():
     from Paramood.core.expressions import ParameterSnapshot, plan_batch_snapshot
+
     snapshot = {
         'a': ParameterSnapshot('10 mm', 'mm', Quantity(10, (1, 0)), set()),
         'b': ParameterSnapshot('a*2', 'mm', Quantity(20, (1, 0)), {'a'}),
@@ -152,6 +171,7 @@ def test_snapshot_plan_recalculates_existing_chain_and_orders_new_operations():
 
 def test_snapshot_plan_rejects_hidden_cycle():
     from Paramood.core.expressions import ParameterSnapshot, plan_batch_snapshot
+
     snapshot = {
         'a': ParameterSnapshot('10 mm', 'mm', Quantity(10, (1, 0)), set()),
         'b': ParameterSnapshot('a*2', 'mm', Quantity(20, (1, 0)), {'a'}),
@@ -162,6 +182,7 @@ def test_snapshot_plan_rejects_hidden_cycle():
 
 def test_snapshot_plan_rejects_mismatched_graph_or_values():
     from Paramood.core.expressions import ParameterSnapshot, plan_batch_snapshot
+
     snapshot = {
         'a': ParameterSnapshot('10 mm', 'mm', Quantity(10, (1, 0)), set()),
         'b': ParameterSnapshot('a*2', 'mm', Quantity(20, (1, 0)), set()),
@@ -175,6 +196,7 @@ def test_snapshot_plan_rejects_mismatched_graph_or_values():
 
 def test_snapshot_plan_uses_recalculated_value_before_division():
     from Paramood.core.expressions import ParameterSnapshot, plan_batch_snapshot
+
     snapshot = {
         'a': ParameterSnapshot('0', '', Quantity(0), set()),
         'b': ParameterSnapshot('a', '', Quantity(0), {'a'}),
@@ -185,6 +207,7 @@ def test_snapshot_plan_uses_recalculated_value_before_division():
 
 def test_snapshot_plan_rejects_unsupported_existing_expression():
     from Paramood.core.expressions import ParameterSnapshot, plan_batch_snapshot
+
     snapshot = {'a': ParameterSnapshot('2^3', '', Quantity(8), set())}
     with pytest.raises(ExpressionError):
         plan_batch_snapshot('x=2', snapshot, 'mm')
@@ -192,6 +215,7 @@ def test_snapshot_plan_rejects_unsupported_existing_expression():
 
 def test_snapshot_plan_numeric_existing_expression_uses_its_unit():
     from Paramood.core.expressions import ParameterSnapshot, plan_batch_snapshot
+
     snapshot = {'a': ParameterSnapshot('1', 'in', Quantity(25.4, (1, 0)), set())}
     operations = plan_batch_snapshot('b=a/2', snapshot, 'mm')
     assert operations[0].quantity.value == pytest.approx(12.7)
@@ -202,7 +226,9 @@ def test_dotted_parameters_are_resolved_in_batch_and_saved_flat():
     assert [op.name for op in operations] == ['box_inner_size', 'result']
     assert operations[1].expression == 'box_inner_size/2'
     assert operations[1].quantity.value == 5
-    assert evaluate('box.inner.size + 0.5mm', {'box_inner_size': Quantity(10, (1, 0))}).value == 10.5
+    assert (
+        evaluate('box.inner.size + 0.5mm', {'box_inner_size': Quantity(10, (1, 0))}).value == 10.5
+    )
 
 
 def test_dotted_unknowns_and_cycles_are_rejected():
@@ -214,6 +240,7 @@ def test_dotted_unknowns_and_cycles_are_rejected():
 
 def test_snapshot_batch_uses_flat_dotted_dependencies():
     from Paramood.core.expressions import ParameterSnapshot, plan_batch_snapshot
+
     snapshot = {'box_size': ParameterSnapshot('10 mm', 'mm', Quantity(10, (1, 0)), set())}
     result = plan_batch_snapshot('width=box.size/2', snapshot, 'mm')
     assert result[0].expression == 'box_size/2'
@@ -226,8 +253,11 @@ def test_dotted_segments_can_start_with_digits():
 
 def test_dotted_assignment_names_are_created_as_flat_names_and_referenced():
     from Paramood.core.expressions import plan_batch_snapshot
-    for planner in (lambda text: plan_batch(text, {}, 'mm'),
-                    lambda text: plan_batch_snapshot(text, {}, 'mm')):
+
+    for planner in (
+        lambda text: plan_batch(text, {}, 'mm'),
+        lambda text: plan_batch_snapshot(text, {}, 'mm'),
+    ):
         result = planner('box.inner.size=5; l=box.inner.size*2')
         assert [item.name for item in result] == ['box_inner_size', 'l']
         assert result[1].expression == 'box_inner_size*2'
@@ -238,6 +268,7 @@ def test_dotted_assignment_names_are_created_as_flat_names_and_referenced():
 
 def test_dotted_assignment_updates_existing_snapshot_parameter():
     from Paramood.core.expressions import ParameterSnapshot, plan_batch_snapshot
+
     snapshot = {'box_inner_size': ParameterSnapshot('10 mm', 'mm', Quantity(10, (1, 0)), set())}
     operation = plan_batch_snapshot('box.inner.size=15', snapshot, 'mm')[0]
     assert operation.name == 'box_inner_size'
@@ -251,16 +282,20 @@ def test_invalid_dotted_assignment_is_rejected():
             plan_batch(name + '=5', {}, 'mm')
 
 
-@pytest.mark.parametrize(('text', 'expected'), [
-    ('box.size=box.size+5 mm', 15),
-    ('box.size=this+5 mm', 15),
-    ('box.size+=5', 15),
-    ('box.size-=5 mm', 5),
-    ('box.size*=2', 20),
-    ('box.size/=2', 5),
-])
+@pytest.mark.parametrize(
+    ('text', 'expected'),
+    [
+        ('box.size=box.size+5 mm', 15),
+        ('box.size=this+5 mm', 15),
+        ('box.size+=5', 15),
+        ('box.size-=5 mm', 5),
+        ('box.size*=2', 20),
+        ('box.size/=2', 5),
+    ],
+)
 def test_relative_updates_embed_old_expression_without_self_reference(text, expected):
     from Paramood.core.expressions import ParameterSnapshot, plan_batch_snapshot
+
     snapshot = {'box_size': ParameterSnapshot('10 mm', 'mm', Quantity(10, (1, 0)), set())}
     operation = plan_batch_snapshot(text, snapshot, 'mm')[0]
     assert operation.name == 'box_size'
@@ -273,6 +308,7 @@ def test_relative_updates_embed_old_expression_without_self_reference(text, expe
 @pytest.mark.parametrize('text', ['new+=2', 'new-=2', 'new*=2', 'new/=2', 'new=this+2'])
 def test_relative_update_rejects_missing_parameter(text):
     from Paramood.core.expressions import plan_batch_snapshot
+
     with pytest.raises(ExpressionError):
         plan_batch_snapshot(text, {}, 'mm')
     with pytest.raises(ExpressionError):
@@ -281,6 +317,7 @@ def test_relative_update_rejects_missing_parameter(text):
 
 def test_relative_update_rejects_division_by_zero():
     from Paramood.core.expressions import ParameterSnapshot, plan_batch_snapshot
+
     snapshot = {'width': ParameterSnapshot('10 mm', 'mm', Quantity(10, (1, 0)), set())}
     with pytest.raises(ExpressionError, match='Division by zero'):
         plan_batch_snapshot('width/=0', snapshot, 'mm')
@@ -288,6 +325,7 @@ def test_relative_update_rejects_division_by_zero():
 
 def test_relative_addition_uses_the_existing_parameters_display_unit():
     from Paramood.core.expressions import ParameterSnapshot, plan_batch_snapshot
+
     snapshot = {'width': ParameterSnapshot('1 cm', 'cm', Quantity(10, (1, 0)), set())}
     result = plan_batch_snapshot('width+=2', snapshot, 'mm')[0]
     assert result.quantity.value == 30
@@ -296,6 +334,7 @@ def test_relative_addition_uses_the_existing_parameters_display_unit():
 
 def test_relative_angle_update_preserves_dimension():
     from Paramood.core.expressions import ANGLE, ParameterSnapshot, plan_batch_snapshot
+
     original = math.pi / 6
     snapshot = {'angle': ParameterSnapshot('30 deg', 'deg', Quantity(original, ANGLE), set())}
     result = plan_batch_snapshot('angle+=15', snapshot, 'mm')[0]
@@ -305,6 +344,7 @@ def test_relative_angle_update_preserves_dimension():
 
 def test_relative_update_rejects_incompatible_units():
     from Paramood.core.expressions import ParameterSnapshot, plan_batch_snapshot
+
     snapshot = {'width': ParameterSnapshot('10 mm', 'mm', Quantity(10, (1, 0)), set())}
     with pytest.raises(ExpressionError, match='Incompatible dimensions'):
         plan_batch_snapshot('width+=5 deg', snapshot, 'mm')
@@ -312,6 +352,7 @@ def test_relative_update_rejects_incompatible_units():
 
 def test_relative_update_preserves_previous_formula_dependencies():
     from Paramood.core.expressions import ParameterSnapshot, plan_batch_snapshot
+
     snapshot = {
         'base': ParameterSnapshot('5 mm', 'mm', Quantity(5, (1, 0)), set()),
         'width': ParameterSnapshot('base*2', 'mm', Quantity(10, (1, 0)), {'base'}),
@@ -326,6 +367,7 @@ def test_relative_update_preserves_previous_formula_dependencies():
 @pytest.mark.parametrize('text', ['width=this+5 mm', 'width=width+5 mm', 'width+=5 mm'])
 def test_this_and_compound_updates_embed_old_formula(text):
     from Paramood.core.expressions import ParameterSnapshot, plan_batch_snapshot
+
     snapshot = {
         'base': ParameterSnapshot('5 mm', 'mm', Quantity(5, (1, 0)), set()),
         'width': ParameterSnapshot('base*2', 'mm', Quantity(10, (1, 0)), {'base'}),
@@ -339,6 +381,7 @@ def test_this_and_compound_updates_embed_old_formula(text):
 
 def test_relative_update_recomputes_dependencies_changed_in_same_batch():
     from Paramood.core.expressions import ParameterSnapshot, plan_batch_snapshot
+
     snapshot = {
         'base': ParameterSnapshot('5 mm', 'mm', Quantity(5, (1, 0)), set()),
         'width': ParameterSnapshot('base*2', 'mm', Quantity(10, (1, 0)), {'base'}),
@@ -353,6 +396,7 @@ def test_relative_update_recomputes_dependencies_changed_in_same_batch():
 
 def test_relative_update_of_parameter_declared_earlier_in_batch():
     from Paramood.core.expressions import plan_batch_snapshot
+
     text = 'box.inner.size=25;box.inner.size*=2'
     for operations in (plan_batch(text, {}, 'mm'), plan_batch_snapshot(text, {}, 'mm')):
         assert len(operations) == 1
@@ -362,17 +406,21 @@ def test_relative_update_of_parameter_declared_earlier_in_batch():
         assert evaluate(operations[0].expression, {}).value == 50
 
 
-@pytest.mark.parametrize(('text', 'expected'), [
-    ('width=25;width+=5', 30),
-    ('width=25;width-=5', 20),
-    ('width=25;width*=2', 50),
-    ('width=25;width/=5', 5),
-    ('width=25;width=width*2', 50),
-    ('width=25;width=this*2', 50),
-    ('width=25;width*=2;width+=5', 55),
-])
+@pytest.mark.parametrize(
+    ('text', 'expected'),
+    [
+        ('width=25;width+=5', 30),
+        ('width=25;width-=5', 20),
+        ('width=25;width*=2', 50),
+        ('width=25;width/=5', 5),
+        ('width=25;width=width*2', 50),
+        ('width=25;width=this*2', 50),
+        ('width=25;width*=2;width+=5', 55),
+    ],
+)
 def test_multiple_batch_operations_preserve_the_previous_expression(text, expected):
     from Paramood.core.expressions import plan_batch_snapshot
+
     for operations in (plan_batch(text, {}, 'mm'), plan_batch_snapshot(text, {}, 'mm')):
         assert len(operations) == 1
         assert operations[0].quantity.value == expected
@@ -381,6 +429,7 @@ def test_multiple_batch_operations_preserve_the_previous_expression(text, expect
 
 def test_batch_relative_update_preserves_dependencies_and_rejects_cycle():
     from Paramood.core.expressions import plan_batch_snapshot
+
     operations = plan_batch('base=5;width=base*2;width*=2', {}, 'mm')
     assert operations[-1].quantity.value == 20
     assert 'base' in operations[-1].expression
@@ -390,6 +439,7 @@ def test_batch_relative_update_preserves_dependencies_and_rejects_cycle():
 
 def test_repeated_relative_updates_apply_to_existing_snapshot():
     from Paramood.core.expressions import ParameterSnapshot, plan_batch_snapshot
+
     snapshot = {'width': ParameterSnapshot('10 mm', 'mm', Quantity(10, (1, 0)), set())}
     operation = plan_batch_snapshot('width*=2;width+=5', snapshot, 'mm')[0]
     assert operation.status == 'Update'
@@ -414,6 +464,7 @@ def test_relative_update_on_new_scalar_and_angle_preserves_dimensions():
 
 def test_repeated_relative_update_keeps_existing_display_unit():
     from Paramood.core.expressions import ParameterSnapshot, plan_batch_snapshot
+
     snapshot = {'width': ParameterSnapshot('1 cm', 'cm', Quantity(10, (1, 0)), set())}
     result = plan_batch_snapshot('width*=2;width+=1', snapshot, 'mm')[0]
     assert result.quantity.value == 30

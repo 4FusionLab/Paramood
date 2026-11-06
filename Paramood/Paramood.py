@@ -1,4 +1,5 @@
 """Fusion entry point. All model changes run on Fusion's main thread."""
+
 import json
 import os
 from pathlib import Path
@@ -61,9 +62,19 @@ class HtmlHandler(adsk.core.HTMLEventHandler):
                 return
             action = message.get('action')
             if action == 'cleanup.open':
-                _send(self.mode, 'response', {'requestId': message.get('requestId'), 'ok': False,
-                      'error': {'code': 'UNSUPPORTED', 'message': 'Cleanup is unavailable in this release.'},
-                      'documentId': _adapter.document_id})
+                _send(
+                    self.mode,
+                    'response',
+                    {
+                        'requestId': message.get('requestId'),
+                        'ok': False,
+                        'error': {
+                            'code': 'UNSUPPORTED',
+                            'message': 'Cleanup is unavailable in this release.',
+                        },
+                        'documentId': _adapter.document_id,
+                    },
+                )
                 args.returnData = 'OK'
                 return
             if action in ('cleanup.open', 'parameters.open', 'parameters.prefill.ack'):
@@ -71,34 +82,69 @@ class HtmlHandler(adsk.core.HTMLEventHandler):
                 if not isinstance(request_id, str) or not request_id:
                     raise ValueError('Missing request ID')
                 if not _adapter.document_id or message.get('documentId') != _adapter.document_id:
-                    _send(self.mode, 'response', {'requestId': request_id, 'ok': False,
-                          'error': {'code': 'STALE_DOCUMENT', 'message': 'The active document changed.'},
-                          'documentId': _adapter.document_id})
+                    _send(
+                        self.mode,
+                        'response',
+                        {
+                            'requestId': request_id,
+                            'ok': False,
+                            'error': {
+                                'code': 'STALE_DOCUMENT',
+                                'message': 'The active document changed.',
+                            },
+                            'documentId': _adapter.document_id,
+                        },
+                    )
                 else:
                     if action == 'cleanup.open':
                         _show_palette('cleanup')
                     elif action == 'parameters.prefill.ack':
                         ack = message.get('payload', {}).get('prefillId')
-                        if self.mode != 'parameters' or not _pending_prefill or ack != _pending_prefill['prefillId']:
+                        if (
+                            self.mode != 'parameters'
+                            or not _pending_prefill
+                            or ack != _pending_prefill['prefillId']
+                        ):
                             raise ValueError('Unexpected prefill acknowledgement')
                         _pending_prefill = None
                     else:
                         text = message.get('payload', {}).get('text')
                         if not isinstance(text, str) or len(text) > 10000:
                             raise ValueError('Invalid prefill text')
-                        _pending_prefill = {'text': text, 'documentId': _adapter.document_id,
-                                            'prefillId': uuid.uuid4().hex}
+                        _pending_prefill = {
+                            'text': text,
+                            'documentId': _adapter.document_id,
+                            'prefillId': uuid.uuid4().hex,
+                        }
                         _show_palette('parameters')
                         if 'parameters' in _ready_modes:
                             _send('parameters', 'parameters.prefill', _pending_prefill)
-                    _send(self.mode, 'response', {'requestId': request_id, 'ok': True,
-                          'data': {}, 'documentId': _adapter.document_id})
-            elif action in ('parameters.apply', 'parameters.delete'):
+                    _send(
+                        self.mode,
+                        'response',
+                        {
+                            'requestId': request_id,
+                            'ok': True,
+                            'data': {},
+                            'documentId': _adapter.document_id,
+                        },
+                    )
+            elif action in ('parameters.apply', 'parameters.delete', 'parameters.rename'):
                 active_command = _ui.activeCommand
                 if _pending is not None:
-                    _send(self.mode, 'response', {'requestId': message.get('requestId'), 'ok': False,
-                          'error': {'code': 'BUSY', 'message': 'Wait for the previous parameter operation to finish.'},
-                          'documentId': _adapter.document_id})
+                    _send(
+                        self.mode,
+                        'response',
+                        {
+                            'requestId': message.get('requestId'),
+                            'ok': False,
+                            'error': {
+                                'code': 'BUSY',
+                                'message': 'Wait for the previous parameter operation to finish.',
+                            },
+                            'documentId': _adapter.document_id,
+                        },
+                    )
                 elif active_command != 'SelectCommand' or _adapter.is_sketch_edit():
                     _pending = message
                     _adapter.in_direct_apply = True
@@ -115,9 +161,19 @@ class HtmlHandler(adsk.core.HTMLEventHandler):
                     if not _ui.commandDefinitions.itemById('ParamoodApply').execute():
                         _pending = None
                         _pending_palette = None
-                        _send(self.mode, 'response', {'requestId': message.get('requestId'), 'ok': False,
-                              'error': {'code': 'COMMAND_FAILED', 'message': 'Fusion could not start the command.'},
-                              'documentId': _adapter.document_id})
+                        _send(
+                            self.mode,
+                            'response',
+                            {
+                                'requestId': message.get('requestId'),
+                                'ok': False,
+                                'error': {
+                                    'code': 'COMMAND_FAILED',
+                                    'message': 'Fusion could not start the command.',
+                                },
+                                'documentId': _adapter.document_id,
+                            },
+                        )
             else:
                 _respond(self.mode, message)
                 if action == 'state.get':
@@ -145,10 +201,15 @@ class ApplyExecute(adsk.core.CommandEventHandler):
                 args.executeFailedMessage = _result['error']['message']
         except Exception:
             args.executeFailed = True
-            args.executeFailedMessage = 'Unexpected error during parameter creation. The transaction was aborted.'
-            _result = {'requestId': _pending.get('requestId') if _pending else None, 'ok': False,
-                       'error': {'code': 'OPERATION_FAILED', 'message': args.executeFailedMessage},
-                       'documentId': _pending.get('documentId') if _pending else None}
+            args.executeFailedMessage = (
+                'Unexpected error during parameter creation. The transaction was aborted.'
+            )
+            _result = {
+                'requestId': _pending.get('requestId') if _pending else None,
+                'ok': False,
+                'error': {'code': 'OPERATION_FAILED', 'message': args.executeFailedMessage},
+                'documentId': _pending.get('documentId') if _pending else None,
+            }
             _app.log(traceback.format_exc())
         finally:
             _adapter.in_command = False
@@ -158,9 +219,12 @@ class ApplyDestroy(adsk.core.CommandEventHandler):
     def notify(self, args):
         global _pending, _result, _pending_palette
         if _pending is not None:
-            result = _result or {'requestId': _pending.get('requestId'), 'ok': False,
-                                 'error': {'code': 'CANCELLED', 'message': 'The operation was cancelled.'},
-                                 'documentId': _adapter.document_id}
+            result = _result or {
+                'requestId': _pending.get('requestId'),
+                'ok': False,
+                'error': {'code': 'CANCELLED', 'message': 'The operation was cancelled.'},
+                'documentId': _adapter.document_id,
+            }
             mode = _pending_palette
             _pending = None
             _result = None
@@ -197,9 +261,17 @@ def _show_palette(mode):
         html = os.path.abspath(embedded if os.path.isfile(embedded) else sibling)
         if not os.path.isfile(html):
             raise RuntimeError('Build frontend before starting Paramood.')
-        palette = _ui.palettes.add(_PALETTE_IDS[mode], _TITLES[mode], Path(html).as_uri() + '#' + mode,
-                                   False, mode == 'cleanup', True, 359 if mode == 'cleanup' else 360,
-                                   449 if mode == 'cleanup' else 260, True)
+        palette = _ui.palettes.add(
+            _PALETTE_IDS[mode],
+            _TITLES[mode],
+            Path(html).as_uri() + '#' + mode,
+            False,
+            mode == 'cleanup',
+            True,
+            359 if mode == 'cleanup' else 360,
+            449 if mode == 'cleanup' else 260,
+            True,
+        )
         if not palette:
             raise RuntimeError('Fusion could not create palette ' + mode)
         _palettes[mode] = palette
@@ -216,7 +288,10 @@ def _show_palette(mode):
                 palette.isDockedInCanvas = True
             target = _ui.palettes.itemById('ActivityFeedPalette')
             try:
-                snapped = bool(target and palette.snapTo(target, adsk.core.PaletteSnapOptions.PaletteSnapOptionsTop))
+                snapped = bool(
+                    target
+                    and palette.snapTo(target, adsk.core.PaletteSnapOptions.PaletteSnapOptionsTop)
+                )
             except Exception:
                 snapped = False
             if not snapped:

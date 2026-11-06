@@ -8,6 +8,8 @@ export interface Parameter {
   linked?: boolean;
   bindings?: ('sketch' | 'feature' | 'other' | 'unknown')[];
   entityToken?: string;
+  driven?: boolean;
+  valueExpression?: string | null;
 }
 export interface ModelState {
   draftId?: string;
@@ -29,6 +31,8 @@ export interface Preview {
   snapshotToken: string;
   items: PreviewItem[];
   valid: boolean;
+  resolvedText?: string;
+  newName?: string;
 }
 export interface Calculation {
   value: string | number;

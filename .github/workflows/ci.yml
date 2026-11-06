@@ -45,13 +45,16 @@ jobs:
           npm run format:check
           npm test
           npm run build
+      - name: Test IntelliSense core
+        run: npm test
       - name: Install Python test dependencies
-        run: python -m pip install pytest ruff
+        run: python -m pip install pytest ruff==0.17.3
       - name: Check Python and package
         shell: bash
         run: |
           python -m compileall -q Paramood scripts tests
           python -m ruff check Paramood scripts tests
+          python -m ruff format --check Paramood scripts tests
           python -m pytest -q
           python scripts/build_release.py
       - name: Upload release package
@@ -108,5 +111,10 @@ jobs:
           else
             verify_tag=()
           fi
+          if [[ -f "docs/releases/$RELEASE_VERSION.md" ]]; then
+            notes=(--notes-file "docs/releases/$RELEASE_VERSION.md")
+          else
+            notes=(--generate-notes)
+          fi
           gh release create "$tag" "dist/Paramood-$RELEASE_VERSION.zip" "dist/Paramood-$RELEASE_VERSION.zip.sha256" \
-            "${verify_tag[@]}" --target "$RELEASE_COMMIT" --title "Paramood $RELEASE_VERSION" --generate-notes
+            "${verify_tag[@]}" --target "$RELEASE_COMMIT" --title "Paramood $RELEASE_VERSION" "${notes[@]}"

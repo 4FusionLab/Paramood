@@ -36,6 +36,7 @@ function Branch({
   path,
   onEdit,
   onDelete,
+  onRename,
   editingName,
   editor,
 }: {
@@ -44,10 +45,13 @@ function Branch({
   path: string;
   onEdit: (parameter: Parameter) => void;
   onDelete: (parameter: Parameter) => void;
+  onRename?: (parameter: Parameter, name: string) => Promise<boolean>;
   editingName?: string;
   editor?: ComponentChildren;
 }) {
   const [open, setOpen] = useState(true);
+  const [renaming, setRenaming] = useState(false);
+  const [newName, setNewName] = useState('');
   const parameter = node.parameter;
   return (
     <div class="tree-node">
@@ -63,9 +67,40 @@ function Branch({
         ) : (
           <span class="tree-spacer" />
         )}
-        <span class="tree-name" title={parameter?.name || path}>
-          {name}
-        </span>
+        {renaming && parameter ? (
+          <input
+            class="tree-name"
+            autoFocus
+            aria-label={`Rename ${parameter.name}`}
+            value={newName}
+            onInput={(event) => setNewName(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') setRenaming(false);
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                void onRename?.(parameter, newName.trim()).then((ok) => {
+                  if (ok) setRenaming(false);
+                });
+              }
+            }}
+          />
+        ) : parameter && !parameter.driven && onRename ? (
+          <button
+            class="tree-name tree-name-button"
+            title={parameter.name}
+            aria-label={`Rename ${parameter.name}`}
+            onClick={() => {
+              setNewName(parameter.name);
+              setRenaming(true);
+            }}
+          >
+            {name}
+          </button>
+        ) : (
+          <span class="tree-name" title={parameter?.name || path}>
+            {name}
+          </span>
+        )}
         {parameter?.linked && (
           <span
             class="binding-icons"
@@ -88,6 +123,10 @@ function Branch({
           <>
             {editingName === parameter.name ? (
               editor
+            ) : parameter.driven ? (
+              <span class="tree-value" title="Driven dimension (read-only)">
+                ({displayValue(parameter)})
+              </span>
             ) : (
               <button
                 class="tree-value"
@@ -96,17 +135,25 @@ function Branch({
                 onClick={() => onEdit(parameter)}
               >
                 {displayValue(parameter)}
+                {parameter.kind === 'model' &&
+                !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?(?:\s*[A-Za-z]+)?$/.test(
+                  parameter.expression.trim(),
+                )
+                  ? ` (${parameter.expression})`
+                  : ''}
               </button>
             )}
             <span class="tree-unit">{parameter.unit}</span>
-            <button
-              class="icon"
-              aria-label={`Delete ${parameter.name}`}
-              title="Delete parameter"
-              onClick={() => onDelete(parameter)}
-            >
-              <X size={13} />
-            </button>
+            {!parameter.driven && (
+              <button
+                class="icon"
+                aria-label={`Delete ${parameter.name}`}
+                title="Delete parameter"
+                onClick={() => onDelete(parameter)}
+              >
+                <X size={13} />
+              </button>
+            )}
           </>
         )}
       </div>
@@ -120,6 +167,7 @@ function Branch({
               path={`${path}.${child}`}
               onEdit={onEdit}
               onDelete={onDelete}
+              onRename={onRename}
               editingName={editingName}
               editor={editor}
             />
@@ -133,12 +181,14 @@ export function ParameterList({
   parameters,
   onEdit,
   onDelete,
+  onRename,
   editingName,
   editor,
 }: {
   parameters: Parameter[];
   onEdit: (parameter: Parameter) => void;
   onDelete: (parameter: Parameter) => void;
+  onRename?: (parameter: Parameter, name: string) => Promise<boolean>;
   editingName?: string;
   editor?: ComponentChildren;
 }) {
@@ -153,6 +203,7 @@ export function ParameterList({
         node={node}
         onEdit={onEdit}
         onDelete={onDelete}
+        onRename={onRename}
         editingName={editingName}
         editor={editor}
       />

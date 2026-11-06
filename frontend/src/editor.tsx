@@ -36,7 +36,12 @@ function declaredNames(text: string): string[] {
 function assignmentTarget(left: string): string | undefined {
   return left.match(/^\s*([A-Za-z_][\w.]*)\s*[+*/-]?=/)?.[1]?.replace(/\./g, '_');
 }
-export function completions(context: CompletionContext, parameters: Parameter[], batch: boolean) {
+export function completions(
+  context: CompletionContext,
+  parameters: Parameter[],
+  batch: boolean,
+  currentTarget?: string,
+) {
   const word = context.matchBefore(/[\w]*/);
   if (!word) return null;
   const text = context.state.doc.toString();
@@ -46,7 +51,8 @@ export function completions(context: CompletionContext, parameters: Parameter[],
   if (word.from === word.to && !context.explicit && !path) return null;
   const left = text.slice(0, context.pos).split(/[;\n]/).pop() ?? '';
   const nameContext = batch && !left.includes('=');
-  const target = batch && !nameContext ? assignmentTarget(left) : undefined;
+  const target =
+    batch && !nameContext ? assignmentTarget(left) : !batch ? currentTarget : undefined;
   const earlierNames = batch ? declaredNames(text.slice(0, context.pos - left.length)) : [];
   const targetExists =
     target &&
@@ -141,13 +147,21 @@ interface Props {
   onChange: (value: string) => void;
   onFocus?: () => void;
   onSubmit?: () => void;
+  onCancel?: () => void;
+  autoFocus?: boolean;
+  inline?: boolean;
+  currentTarget?: string;
   parameters: Parameter[];
   batch?: boolean;
   disabled?: boolean;
   label: string;
   hint: string;
 }
-function highlighting(parameters: () => Parameter[], batch: () => boolean) {
+function highlighting(
+  parameters: () => Parameter[],
+  batch: () => boolean,
+  currentTarget: () => string | undefined,
+) {
   function decorate(view: EditorView): DecorationSet {
     const ranges: Range<Decoration>[] = [];
     const text = view.state.doc.toString();
@@ -163,7 +177,7 @@ function highlighting(parameters: () => Parameter[], batch: () => boolean) {
       if (/^\d|^\./.test(value)) kind = 'number';
       else if (/^[A-Za-z_]/.test(value)) {
         const left = text.slice(0, from).split(/[;\n]/).pop() ?? '';
-        const current = batch() ? assignmentTarget(left) : undefined;
+        const current = batch() ? assignmentTarget(left) : currentTarget();
         if (functions.includes(value) && /^\s*\(/.test(rest)) kind = 'function';
         else if (units.includes(value)) kind = 'unit';
         else if (
@@ -212,6 +226,7 @@ export function ExpressionEditor(props: Props) {
           highlighting(
             () => latest.current.parameters,
             () => !!latest.current.batch,
+            () => latest.current.currentTarget,
           ),
           placeholder(props.hint),
           EditorView.lineWrapping,
@@ -236,7 +251,13 @@ export function ExpressionEditor(props: Props) {
           }),
           autocompletion({
             override: [
-              (ctx) => completions(ctx, latest.current.parameters, !!latest.current.batch),
+              (ctx) =>
+                completions(
+                  ctx,
+                  latest.current.parameters,
+                  !!latest.current.batch,
+                  latest.current.currentTarget,
+                ),
             ],
           }),
           hoverTooltip((editor, pos) => {
@@ -268,6 +289,15 @@ export function ExpressionEditor(props: Props) {
           keymap.of([
             { key: 'Tab', run: acceptCompletion },
             {
+              key: 'Escape',
+              run: (v) => {
+                if (completionStatus(v.state)) return closeCompletion(v);
+                if (!latest.current.onCancel) return false;
+                latest.current.onCancel();
+                return true;
+              },
+            },
+            {
               key: 'Enter',
               run: (v) => {
                 if (latest.current.disabled) return true;
@@ -287,6 +317,10 @@ export function ExpressionEditor(props: Props) {
       }),
     });
     view.current = editor;
+    if (latest.current.autoFocus) {
+      editor.dispatch({ selection: { anchor: 0, head: editor.state.doc.length } });
+      editor.focus();
+    }
     return () => {
       editor.destroy();
       view.current = undefined;
@@ -316,7 +350,7 @@ export function ExpressionEditor(props: Props) {
   }, [props.value]);
   return (
     <div
-      class={`expression-editor ${props.disabled ? 'disabled' : ''}`}
+      class={`expression-editor ${props.inline ? 'parameter-edit' : ''} ${props.disabled ? 'disabled' : ''}`}
       ref={node}
       aria-disabled={props.disabled}
     />

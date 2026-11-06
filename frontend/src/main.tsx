@@ -1,8 +1,9 @@
 import { render, type ComponentChildren } from 'preact';
-import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { Calculator, Copy, History, ListTree, RefreshCw, X } from 'lucide-preact';
 import { ParameterList, expressionWithoutUnit } from './parameter-list';
 import { ExpressionEditor } from './editor';
+import { prepareInlineEdit } from './inline-edit';
 import {
   onStateChanged,
   onParametersPrefill,
@@ -44,13 +45,6 @@ export function App() {
   const [editText, setEditText] = useState('');
   const [editError, setEditError] = useState('');
   const editGeneration = useRef(0);
-  const editInput = useRef<HTMLInputElement>(null);
-  useLayoutEffect(() => {
-    if (editing) {
-      editInput.current?.focus();
-      editInput.current?.select();
-    }
-  }, [editing]);
   const expression = text;
   const assignment = text.includes('=');
   const [result, setResult] = useState<Calculation | null>(null),
@@ -129,9 +123,9 @@ export function App() {
     });
     return operation;
   }
-  async function refreshOnFocus() {
+  async function refreshOnFocus(allowBusy = false) {
     const id = doc.current;
-    if (!id || busyRef.current || refreshFlight.current) return;
+    if (!id || (!allowBusy && busyRef.current) || refreshFlight.current) return;
     const gen = generation.current;
     const focusGen = ++focusGeneration.current;
     try {
@@ -144,7 +138,7 @@ export function App() {
         next.documentId !== id ||
         (next.draftId || next.documentId) !== (current.draftId || current.documentId)
       ) {
-        void refresh();
+        await refresh();
         return;
       }
       if (JSON.stringify(current) !== JSON.stringify(next)) {
@@ -159,7 +153,7 @@ export function App() {
       }
     } catch {
       if (gen === generation.current && focusGen === focusGeneration.current && doc.current === id)
-        void refresh();
+        await refresh();
     }
   }
   useEffect(
@@ -185,7 +179,10 @@ export function App() {
   }, [incomingPrefill, loading, model]);
   useEffect(() => {
     void refresh();
-    return onStateChanged(() => void refresh());
+    return onStateChanged(() => {
+      if (!doc.current || refreshFlight.current) void refresh();
+      else void refreshOnFocus(true);
+    });
   }, []);
   useEffect(() => {
     const gen = ++previewGen.current;
@@ -261,8 +258,7 @@ export function App() {
       if (refreshFlight.current) await refreshFlight.current;
       if (doc.current !== id) return;
       if (textRef.current === submitted) setText('');
-      setNotice('Parameters updated.');
-      await refresh();
+      await refreshOnFocus(true);
     } catch (e) {
       if (refreshFlight.current) await refreshFlight.current;
       if (doc.current === id) {
@@ -279,42 +275,64 @@ export function App() {
     const id = doc.current;
     if (!id || !editing || busyRef.current) return;
     const expression = editText.trim();
-    if (!expression || /[;\n\r]/.test(expression)) {
-      setEditError('Enter a single expression.');
+    let prepared: ReturnType<typeof prepareInlineEdit>;
+    try {
+      prepared = prepareInlineEdit(editing, expression, modelRef.current?.parameters || []);
+    } catch (e) {
+      setEditError(message(e));
       return;
     }
-    if (expression === expressionWithoutUnit(editing).trim()) {
+    if (!prepared.newName && expression === expressionWithoutUnit(editing).trim()) {
       setEditing(null);
       return;
     }
-    const numeric = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(expression);
-    const submitted = `${editing.name}=${expression}${numeric && editing.unit ? ` ${editing.unit}` : ''}`;
+    const submitted = prepared.text;
     const gen = ++editGeneration.current;
     busyRef.current = true;
     setBusy(true);
     setEditError('');
     try {
-      const preview = await request<Preview>('parameters.preview', { text: submitted }, id);
+      const preview = await request<Preview>(
+        'parameters.preview',
+        {
+          text: submitted,
+          ...(prepared.equation
+            ? { inlineEquation: { target: editing.name, expression: prepared.equation } }
+            : {}),
+          ...(prepared.sourceValueExpression
+            ? { sourceName: editing.name, sourceValueExpression: prepared.sourceValueExpression }
+            : {}),
+        },
+        id,
+      );
       if (gen !== editGeneration.current || doc.current !== id) return;
+      const newName = prepared.equation ? preview.newName : prepared.newName;
+      const resolvedText = prepared.equation ? preview.resolvedText : submitted;
       if (
         !preview.valid ||
         !preview.snapshotToken ||
-        preview.items.length !== 1 ||
-        preview.items[0].name !== editing.name ||
-        preview.items[0].status !== 'Update'
+        !resolvedText ||
+        (prepared.equation && !newName) ||
+        preview.items.length !== (newName ? 2 : 1) ||
+        !preview.items.some((item) => item.name === editing.name && item.status === 'Update') ||
+        (!!newName && !preview.items.some((item) => item.name === newName && item.status === 'New'))
       ) {
         setEditError(preview.items[0]?.message || 'Cannot apply this expression.');
         return;
       }
       await request(
         'parameters.apply',
-        { text: submitted, snapshotToken: preview.snapshotToken },
+        {
+          text: resolvedText,
+          snapshotToken: preview.snapshotToken,
+          ...(newName ? { requireTransaction: true } : {}),
+        },
         id,
       );
       if (refreshFlight.current) await refreshFlight.current;
       if (doc.current === id) {
-        setNotice('Parameter updated.');
-        await refresh();
+        setEditing(null);
+        await refreshOnFocus(true);
       }
     } catch (e) {
       if (gen === editGeneration.current && doc.current === id) setEditError(message(e));
@@ -342,11 +360,41 @@ export function App() {
       if (refreshFlight.current) await refreshFlight.current;
       if (doc.current === id) {
         setNotice(`Deleted ${parameter.name}.`);
-        await refresh();
+        await refreshOnFocus(true);
       }
     } catch (e) {
       if (refreshFlight.current) await refreshFlight.current;
       if (doc.current === id) setProblem(message(e));
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
+  async function renameParameter(parameter: Parameter, newName: string): Promise<boolean> {
+    const id = doc.current;
+    if (!id || busyRef.current || !parameter.entityToken) return false;
+    if (newName === parameter.name) return true;
+    busyRef.current = true;
+    setBusy(true);
+    setProblem('');
+    try {
+      await request(
+        'parameters.rename',
+        {
+          name: parameter.name,
+          newName,
+          entityToken: parameter.entityToken,
+          expression: parameter.expression,
+          unit: parameter.unit,
+        },
+        id,
+      );
+      if (refreshFlight.current) await refreshFlight.current;
+      if (doc.current === id) await refreshOnFocus(true);
+      return true;
+    } catch (e) {
+      if (doc.current === id) setProblem(message(e));
+      return false;
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -620,32 +668,30 @@ export function App() {
             <ParameterList
               parameters={model?.parameters || []}
               onDelete={(parameter) => void deleteParameter(parameter)}
+              onRename={renameParameter}
               editingName={editing?.name}
               editor={
                 editing && (
-                  <input
-                    class="parameter-edit"
-                    ref={editInput}
-                    aria-label={`Expression for ${editing.name}`}
-                    aria-invalid={!!editError}
-                    title={editError || 'Enter to apply, Escape to cancel'}
+                  <ExpressionEditor
+                    inline
+                    autoFocus
+                    label={`Expression for ${editing.name}`}
+                    hint="Expression"
+                    parameters={model?.parameters || []}
+                    currentTarget={editing.name}
+                    batch={editText.includes('=')}
                     value={editText}
                     disabled={busy}
-                    onInput={(e) => {
+                    onChange={(value) => {
                       ++editGeneration.current;
-                      setEditText(e.currentTarget.value);
+                      setEditText(value);
                       setEditError('');
                     }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        void applyEdit();
-                      }
-                      if (e.key === 'Escape') {
-                        ++editGeneration.current;
-                        setEditing(null);
-                        setEditError('');
-                      }
+                    onSubmit={() => void applyEdit()}
+                    onCancel={() => {
+                      ++editGeneration.current;
+                      setEditing(null);
+                      setEditError('');
                     }}
                   />
                 )

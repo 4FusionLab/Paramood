@@ -341,6 +341,16 @@ describe('hierarchical parameter completion', () => {
     );
     expect(freshResult?.options.map((option) => option.label)).not.toContain('this');
   });
+  it('offers this while editing an existing parameter inline', () => {
+    const state = EditorState.create({ doc: 'th' });
+    const result = completions(
+      new CompletionContext(state, 2, false),
+      parameters,
+      false,
+      'box_inner_size',
+    );
+    expect(result?.options.map((option) => option.label)).toContain('this');
+  });
   it('offers this and the parameter itself after an earlier batch declaration', () => {
     const text = 'box.inner.size=25; box.inner.size=box.inner.';
     const state = EditorState.create({ doc: text });
