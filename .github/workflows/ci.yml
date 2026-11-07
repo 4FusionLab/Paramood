@@ -142,15 +142,17 @@ jobs:
         run: |
           set -euo pipefail
           tag="$GITHUB_REF_NAME"
-          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
-            test "$(git rev-list -n 1 "$tag")" = "$RELEASE_COMMIT" || { echo "Tag $tag belongs to another commit" >&2; exit 1; }
-            if gh release view "$tag" >/dev/null 2>&1; then
-              echo "Release $tag already exists"
-              exit 0
-            fi
-            verify_tag=(--verify-tag)
-          else
-            verify_tag=()
+          git rev-parse -q --verify "refs/tags/$tag^{commit}" >/dev/null || {
+            echo "The explicitly pushed release tag must already exist; refusing implicit tag creation." >&2
+            exit 1
+          }
+          test "$(git rev-list -n 1 "$tag")" = "$RELEASE_COMMIT" || {
+            echo "Tag $tag belongs to another commit" >&2
+            exit 1
+          }
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists; keep its assets unchanged."
+            exit 0
           fi
           notes=(--notes-file "docs/releases/$RELEASE_VERSION.md")
           channel=(--latest)
@@ -158,4 +160,4 @@ jobs:
             channel=(--prerelease --latest=false)
           fi
           gh release create "$tag" "dist/Paramood-$RELEASE_VERSION.zip" "dist/Paramood-$RELEASE_VERSION.zip.sha256" \
-            "${verify_tag[@]}" --target "$RELEASE_COMMIT" --title "Paramood $tag" "${notes[@]}" "${channel[@]}"
+            --verify-tag --target "$RELEASE_COMMIT" --title "Paramood $tag" "${notes[@]}" "${channel[@]}"
