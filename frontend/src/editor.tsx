@@ -22,19 +22,22 @@ import {
   type Completion,
 } from '@codemirror/autocomplete';
 import type { Parameter } from './bridge';
+import { inString } from './expression-syntax';
 
 const functions = ['sqrt', 'sin', 'cos', 'tan', 'abs', 'floor', 'ceil', 'round', 'min', 'max'];
 const units = ['mm', 'cm', 'm', 'in', 'ft', 'deg', 'rad', 'n'];
 function declaredNames(text: string): string[] {
   return Array.from(
     text.matchAll(
-      /(?:^|[;\n])\s*((?:[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z0-9]+)+)|(?:[A-Za-z_]\w*))\s*[+*/-]?=/g,
+      /(?:^|[;\n])\s*((?:[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9]*(?:\.[A-Za-zА-Яа-яЁё0-9]+)+)|(?:[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*))\s*[+*/-]?=/g,
     ),
     (match) => match[1].replace(/\./g, '_'),
   );
 }
 function assignmentTarget(left: string): string | undefined {
-  return left.match(/^\s*([A-Za-z_][\w.]*)\s*[+*/-]?=/)?.[1]?.replace(/\./g, '_');
+  return left
+    .match(/^\s*([A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9.]*)\s*[+*/-]?=/)?.[1]
+    ?.replace(/\./g, '_');
 }
 export function completions(
   context: CompletionContext,
@@ -42,12 +45,15 @@ export function completions(
   batch: boolean,
   currentTarget?: string,
 ) {
-  const word = context.matchBefore(/[\w]*/);
+  if (inString(context.state.sliceDoc(0, context.pos))) return null;
+  const word = context.matchBefore(/[A-Za-zА-Яа-яЁё_0-9]*/);
   if (!word) return null;
   const text = context.state.doc.toString();
   const path = text
     .slice(0, word.from)
-    .match(/(?:^|[^\w.])([A-Za-z][A-Za-z0-9]*\.(?:[A-Za-z0-9]+\.)*)$/)?.[1];
+    .match(
+      /(?:^|[^A-Za-zА-Яа-яЁё_0-9.])([A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9]*\.(?:[A-Za-zА-Яа-яЁё0-9]+\.)*)$/,
+    )?.[1];
   if (word.from === word.to && !context.explicit && !path) return null;
   const left = text.slice(0, context.pos).split(/[;\n]/).pop() ?? '';
   const nameContext = batch && !left.includes('=');
@@ -66,7 +72,7 @@ export function completions(
   const seen = new Set(parameters.map((p) => p.name.toLowerCase()));
   const allNames = [...parameters.map((p) => p.name), ...localNames];
   const hierarchy = allNames.filter((name) =>
-    /^[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+$/.test(name),
+    /^[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9]*(?:_[A-Za-zА-Яа-яЁё0-9]+)+$/.test(name),
   );
   const prefix = path ? path.slice(0, -1).split('.') : [];
   const objects = new Map<string, string>();
@@ -150,6 +156,7 @@ interface Props {
   onCancel?: () => void;
   autoFocus?: boolean;
   inline?: boolean;
+  singleLine?: boolean;
   currentTarget?: string;
   parameters: Parameter[];
   batch?: boolean;
@@ -168,14 +175,15 @@ function highlighting(
     const declared = new Set(declaredNames(text));
     const known = new Set(parameters().map((p) => p.name));
     const token =
-      /[A-Za-z_]\w*(?:\.[A-Za-z0-9]+)*|(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?|[+*/^=;()-]/g;
+      /'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*(?:\.[A-Za-zА-Яа-яЁё0-9]+)*|(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?|[+*/^=;()-]/g;
     for (const match of text.matchAll(token)) {
       const value = match[0],
         from = match.index!,
         rest = text.slice(from + value.length);
       let kind = 'operator';
-      if (/^\d|^\./.test(value)) kind = 'number';
-      else if (/^[A-Za-z_]/.test(value)) {
+      if (value.startsWith("'") || value.startsWith('"')) kind = 'string';
+      else if (/^\d|^\./.test(value)) kind = 'number';
+      else if (/^[A-Za-zА-Яа-яЁё_]/.test(value)) {
         const left = text.slice(0, from).split(/[;\n]/).pop() ?? '';
         const current = batch() ? assignmentTarget(left) : currentTarget();
         if (functions.includes(value) && /^\s*\(/.test(rest)) kind = 'function';
@@ -222,6 +230,13 @@ export function ExpressionEditor(props: Props) {
       state: EditorState.create({
         doc: latest.current.value,
         extensions: [
+          ...(props.singleLine
+            ? [
+                EditorState.transactionFilter.of((transaction) =>
+                  transaction.newDoc.lines > 1 ? [] : transaction,
+                ),
+              ]
+            : []),
           history(),
           highlighting(
             () => latest.current.parameters,
@@ -242,7 +257,7 @@ export function ExpressionEditor(props: Props) {
               latest.current.onChange(update.state.doc.toString());
               const pos = update.state.selection.main.head;
               if (
-                /(?:^|[^\w.])[A-Za-z][A-Za-z0-9]*\.(?:[A-Za-z0-9]+\.)*$/.test(
+                /(?:^|[^A-Za-zА-Яа-яЁё_0-9.])[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9]*\.(?:[A-Za-zА-Яа-яЁё0-9]+\.)*$/.test(
                   update.state.sliceDoc(0, pos),
                 )
               )
@@ -262,7 +277,7 @@ export function ExpressionEditor(props: Props) {
           }),
           hoverTooltip((editor, pos) => {
             const line = editor.state.doc.lineAt(pos);
-            const re = /[A-Za-z_]\w*(?:\.[A-Za-z0-9]+)*/g;
+            const re = /[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*(?:\.[A-Za-zА-Яа-яЁё0-9]+)*/g;
             let match: RegExpExecArray | null;
             while ((match = re.exec(line.text))) {
               const from = line.from + match.index,

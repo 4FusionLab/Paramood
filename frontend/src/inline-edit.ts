@@ -1,4 +1,5 @@
 import type { Parameter } from './bridge';
+import { hasAssignment, hasDefinitionSeparator } from './expression-syntax';
 
 const numeric = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 const reserved = new Set([
@@ -25,11 +26,19 @@ const reserved = new Set([
 
 export function prepareInlineEdit(parameter: Parameter, input: string, parameters: Parameter[]) {
   const expression = input.trim();
-  if (!expression || /[;\n\r]/.test(expression)) throw new Error('Enter a single expression.');
-  if (!expression.includes('=')) {
+  if (!expression || hasDefinitionSeparator(expression))
+    throw new Error('Enter a single expression.');
+  if (parameter.valueType === 'text' || parameter.unit === 'Text') {
+    if (hasAssignment(expression))
+      throw new Error('Edit the text expression directly, without an assignment.');
+    return { text: `${parameter.name}=${expression}` };
+  }
+  if (!hasAssignment(expression)) {
     const nativeName = expression.replace(/\./g, '_');
     if (
-      /^(?:[A-Za-z_]\w*|[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z0-9]+)+)$/.test(expression) &&
+      /^(?:[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*|[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9]*(?:\.[A-Za-zА-Яа-яЁё0-9]+)+)$/.test(
+        expression,
+      ) &&
       !reserved.has(expression.toLowerCase()) &&
       !parameters.some((item) => item.name.toLowerCase() === nativeName.toLowerCase())
     ) {
@@ -42,10 +51,12 @@ export function prepareInlineEdit(parameter: Parameter, input: string, parameter
       };
     }
     return {
-      text: `${parameter.name}=${expression}${numeric.test(expression) && parameter.unit ? ` ${parameter.unit}` : ''}`,
+      text: `${parameter.name}=${expression}${numeric.test(expression) ? ` ${parameter.unit || 'n'}` : ''}`,
     };
   }
-  const match = expression.match(/^\s*([A-Za-z_]\w*(?:\.[A-Za-z0-9]+)*)\s*=\s*(.+)$/);
+  const match = expression.match(
+    /^\s*([A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*(?:\.[A-Za-zА-Яа-яЁё0-9]+)*)\s*=\s*(.+)$/,
+  );
   if (!match && expression.split('=').length === 2) return { text: '', equation: expression };
   if (!match || match[2].includes('='))
     throw new Error('Enter a new parameter definition, such as x=25.');

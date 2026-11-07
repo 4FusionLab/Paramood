@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Paramood — Variants preview</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script>
+      const parameters = [
+        ['box_width', '120 mm'],
+        ['box_height', '80 mm'],
+        ['box_depth', '60 mm'],
+        ['wall_thickness', '3 mm'],
+        ['lid_clearance', '0.3 mm'],
+        ['corner_radius', '5 mm'],
+        ['hole_diameter', '4 mm'],
+        ['hole_count', '4'],
+      ].map(([name, expression]) => ({
+        name,
+        expression,
+        value: expression,
+        unit: name === 'hole_count' ? '' : 'mm',
+        kind: 'user',
+        entityToken: name,
+        favorite: false,
+        bindings: [],
+      }));
+      const model = {
+        documentId: 'preview',
+        documentName: 'Enclosure v12',
+        defaultLengthUnit: 'mm',
+        parameters,
+        variants: [],
+        activeVariantId: null,
+        variantsToken: 'storage',
+        variantSnapshotToken: 'snapshot',
+        unitsSnapshotToken: 'units-snapshot',
+      };
+      if (new URLSearchParams(location.search).has('many')) {
+        model.variants = Array.from({ length: 30 }, (_, index) => ({
+          id: String(index),
+          name: `Size ${index + 1}`,
+          parameters: [
+            {
+              name: 'box_width',
+              entityToken: 'box_width',
+              expression: `${90 + index} mm`,
+              unit: 'mm',
+              value: (90 + index) / 10,
+            },
+          ],
+        }));
+      }
+      window.adsk = {
+        fusionSendData(action, raw) {
+          const r = JSON.parse(raw);
+          let data = {};
+          const p = r.payload;
+          if (r.action === 'state.get') data = structuredClone(model);
+          if (r.action === 'document.units') model.defaultLengthUnit = p.unit;
+          if (r.action === 'calculator.evaluate') {
+            const arithmetic = p.expression
+              .trim()
+              .match(/^([+-]?[0-9.]+)\s*([+*/-])\s*([+-]?[0-9.]+)$/);
+            let value = Number(p.expression);
+            if (arithmetic) {
+              const a = Number(arithmetic[1]),
+                b = Number(arithmetic[3]);
+              value =
+                arithmetic[2] === '+'
+                  ? a + b
+                  : arithmetic[2] === '-'
+                    ? a - b
+                    : arithmetic[2] === '*'
+                      ? a * b
+                      : a / b;
+            }
+            data = {
+              value,
+              formatted: Number.isFinite(value)
+                ? String(value)
+                : 'Preview supports simple arithmetic',
+              unit: '',
+            };
+          }
+          if (r.action === 'parameters.preview') {
+            const items = p.text
+              .split(';')
+              .filter(Boolean)
+              .map((definition) => {
+                const [rawName, expression] = definition.split('=');
+                const name = rawName.trim().replaceAll('.', '_');
+                const existing = parameters.find((parameter) => parameter.name === name);
+                return {
+                  name,
+                  expression: expression?.trim() || '',
+                  value: expression?.trim() || '',
+                  unit: existing?.unit || model.defaultLengthUnit,
+                  status: existing ? 'Update' : 'New',
+                };
+              });
+            data = {
+              snapshotToken: 'preview',
+              valid: items.length > 0 && items.every((item) => !!item.expression),
+              items,
+            };
+          }
+          if (r.action === 'parameters.apply') {
+            p.text
+              .split(';')
+              .filter(Boolean)
+              .forEach((definition) => {
+                const [rawName, expression] = definition.split('=');
+                const name = rawName.trim().replaceAll('.', '_');
+                let parameter = parameters.find((item) => item.name === name);
+                if (!parameter) {
+                  parameter = {
+                    name,
+                    entityToken: name,
+                    expression,
+                    unit: model.defaultLengthUnit,
+                    value: expression,
+                    kind: 'user',
+                    favorite: false,
+                  };
+                  parameters.push(parameter);
+                }
+                parameter.expression = expression.trim();
+                parameter.value = expression.trim();
+                const active = model.variants.find(
+                  (variant) => variant.id === model.activeVariantId,
+                );
+                if (active) {
+                  const entry = { ...parameter };
+                  const index = active.parameters.findIndex((item) => item.name === name);
+                  if (index < 0) active.parameters.push(entry);
+                  else active.parameters[index] = entry;
+                }
+              });
+          }
+
+          if (r.action === 'variants.save') {
+            let v = {
+              id: p.id || String(Date.now()),
+              name: p.name,
+              parameters: structuredClone(p.parameters),
+            };
+            const i = model.variants.findIndex((x) => x.id === v.id);
+            if (i < 0) model.variants.push(v);
+            else model.variants[i] = v;
+            model.activeVariantId = v.id;
+            v.parameters.forEach((e) => {
+              let a = parameters.find((x) => x.name === e.name);
+              a.expression = e.expression;
+              a.value = e.expression;
+            });
+          }
+          if (r.action === 'variants.free') model.activeVariantId = null;
+          if (r.action === 'variants.apply') {
+            const v = model.variants.find((x) => x.id === p.id);
+            model.activeVariantId = v.id;
+            v.parameters.forEach((e) => {
+              let a = parameters.find((x) => x.name === e.name);
+              a.expression = e.expression;
+              a.value = e.expression;
+            });
+          }
+          if (r.action === 'variants.delete') {
+            model.variants = model.variants.filter((x) => x.id !== p.id);
+            if (model.activeVariantId === p.id) model.activeVariantId = null;
+          }
+          window.fusionJavaScriptHandler.handle(
+            'response',
+            JSON.stringify({
+              requestId: r.requestId,
+              ok: true,
+              documentId: model.documentId,
+              data,
+            }),
+          );
+        },
+      };
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

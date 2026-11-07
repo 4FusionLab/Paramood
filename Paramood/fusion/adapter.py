@@ -13,9 +13,11 @@ from ..core.expressions import (
     ANGLE,
     LENGTH,
     SCALAR,
+    TextValue,
     UNITS,
     ParameterSnapshot,
     Quantity,
+    dependency_closure,
     evaluate,
     normalize_expression,
     plan_batch,
@@ -24,9 +26,25 @@ from ..core.expressions import (
 from ..core.inline_equation import solve_inline_equation
 from ..bridge.protocol import BridgeError
 from ..bridge.formatting import display_quantity
+from .variants import VariantsMixin
+from ..core.text import map_code, normalize_literals, split_definitions, text_literal
+
+
+def _is_text(parameter):
+    types = getattr(adsk.fusion, 'ParameterValueTypes', None)
+    text_type = getattr(types, 'TextParameterValueType', None)
+    return text_type is not None and getattr(parameter, 'valueType', None) == text_type
+
+
+def _expression_matches(actual, expected):
+    return map_code(normalize_literals(actual), lambda code: ''.join(code.split())) == map_code(
+        normalize_literals(expected), lambda code: ''.join(code.split())
+    )
 
 
 def _value_expression(parameter):
+    if _is_text(parameter):
+        return text_literal(parameter.textValue)
     unit, value = parameter.unit, parameter.value
     if not math.isfinite(value):
         raise ValueError('Non-finite parameter value')
@@ -68,13 +86,14 @@ def _is_driven(parameter):
         return False
 
 
-class FusionAdapter:
+class FusionAdapter(VariantsMixin):
     def __init__(self, app):
         self.app = app
         self._document = None
         self._document_id = None
         self._draft_id = None
         self._draft_documents = []
+        self._variant_sessions = {}
         self.in_command = False
         self.in_direct_apply = False
 
@@ -122,6 +141,9 @@ class FusionAdapter:
     def _quantities(self, design):
         result = {}
         for parameter in design.allParameters:
+            if _is_text(parameter):
+                result[parameter.name] = TextValue(parameter.textValue)
+                continue
             unit = parameter.unit
             if unit not in UNITS and unit != '':
                 continue
@@ -163,10 +185,19 @@ class FusionAdapter:
             dependents = {}
             result = {}
             for name, parameter in by_name.items():
-                if parameter.valueType != adsk.fusion.ParameterValueTypes.NumericParameterValueType:
-                    raise ValueError('Non-numeric parameter: ' + name)
+                text = _is_text(parameter)
+                if (
+                    not text
+                    and parameter.valueType
+                    != adsk.fusion.ParameterValueTypes.NumericParameterValueType
+                ):
+                    raise ValueError('Unknown parameter value type: ' + name)
                 unit = parameter.unit
-                if unit == '':
+                if text:
+                    dimension, value = 'text', parameter.textValue
+                    if not isinstance(value, str) or unit != 'Text':
+                        raise ValueError('Invalid text parameter: ' + name)
+                elif unit == '':
                     dimension, value = SCALAR, parameter.value
                 elif unit in UNITS and UNITS[unit][1] == LENGTH:
                     dimension, value = LENGTH, parameter.value * 10.0
@@ -174,19 +205,25 @@ class FusionAdapter:
                     dimension, value = ANGLE, parameter.value
                 else:
                     raise ValueError('Unsupported parameter unit: ' + name)
-                if not math.isfinite(value):
+                if not text and not math.isfinite(value):
                     raise ValueError('Non-finite parameter value: ' + name)
                 dependencies[name] = names_of(parameter.dependencyParameters)
                 dependents[name] = names_of(parameter.dependentParameters)
                 result[name] = ParameterSnapshot(
-                    parameter.expression, unit, Quantity(value, dimension), dependencies[name]
+                    parameter.expression,
+                    unit,
+                    TextValue(value) if text else Quantity(value, dimension),
+                    dependencies[name],
                 )
+            # The API lists can expose different depths in each direction.
+            # Compare all reachable pairs, never merely accept extra edges.
             expected_dependents = {name: set() for name in by_name}
-            for name, deps in dependencies.items():
+            for name, deps in dependency_closure(dependencies).items():
                 for dependency in deps:
                     expected_dependents[dependency].add(name)
+            actual_dependents = dependency_closure(dependents)
             for name in by_name:
-                if dependents[name] != expected_dependents[name]:
+                if actual_dependents[name] != expected_dependents[name]:
                     raise ValueError('Inconsistent parameter dependency graph: ' + name)
             return result
         except Exception as exc:
@@ -261,7 +298,13 @@ class FusionAdapter:
         for param in design.allParameters:
             try:
                 display = (
-                    manager.formatValue(param.value, param.unit) if param.unit else str(param.value)
+                    param.textValue
+                    if _is_text(param)
+                    else (
+                        manager.formatValue(param.value, param.unit)
+                        if param.unit
+                        else str(param.value)
+                    )
                 )
             except Exception:
                 display = ''
@@ -295,6 +338,7 @@ class FusionAdapter:
             parameters.append(
                 {
                     'name': param.name,
+                    'valueType': 'text' if _is_text(param) else 'number',
                     'expression': param.expression,
                     'value': display,
                     'unit': param.unit,
@@ -304,22 +348,30 @@ class FusionAdapter:
                     'bindings': sorted(bindings),
                     'entityToken': getattr(param, 'entityToken', ''),
                     'driven': driven,
+                    'favorite': getattr(param, 'isFavorite', None),
                     'valueExpression': value_expression,
                 }
             )
+        variant_state = self._variants_state(design)
         return {
             'documentId': self._document_id,
             'draftId': self._draft_id,
             'documentName': self._document.name,
             'defaultLengthUnit': manager.defaultLengthUnits,
+            'unitsSnapshotToken': (
+                self._snapshot_token(design, 'units')
+                if not variant_state.get('variantsError')
+                else None
+            ),
             'parameters': parameters,
+            **variant_state,
         }
 
     def _snapshot_token(self, design, text):
         parameters = []
         for param in design.allParameters:
             try:
-                value = param.value
+                value = param.textValue if _is_text(param) else param.value
             except Exception:
                 value = (
                     None  # Text/unsupported parameter, expression is still part of the snapshot.
@@ -330,6 +382,8 @@ class FusionAdapter:
             text,
             design.fusionUnitsManager.defaultLengthUnits,
             sorted(parameters),
+            self._variant_sessions.get(self._draft_id),
+            self._read_variants(design)[1],
         ]
         return hashlib.sha256(
             json.dumps(payload, ensure_ascii=True, allow_nan=False).encode('utf-8')
@@ -357,7 +411,7 @@ class FusionAdapter:
             raise BridgeError('BAD_REQUEST', 'Expression is missing or too long.')
         names = [
             re.sub(r'[+*/-]$', '', item.split('=', 1)[0].strip()).strip().replace('.', '_')
-            for item in re.split(r'[;\n]+', text)
+            for item in split_definitions(text)
             if item.strip()
         ]
         existing = [design.allParameters.itemByName(name) for name in names]
@@ -371,12 +425,12 @@ class FusionAdapter:
             # after a sketch edit. It cannot participate in this plan if neither it
             # nor that identifier is mentioned, and Fusion reports no graph edges.
             # It remains in the document-wide snapshot token checked before writes.
-            mentioned = set(re.findall(r'[A-Za-z_][A-Za-z_0-9]*', text))
+            mentioned = set(re.findall(r'[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*', text))
             isolated = []
             for name, item in snapshot.items():
                 expression = item.expression.strip()
                 if (
-                    not re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*', expression)
+                    not re.fullmatch(r'[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*', expression)
                     or expression in snapshot
                     or name in mentioned
                     or expression in mentioned
@@ -428,13 +482,15 @@ class FusionAdapter:
                         'CONFLICT', 'A parameter with this name already exists: ' + op.name
                     )
                 unit = op.unit
-            if not design.fusionUnitsManager.isValidExpression(op.expression, unit):
+            if unit != 'Text' and not design.fusionUnitsManager.isValidExpression(
+                op.expression, unit
+            ):
                 raise BridgeError(
                     'INVALID_EXPRESSION', 'Fusion cannot validate expression for ' + op.name + '.'
                 )
             if op.status == 'Update':
                 created.expression = op.expression
-                if ''.join(created.expression.split()) != ''.join(op.expression.split()):
+                if not _expression_matches(created.expression, op.expression):
                     raise BridgeError(
                         'RESULT_MISMATCH',
                         'Fusion returned a different expression for ' + op.name + '.',
@@ -460,6 +516,14 @@ class FusionAdapter:
 
     def _verify_value(self, parameter, op):
         unit = parameter.unit
+        if isinstance(op.quantity, TextValue):
+            if not _is_text(parameter) or parameter.textValue != op.quantity.value:
+                raise BridgeError(
+                    'RESULT_MISMATCH', 'Fusion text differs from preview for ' + op.name + '.'
+                )
+            return
+        if _is_text(parameter):
+            raise BridgeError('TYPE_MISMATCH', 'Cannot assign a number to a text parameter.')
         if unit == '' and op.quantity.dimension == SCALAR:
             actual = parameter.value
         elif unit in UNITS and UNITS[unit][1] == LENGTH and op.quantity.dimension == LENGTH:
@@ -506,7 +570,9 @@ class FusionAdapter:
             existing = design.allParameters.itemByName(op.name)
             if not parameter or parameter != existing:
                 raise BridgeError('CONFLICT', 'Parameter changed: ' + op.name)
-            if not design.fusionUnitsManager.isValidExpression(op.expression, parameter.unit):
+            if parameter.unit != 'Text' and not design.fusionUnitsManager.isValidExpression(
+                op.expression, parameter.unit
+            ):
                 raise BridgeError(
                     'INVALID_EXPRESSION', 'Fusion cannot validate expression for ' + op.name + '.'
                 )
@@ -515,7 +581,7 @@ class FusionAdapter:
         if not design.modifyParameters(parameters, values):
             raise BridgeError('UPDATE_FAILED', 'Fusion could not update the parameter batch.')
         for parameter, op in zip(parameters, ops):
-            if ''.join(parameter.expression.split()) != ''.join(op.expression.split()):
+            if not _expression_matches(parameter.expression, op.expression):
                 raise BridgeError(
                     'RESULT_MISMATCH', 'Fusion returned a different expression for ' + op.name + '.'
                 )
@@ -523,6 +589,68 @@ class FusionAdapter:
         return {'created': [], 'updated': [op.name for op in ops]}
 
     def request(self, action, payload):
+        if action.startswith('variants.'):
+            return self._request_variant(action, payload)
+        if action == 'document.units':
+            if not self.in_command and not self.in_direct_apply:
+                raise BridgeError('BAD_CONTEXT', 'Changes require a Fusion command.')
+            design = self._design()
+            if payload.get('snapshotToken') != self._snapshot_token(design, 'units'):
+                raise BridgeError(
+                    'CONFLICT', 'The model changed. Check the current units and retry.'
+                )
+            names = {
+                'mm': 'MillimeterDistanceUnits',
+                'cm': 'CentimeterDistanceUnits',
+                'm': 'MeterDistanceUnits',
+                'in': 'InchDistanceUnits',
+                'ft': 'FootDistanceUnits',
+            }
+            unit = payload.get('unit')
+            if not isinstance(unit, str) or unit not in names:
+                raise BridgeError('BAD_REQUEST', 'Choose a supported length unit.')
+            manager = design.fusionUnitsManager
+            manager.distanceDisplayUnits = getattr(adsk.fusion.DistanceUnits, names[unit])
+            if manager.defaultLengthUnits != unit:
+                raise BridgeError('UPDATE_FAILED', 'Fusion did not accept the model units.')
+            return {'defaultLengthUnit': manager.defaultLengthUnits}
+        if action == 'parameters.favorite':
+            if not self.in_command and not self.in_direct_apply:
+                raise BridgeError('BAD_CONTEXT', 'Changes require a Fusion command.')
+            name, token, expected, favorite = (
+                payload.get('name'),
+                payload.get('entityToken'),
+                payload.get('expected'),
+                payload.get('favorite'),
+            )
+            if (
+                not isinstance(name, str)
+                or not name
+                or not isinstance(token, str)
+                or not token
+                or type(expected) is not bool
+                or type(favorite) is not bool
+            ):
+                raise BridgeError('BAD_REQUEST', 'Parameter identity or favorite state is missing.')
+            design = self._design()
+            parameter = design.allParameters.itemByName(name) if design else None
+            matches = design.findEntityByToken(token) if design else []
+            if (
+                not parameter
+                or len(matches) != 1
+                or matches[0] != parameter
+                or parameter.isFavorite != expected
+            ):
+                raise BridgeError('CONFLICT', 'The parameter changed. Refresh and try again.')
+            try:
+                parameter.isFavorite = favorite
+                if parameter.isFavorite != favorite:
+                    raise ValueError('Fusion did not accept the favorite state.')
+            except Exception as exc:
+                raise BridgeError(
+                    'FAVORITE_FAILED', 'Fusion could not update the favorite: ' + str(exc)
+                ) from exc
+            return {'favorite': favorite}
         if action == 'parameters.rename':
             if not self.in_command and not self.in_direct_apply:
                 raise BridgeError('BAD_CONTEXT', 'Changes require a Fusion command.')
@@ -538,7 +666,7 @@ class FusionAdapter:
                 or not isinstance(new_name, str)
             ):
                 raise BridgeError('BAD_REQUEST', 'Parameter identity or name is missing.')
-            if not re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*', new_name):
+            if not re.fullmatch(r'[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*', new_name):
                 raise BridgeError('INVALID_PARAMETER_NAME', 'Enter a valid parameter name.')
             design = self._design()
             parameter = design.allParameters.itemByName(name) if design else None
@@ -554,10 +682,12 @@ class FusionAdapter:
             existing = design.allParameters.itemByName(new_name)
             if existing and existing != parameter:
                 raise BridgeError('CONFLICT', 'A parameter with this name already exists.')
+            variants, _ = self._read_variants(design)
             try:
                 parameter.name = new_name
                 if parameter.name != new_name:
                     raise ValueError('Fusion did not accept the name.')
+                self._rename_variant_references(design, variants, name, new_name)
             except Exception as exc:
                 raise BridgeError(
                     'RENAME_FAILED', 'Fusion could not rename the parameter: ' + str(exc)
@@ -690,13 +820,15 @@ class FusionAdapter:
             design, ops = self._plan(text)
             if self.in_direct_apply:
                 try:
-                    return self._execute_direct_batch(design, ops)
+                    return self._execute_tracked_parameters(design, ops)
                 except BridgeError as exc:
                     if exc.code in {
                         'DIRECT_PARTIAL',
                         'CONFLICT',
                         'INVALID_EXPRESSION',
                         'UPDATE_FAILED',
+                        'VARIANT_PARTIAL',
+                        'VARIANT_SAVE_FAILED',
                     }:
                         raise
                     raise BridgeError(
@@ -710,7 +842,7 @@ class FusionAdapter:
                         'Fusion could not confirm the change. Refresh the model before retrying: '
                         + str(exc),
                     ) from exc
-            return self._execute_new_batch(design, ops)
+            return self._execute_tracked_parameters(design, ops)
         if action == 'calculator.evaluate':
             design = self._design()
             expression = payload.get('expression')
@@ -719,6 +851,8 @@ class FusionAdapter:
             quantities = self._quantities(design)
             expression = normalize_expression(expression, quantities)
             quantity = evaluate(expression, quantities)
+            if isinstance(quantity, TextValue):
+                return {'value': quantity.value, 'unit': 'Text', 'formatted': quantity.value}
             unit = {
                 LENGTH: design.fusionUnitsManager.defaultLengthUnits,
                 ANGLE: 'deg',
@@ -743,9 +877,13 @@ class FusionAdapter:
             for p in design.userParameters:
                 try:
                     formatted = (
-                        design.fusionUnitsManager.formatValue(p.value, p.unit)
-                        if p.unit
-                        else str(p.value)
+                        p.textValue
+                        if _is_text(p)
+                        else (
+                            design.fusionUnitsManager.formatValue(p.value, p.unit)
+                            if p.unit
+                            else str(p.value)
+                        )
                     )
                 except Exception:
                     formatted = ''

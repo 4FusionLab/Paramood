@@ -26,7 +26,7 @@ afterEach(() => {
   act(() => render(null, host));
   host.remove();
 });
-function mount(opts: { disabled?: boolean; text?: string } = {}) {
+function mount(opts: { disabled?: boolean; text?: string; singleLine?: boolean } = {}) {
   const onSubmit = vi.fn(),
     onChange = vi.fn();
   act(() =>
@@ -38,6 +38,7 @@ function mount(opts: { disabled?: boolean; text?: string } = {}) {
         parameters={[{ name: 'height', expression: '10 mm', value: 10, unit: 'mm' }]}
         batch
         disabled={opts.disabled}
+        singleLine={opts.singleLine}
         label="Test expression"
         hint="Example"
       />,
@@ -54,6 +55,15 @@ function key(content: HTMLElement, key: string, shiftKey = false) {
   );
 }
 describe('ExpressionEditor keyboard interaction', () => {
+  it('keeps the smart-search editor on one line, including pasted text', () => {
+    const { view } = mount({ singleLine: true, text: 'width=30' });
+    act(() =>
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: 'width=30\nheight=20' },
+      }),
+    );
+    expect(view.state.doc.toString()).toBe('width=30');
+  });
   it('disabled editor is not editable and Enter cannot submit', () => {
     const { view, content, onSubmit } = mount({ disabled: true });
     expect(view.state.readOnly).toBe(true);
@@ -418,4 +428,15 @@ describe('hierarchical parameter completion', () => {
     expect(suggest('box.inner.').options.map((o) => o.label)).toEqual(['size']);
     expect(suggest('box.3d.').options.map((o) => o.label)).toEqual(['width']);
   });
+});
+
+it('completes Cyrillic hierarchical parameter names', () => {
+  const text = 'корпус.ш';
+  const state = EditorState.create({ doc: text });
+  const result = completions(
+    new CompletionContext(state, text.length, false),
+    [{ name: 'корпус_ширина', expression: '10 mm', value: 10, unit: 'mm' }],
+    false,
+  );
+  expect(result?.options.map((option) => option.label)).toContain('ширина');
 });

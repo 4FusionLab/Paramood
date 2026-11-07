@@ -129,7 +129,17 @@ class HtmlHandler(adsk.core.HTMLEventHandler):
                             'documentId': _adapter.document_id,
                         },
                     )
-            elif action in ('parameters.apply', 'parameters.delete', 'parameters.rename'):
+            elif action in (
+                'parameters.apply',
+                'parameters.delete',
+                'parameters.rename',
+                'parameters.favorite',
+                'variants.save',
+                'variants.apply',
+                'variants.delete',
+                'variants.free',
+                'document.units',
+            ):
                 active_command = _ui.activeCommand
                 if _pending is not None:
                     _send(
@@ -286,17 +296,7 @@ def _show_palette(mode):
             palette.isVisible = True
             if hasattr(palette, 'isDockedInCanvas'):
                 palette.isDockedInCanvas = True
-            target = _ui.palettes.itemById('ActivityFeedPalette')
-            try:
-                snapped = bool(
-                    target
-                    and palette.snapTo(target, adsk.core.PaletteSnapOptions.PaletteSnapOptionsTop)
-                )
-            except Exception:
-                snapped = False
-            if not snapped:
-                palette.dockingState = adsk.core.PaletteDockingStates.PaletteDockStateLeft
-                _app.log('Paramood: snap to Comments unavailable; docked to the left edge.')
+            palette.dockingState = adsk.core.PaletteDockingStates.PaletteDockStateRight
     else:
         _palettes[mode] = palette
     palette.isVisible = True

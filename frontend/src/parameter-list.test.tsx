@@ -7,6 +7,35 @@ import { ParameterList, expressionWithoutUnit } from './parameter-list';
 afterEach(() => {
   document.body.innerHTML = '';
 });
+it('keeps a parent parameter editable while independently expanding its children', () => {
+  const host = document.createElement('div');
+  let selected = '';
+  act(() =>
+    render(
+      <ParameterList
+        parameters={[
+          { name: 'caption', expression: "'Feeder'", value: 'Feeder', unit: 'Text' },
+          { name: 'caption_variant', expression: "'Classic'", value: 'Classic', unit: 'Text' },
+        ]}
+        onDelete={() => {}}
+        onEdit={(parameter) => {
+          selected = parameter.name;
+        }}
+      />,
+      host,
+    ),
+  );
+  expect(host.querySelector('[aria-label="Edit value caption"]')?.textContent).toBe('Feeder');
+  expect(host.querySelector('[aria-label="Edit value caption_variant"]')).toBeNull();
+  act(() => (host.querySelector('[aria-label="Expand caption"]') as HTMLButtonElement).click());
+  act(() =>
+    (host.querySelector('[aria-label="Edit value caption_variant"]') as HTMLButtonElement).click(),
+  );
+  expect(selected).toBe('caption_variant');
+  act(() => (host.querySelector('[aria-label="Collapse caption"]') as HTMLButtonElement).click());
+  act(() => (host.querySelector('[aria-label="Edit value caption"]') as HTMLButtonElement).click());
+  expect(selected).toBe('caption');
+});
 it('edits a literal radian expression in the parameter degree unit', () => {
   expect(
     expressionWithoutUnit({
@@ -51,7 +80,9 @@ it('groups hierarchical user parameters before model parameters and edits a leaf
       host,
     ),
   );
-  expect(host.textContent!.indexOf('box')).toBeLessThan(host.textContent!.indexOf('d12'));
+  expect(host.querySelector('[aria-label="Edit value d12"]')).toBeNull();
+  expect(host.querySelector('[aria-label="Expand box"]')).not.toBeNull();
+  act(() => (host.querySelector('[aria-label="Expand all groups"]') as HTMLButtonElement).click());
   expect(host.querySelectorAll('[aria-label="Linked to model"]')).toHaveLength(2);
   expect(host.textContent!.indexOf('height')).toBeLessThan(
     host.textContent!.indexOf('Model parameters'),
@@ -90,6 +121,11 @@ it('shows model expressions and makes driven dimensions read-only', () => {
       host,
     ),
   );
+  const modelHeading = Array.from(host.querySelectorAll('button')).find((button) =>
+    button.textContent?.includes('Model parameters'),
+  )!;
+  expect(modelHeading.getAttribute('aria-expanded')).toBe('false');
+  act(() => modelHeading.click());
   expect(host.textContent).toContain('20 (d_min)');
   expect(host.textContent).toContain('(25)');
   expect(host.querySelector('[aria-label="Edit value d24"]')).toBeNull();
@@ -114,6 +150,7 @@ it('renames a user parameter with its full hierarchical name', async () => {
       host,
     ),
   );
+  act(() => (host.querySelector('[aria-label="Expand box"]') as HTMLButtonElement).click());
   const nameButton = host.querySelector(
     'button[aria-label="Rename box_width"]',
   ) as HTMLButtonElement;
@@ -150,4 +187,94 @@ it('opens rename for a named model parameter', () => {
   expect(name).not.toBeNull();
   act(() => name.click());
   expect(host.querySelector('input[aria-label="Rename champher"]')).not.toBeNull();
+});
+
+it('sorts named parameters within each group by name or numeric value in either direction', () => {
+  const host = document.createElement('div');
+  const parameters = [
+    { name: 'box_z', expression: '2 mm', value: '2 mm', unit: 'mm' },
+    { name: 'box_a', expression: '10 mm', value: '10 mm', unit: 'mm' },
+    { name: 'box_m', expression: '3 mm', value: '3 mm', unit: 'mm' },
+  ];
+  act(() =>
+    render(<ParameterList parameters={parameters} onEdit={() => {}} onDelete={() => {}} />, host),
+  );
+  const labels = () =>
+    Array.from(host.querySelectorAll('.tree-children .tree-name')).map((item) => item.textContent);
+  expect(labels()).toEqual([]);
+  act(() => (host.querySelector('[aria-label="Expand all groups"]') as HTMLButtonElement).click());
+  expect(labels()).toEqual(['a', 'm', 'z']);
+  const select = host.querySelector('select')!;
+  act(() => {
+    select.value = 'value';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  expect(labels()).toEqual(['z', 'm', 'a']);
+  act(() => (host.querySelector('[aria-label="Sort descending"]') as HTMLButtonElement).click());
+  expect(labels()).toEqual(['a', 'm', 'z']);
+  act(() => {
+    select.value = 'name';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  expect(labels()).toEqual(['z', 'm', 'a']);
+});
+
+it('shows and toggles native favorites and collapses all groups', () => {
+  const host = document.createElement('div');
+  const selected: string[] = [];
+  const parameters = [
+    { name: 'box_width', expression: '10 mm', value: '10 mm', unit: 'mm', favorite: true },
+    { name: 'height', expression: '2 mm', value: '2 mm', unit: 'mm', favorite: false },
+  ];
+  act(() =>
+    render(
+      <ParameterList
+        parameters={parameters}
+        onEdit={() => {}}
+        onDelete={() => {}}
+        onFavorite={(p) => selected.push(p.name)}
+      />,
+      host,
+    ),
+  );
+  expect(host.querySelector('[aria-expanded="false"]')?.textContent).toContain(
+    'Featured parameters (1)',
+  );
+  act(() => (host.querySelector('[aria-label="Expand all groups"]') as HTMLButtonElement).click());
+  expect(host.querySelector('[aria-expanded="false"]')?.textContent).toContain(
+    'Featured parameters (1)',
+  );
+  act(() => (host.querySelector('.featured-heading') as HTMLButtonElement).click());
+  expect(host.querySelectorAll('[aria-label="Remove from featured box_width"]')).toHaveLength(2);
+  act(() =>
+    (host.querySelector('[aria-label="Add to featured height"]') as HTMLButtonElement).click(),
+  );
+  expect(selected).toEqual(['height']);
+  act(() =>
+    (host.querySelector('[aria-label="Collapse all groups"]') as HTMLButtonElement).click(),
+  );
+  expect(host.querySelector('[aria-label="Expand box"]')).not.toBeNull();
+  expect(host.querySelector('[aria-expanded="true"]')?.textContent).toContain(
+    'Featured parameters (1)',
+  );
+});
+
+it('shows computed text while preserving its source expression for edits', () => {
+  const parameter = {
+    name: 'caption',
+    unit: 'Text',
+    valueType: 'text' as const,
+    value: 'Computed body',
+    expression: "prefix+'body'",
+  };
+  expect(expressionWithoutUnit(parameter)).toBe("prefix+'body'");
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  act(() =>
+    render(<ParameterList parameters={[parameter]} onEdit={() => {}} onDelete={() => {}} />, host),
+  );
+  expect(host.querySelector('[aria-label="Edit value caption"]')?.textContent).toBe(
+    'Computed body',
+  );
+  expect(host.querySelector('.tree-unit')?.textContent).toBe('');
 });

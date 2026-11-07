@@ -9,8 +9,9 @@ frontend/package.json
 frontend/package-lock.json
 frontend/vite.config.ts
 frontend/tsconfig.json
+src/intellisense.ts
 scripts/build_release.py
 
-# Top-level src/ is a standalone, private IntelliSense test module and is not
-# imported into the shipped frontend. Root package.json and pyproject.toml are
-# test/lint metadata, not distribution inputs.
+# The pure ParameterIndex engine is now imported by the shipped variant editor.
+# src/codemirror.ts remains a standalone adapter. Root package.json and
+# pyproject.toml are test/lint metadata, not distribution inputs.

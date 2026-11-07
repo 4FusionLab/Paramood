@@ -32,10 +32,11 @@ interface Node {
   children: Map<string, Node>;
   parameter?: FusionParameter;
 }
-const IDENTIFIER = /^[A-Za-z_][A-Za-z_0-9]*$/;
-const VIRTUAL_PATH = /^[A-Za-z_][A-Za-z_0-9]*(?:\.[A-Za-z_][A-Za-z_0-9]*)*$/;
-const IDENTIFIER_START = /[A-Za-z_]/;
-const IDENTIFIER_PART = /[A-Za-z_0-9]/;
+const IDENTIFIER = /^[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*$/;
+const VIRTUAL_PATH =
+  /^[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*(?:\.[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*)*$/;
+const IDENTIFIER_START = /[A-Za-zА-Яа-яЁё_]/;
+const IDENTIFIER_PART = /[A-Za-zА-Яа-яЁё_0-9]/;
 function createNode(path: string): Node {
   return { path, children: new Map() };
 }
@@ -257,7 +258,7 @@ export function resolveParameterTarget(
   }
   const existing = index.nativeName(path);
   if (existing) return { nativeName: existing, diagnostics: [] };
-  const candidate = path.replaceAll('.', '_');
+  const candidate = path.split('.').join('_');
   if (index.nativeName(candidate)) {
     return {
       nativeName: null,
@@ -294,10 +295,15 @@ export function suggestCompletions(
     if (token.kind === 'string' && token.from < cursor && cursor <= token.to) return null;
   }
   let from = cursor;
-  while (from > 0 && /[A-Za-z_0-9.]/.test(text[from - 1])) from--;
+  while (from > 0 && /[A-Za-zА-Яа-яЁё_0-9.]/.test(text[from - 1])) from--;
   const fragment = text.slice(from, cursor);
   if (!fragment) return explicit ? { from: cursor, to: cursor, options: index.children() } : null;
-  if (!/^[A-Za-z_][A-Za-z_0-9]*(?:\.[A-Za-z_][A-Za-z_0-9]*)*\.?$/.test(fragment)) return null;
+  if (
+    !/^[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*(?:\.[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*)*\.?$/.test(
+      fragment,
+    )
+  )
+    return null;
   const lastDot = fragment.lastIndexOf('.');
   const scope = lastDot < 0 ? '' : fragment.slice(0, lastDot);
   const prefix = lastDot < 0 ? fragment : fragment.slice(lastDot + 1);

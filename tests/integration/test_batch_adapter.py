@@ -1267,3 +1267,110 @@ def test_equation_preview_plans_solved_new_parameter_and_target(adapter_module, 
     assert result['resolvedText'] == 'width=-250.0 mm;d24=-width/5'
     assert result['newName'] == 'width'
     assert result['snapshotToken']
+
+
+def test_favorite_checks_identity_and_expected_state(adapter_module):
+    adapter, params = make_adapter(adapter_module)
+    parameter = SimpleNamespace(name='width', isFavorite=False)
+    params.entries['width'] = parameter
+    adapter._design().findEntityByToken = lambda token: [parameter] if token == 'valid' else []
+    payload = {'name': 'width', 'entityToken': 'valid', 'expected': False, 'favorite': True}
+    with pytest.raises(adapter_module.BridgeError, match='changed'):
+        adapter.request('parameters.favorite', {**payload, 'entityToken': 'stale'})
+    assert not parameter.isFavorite
+    assert adapter.request('parameters.favorite', payload) == {'favorite': True}
+    assert parameter.isFavorite
+    with pytest.raises(adapter_module.BridgeError, match='changed'):
+        adapter.request('parameters.favorite', payload)
+    assert parameter.isFavorite
+    assert adapter.request(
+        'parameters.favorite', {**payload, 'expected': True, 'favorite': False}
+    ) == {'favorite': False}
+
+
+def test_text_adapter_uses_text_value_and_preserves_expression(adapter_module, monkeypatch):
+    adapter, params = make_adapter(adapter_module)
+    adapter_module.adsk.fusion.ParameterValueTypes = SimpleNamespace(
+        NumericParameterValueType=0, TextParameterValueType=1
+    )
+
+    class TextParameter:
+        unit = 'Text'
+        valueType = 1
+        comment = ''
+        entityToken = 'caption-token'
+        dependencyParameters = []
+        dependentParameters = []
+        name = 'caption'
+        expression = "'Initial'"
+
+        @property
+        def textValue(self):
+            return adapter_module.evaluate(self.expression, {}).value
+
+        @property
+        def value(self):
+            raise AssertionError('Numeric value must never be read for text')
+
+    def add(name, expression, unit, comment):
+        assert unit == 'Text'
+        parameter = TextParameter()
+        parameter.name = name
+        parameter.expression = expression
+        params.entries[name] = parameter
+        return parameter
+
+    monkeypatch.setattr(params, 'add', add)
+    design = adapter._design()
+    monkeypatch.setattr(
+        design.fusionUnitsManager, 'isValidExpression', lambda expression, unit: unit != 'Text'
+    )
+    adapter.app.activeDocument = SimpleNamespace(name='Temporary text model')
+    text = 'caption="Body"'
+    preview = adapter.request('parameters.preview', {'text': text})
+    assert preview['items'][0]['value'] == 'Body'
+    adapter.request('parameters.apply', {'text': text, 'snapshotToken': preview['snapshotToken']})
+    assert params.entries['caption'].textValue == 'Body'
+    state = adapter.state()
+    assert state['parameters'][0]['value'] == 'Body'
+    assert state['parameters'][0]['expression'] == "'Body'"
+    assert state['parameters'][0]['valueType'] == 'text'
+    text = "caption='a=b;c'"
+    preview = adapter.request('parameters.preview', {'text': text})
+    adapter.request('parameters.apply', {'text': text, 'snapshotToken': preview['snapshotToken']})
+    assert params.entries['caption'].textValue == 'a=b;c'
+    with pytest.raises(ValueError):
+        adapter.request('parameters.preview', {'text': 'caption=20'})
+    assert params.entries['caption'].textValue == 'a=b;c'
+
+
+def test_mixed_snapshot_checks_text_dependency_links(adapter_module):
+    adapter, params = make_adapter(adapter_module)
+    adapter_module.adsk.fusion.ParameterValueTypes = SimpleNamespace(
+        NumericParameterValueType=0, TextParameterValueType=1
+    )
+    numeric = SimpleNamespace(
+        name='width',
+        unit='mm',
+        value=1,
+        valueType=0,
+        expression='10 mm',
+        dependencyParameters=[],
+        dependentParameters=[],
+    )
+    text = SimpleNamespace(
+        name='caption',
+        unit='Text',
+        textValue='Body',
+        valueType=1,
+        expression="'Body'",
+        dependencyParameters=[],
+        dependentParameters=[],
+    )
+    params.entries.update(width=numeric, caption=text)
+    snapshot = adapter._dependency_snapshot(adapter._design())
+    assert isinstance(snapshot['caption'].quantity, adapter_module.TextValue)
+    assert adapter.request('parameters.preview', {'text': 'width=20'})['valid']
+    text.dependencyParameters = [numeric]
+    with pytest.raises(adapter_module.BridgeError, match='Inconsistent'):
+        adapter._dependency_snapshot(adapter._design())

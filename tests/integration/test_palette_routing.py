@@ -335,9 +335,12 @@ def test_close_button_only_on_cleanup(entry, monkeypatch, mode, expected):
     entry._palettes = {}
     monkeypatch.setattr(entry.os.path, 'isfile', lambda path: True)
     monkeypatch.setattr(entry, '_listen', lambda event, handler: None)
-    entry.adsk.core.PaletteSnapOptions = SimpleNamespace(PaletteSnapOptionsTop=0)
+    entry.adsk.core.PaletteDockingStates = SimpleNamespace(PaletteDockStateRight=4)
     entry._show_palette(mode)
     assert calls[0][4] is expected
+    if mode == 'parameters':
+        assert entry._palettes[mode].dockingState == 4
+        assert entry._palettes[mode].isDockedInCanvas is True
 
 
 def test_external_command_end_refreshes_palette_without_invalidating_document(entry, monkeypatch):
