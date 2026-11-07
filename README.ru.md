@@ -143,7 +143,7 @@ python -m pytest -q
 python scripts/build_release.py
 ```
 
-Сборщик создаёт `dist/Paramood-<version>.zip` и контрольную сумму `.sha256`. Версии вычисляет GitVersion на основе тегов и Conventional Commits. После успешных проверок CI изменения в `main` запускают публикацию релиза.
+Сборщик создаёт `dist/Paramood-<version>.zip` и контрольную сумму `.sha256`. Версии вычисляет GitVersion на основе тегов и Conventional Commits. После успешных проверок CI изменения в `main` могут запустить публикацию, если изменения распространяемых файлов подходят для релиза. Изменение только документации также может повторить ранее неудавшийся выпуск с изменениями продукта, но само по себе новый релиз не создаёт.
 
 **Стек:** Fusion Python API · Preact · TypeScript · CodeMirror 6 · Vite · Vitest · Pytest.
 
