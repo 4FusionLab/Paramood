@@ -91,9 +91,20 @@ jobs:
           version=$("$RUNNER_TEMP/gitversion/dotnet-gitversion" /showvariable MajorMinorPatch)
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ ! -s "docs/releases/$version.md" ]]; then
+            echo "No reviewed notes for $version: skip publication; CI remains green."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "publish=true" >> "$GITHUB_OUTPUT"
           python scripts/build_release.py --version "$version"
           (cd dist && sha256sum -c "Paramood-$version.zip.sha256")
+          python scripts/release_contract.py \
+            --version "$version" --tag "v$version" --channel stable \
+            --manifest Paramood/Paramood.manifest \
+            --archive "dist/Paramood-$version.zip" --notes "docs/releases/$version.md"
       - name: Publish release
+        if: steps.version.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
@@ -111,10 +122,6 @@ jobs:
           else
             verify_tag=()
           fi
-          if [[ -f "docs/releases/$RELEASE_VERSION.md" ]]; then
-            notes=(--notes-file "docs/releases/$RELEASE_VERSION.md")
-          else
-            notes=(--generate-notes)
-          fi
+          notes=(--notes-file "docs/releases/$RELEASE_VERSION.md")
           gh release create "$tag" "dist/Paramood-$RELEASE_VERSION.zip" "dist/Paramood-$RELEASE_VERSION.zip.sha256" \
             "${verify_tag[@]}" --target "$RELEASE_COMMIT" --title "Paramood $RELEASE_VERSION" "${notes[@]}"
