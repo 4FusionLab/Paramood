@@ -1267,3 +1267,22 @@ def test_equation_preview_plans_solved_new_parameter_and_target(adapter_module, 
     assert result['resolvedText'] == 'width=-250.0 mm;d24=-width/5'
     assert result['newName'] == 'width'
     assert result['snapshotToken']
+
+
+def test_favorite_checks_identity_and_expected_state(adapter_module):
+    adapter, params = make_adapter(adapter_module)
+    parameter = SimpleNamespace(name='width', isFavorite=False)
+    params.entries['width'] = parameter
+    adapter._design().findEntityByToken = lambda token: [parameter] if token == 'valid' else []
+    payload = {'name': 'width', 'entityToken': 'valid', 'expected': False, 'favorite': True}
+    with pytest.raises(adapter_module.BridgeError, match='changed'):
+        adapter.request('parameters.favorite', {**payload, 'entityToken': 'stale'})
+    assert not parameter.isFavorite
+    assert adapter.request('parameters.favorite', payload) == {'favorite': True}
+    assert parameter.isFavorite
+    with pytest.raises(adapter_module.BridgeError, match='changed'):
+        adapter.request('parameters.favorite', payload)
+    assert parameter.isFavorite
+    assert adapter.request(
+        'parameters.favorite', {**payload, 'expected': True, 'favorite': False}
+    ) == {'favorite': False}

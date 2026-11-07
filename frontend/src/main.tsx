@@ -400,6 +400,36 @@ export function App() {
       setBusy(false);
     }
   }
+  async function toggleFavorite(parameter: Parameter) {
+    const id = doc.current;
+    if (!id || busyRef.current || !parameter.entityToken || typeof parameter.favorite !== 'boolean')
+      return;
+    busyRef.current = true;
+    setBusy(true);
+    setProblem('');
+    try {
+      await request(
+        'parameters.favorite',
+        {
+          name: parameter.name,
+          entityToken: parameter.entityToken,
+          expected: parameter.favorite,
+          favorite: !parameter.favorite,
+        },
+        id,
+      );
+      if (refreshFlight.current) await refreshFlight.current;
+      if (doc.current === id) await refreshOnFocus(true);
+    } catch (e) {
+      if (doc.current === id) {
+        setProblem(message(e));
+        await refreshOnFocus(true);
+      }
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
   async function copy(value: string) {
     try {
       await navigator.clipboard.writeText(value);
@@ -669,6 +699,8 @@ export function App() {
               parameters={model?.parameters || []}
               onDelete={(parameter) => void deleteParameter(parameter)}
               onRename={renameParameter}
+              onFavorite={(parameter) => void toggleFavorite(parameter)}
+              busy={busy}
               editingName={editing?.name}
               editor={
                 editing && (

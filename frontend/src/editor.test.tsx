@@ -419,3 +419,14 @@ describe('hierarchical parameter completion', () => {
     expect(suggest('box.3d.').options.map((o) => o.label)).toEqual(['width']);
   });
 });
+
+it('completes Cyrillic hierarchical parameter names', () => {
+  const text = 'корпус.ш';
+  const state = EditorState.create({ doc: text });
+  const result = completions(
+    new CompletionContext(state, text.length, false),
+    [{ name: 'корпус_ширина', expression: '10 mm', value: 10, unit: 'mm' }],
+    false,
+  );
+  expect(result?.options.map((option) => option.label)).toContain('ширина');
+});

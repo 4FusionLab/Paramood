@@ -304,6 +304,7 @@ class FusionAdapter:
                     'bindings': sorted(bindings),
                     'entityToken': getattr(param, 'entityToken', ''),
                     'driven': driven,
+                    'favorite': getattr(param, 'isFavorite', None),
                     'valueExpression': value_expression,
                 }
             )
@@ -371,12 +372,12 @@ class FusionAdapter:
             # after a sketch edit. It cannot participate in this plan if neither it
             # nor that identifier is mentioned, and Fusion reports no graph edges.
             # It remains in the document-wide snapshot token checked before writes.
-            mentioned = set(re.findall(r'[A-Za-z_][A-Za-z_0-9]*', text))
+            mentioned = set(re.findall(r'[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*', text))
             isolated = []
             for name, item in snapshot.items():
                 expression = item.expression.strip()
                 if (
-                    not re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*', expression)
+                    not re.fullmatch(r'[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*', expression)
                     or expression in snapshot
                     or name in mentioned
                     or expression in mentioned
@@ -523,6 +524,43 @@ class FusionAdapter:
         return {'created': [], 'updated': [op.name for op in ops]}
 
     def request(self, action, payload):
+        if action == 'parameters.favorite':
+            if not self.in_command and not self.in_direct_apply:
+                raise BridgeError('BAD_CONTEXT', 'Changes require a Fusion command.')
+            name, token, expected, favorite = (
+                payload.get('name'),
+                payload.get('entityToken'),
+                payload.get('expected'),
+                payload.get('favorite'),
+            )
+            if (
+                not isinstance(name, str)
+                or not name
+                or not isinstance(token, str)
+                or not token
+                or type(expected) is not bool
+                or type(favorite) is not bool
+            ):
+                raise BridgeError('BAD_REQUEST', 'Parameter identity or favorite state is missing.')
+            design = self._design()
+            parameter = design.allParameters.itemByName(name) if design else None
+            matches = design.findEntityByToken(token) if design else []
+            if (
+                not parameter
+                or len(matches) != 1
+                or matches[0] != parameter
+                or parameter.isFavorite != expected
+            ):
+                raise BridgeError('CONFLICT', 'The parameter changed. Refresh and try again.')
+            try:
+                parameter.isFavorite = favorite
+                if parameter.isFavorite != favorite:
+                    raise ValueError('Fusion did not accept the favorite state.')
+            except Exception as exc:
+                raise BridgeError(
+                    'FAVORITE_FAILED', 'Fusion could not update the favorite: ' + str(exc)
+                ) from exc
+            return {'favorite': favorite}
         if action == 'parameters.rename':
             if not self.in_command and not self.in_direct_apply:
                 raise BridgeError('BAD_CONTEXT', 'Changes require a Fusion command.')
@@ -538,7 +576,7 @@ class FusionAdapter:
                 or not isinstance(new_name, str)
             ):
                 raise BridgeError('BAD_REQUEST', 'Parameter identity or name is missing.')
-            if not re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*', new_name):
+            if not re.fullmatch(r'[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*', new_name):
                 raise BridgeError('INVALID_PARAMETER_NAME', 'Enter a valid parameter name.')
             design = self._design()
             parameter = design.allParameters.itemByName(name) if design else None

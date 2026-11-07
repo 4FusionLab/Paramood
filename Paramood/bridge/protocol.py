@@ -22,6 +22,7 @@ def dispatch(adapter, message):
             'parameters.apply',
             'parameters.delete',
             'parameters.rename',
+            'parameters.favorite',
             'calculator.evaluate',
             'cleanup.analyze',
             'cleanup.delete',

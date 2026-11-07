@@ -29,7 +29,9 @@ export function prepareInlineEdit(parameter: Parameter, input: string, parameter
   if (!expression.includes('=')) {
     const nativeName = expression.replace(/\./g, '_');
     if (
-      /^(?:[A-Za-z_]\w*|[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z0-9]+)+)$/.test(expression) &&
+      /^(?:[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*|[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9]*(?:\.[A-Za-zА-Яа-яЁё0-9]+)+)$/.test(
+        expression,
+      ) &&
       !reserved.has(expression.toLowerCase()) &&
       !parameters.some((item) => item.name.toLowerCase() === nativeName.toLowerCase())
     ) {
@@ -45,7 +47,9 @@ export function prepareInlineEdit(parameter: Parameter, input: string, parameter
       text: `${parameter.name}=${expression}${numeric.test(expression) && parameter.unit ? ` ${parameter.unit}` : ''}`,
     };
   }
-  const match = expression.match(/^\s*([A-Za-z_]\w*(?:\.[A-Za-z0-9]+)*)\s*=\s*(.+)$/);
+  const match = expression.match(
+    /^\s*([A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*(?:\.[A-Za-zА-Яа-яЁё0-9]+)*)\s*=\s*(.+)$/,
+  );
   if (!match && expression.split('=').length === 2) return { text: '', equation: expression };
   if (!match || match[2].includes('='))
     throw new Error('Enter a new parameter definition, such as x=25.');

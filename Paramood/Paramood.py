@@ -129,7 +129,12 @@ class HtmlHandler(adsk.core.HTMLEventHandler):
                             'documentId': _adapter.document_id,
                         },
                     )
-            elif action in ('parameters.apply', 'parameters.delete', 'parameters.rename'):
+            elif action in (
+                'parameters.apply',
+                'parameters.delete',
+                'parameters.rename',
+                'parameters.favorite',
+            ):
                 active_command = _ui.activeCommand
                 if _pending is not None:
                     _send(

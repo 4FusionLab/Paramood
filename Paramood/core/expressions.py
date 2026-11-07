@@ -29,7 +29,7 @@ UNITS = {
 _LITERAL = re.compile(
     r'(?<![\w.])((?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*(mm|cm|deg|rad|in|ft|m|n)\b'
 )
-_NAME = re.compile(r'^[A-Za-z_][A-Za-z_0-9]*$')
+_NAME = re.compile(r'^[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*$')
 _NUMERIC = re.compile(r'^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$')
 _NUMERIC_WITH_UNIT = re.compile(
     r'^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?\s*(mm|cm|deg|rad|in|ft|m|n)$'
@@ -44,7 +44,9 @@ def _literal_unit(expression, dimension, fallback):
 
 
 _FUNCTIONS = {'sqrt', 'sin', 'cos', 'tan', 'abs', 'floor', 'ceil', 'round', 'min', 'max'}
-_DOTTED = re.compile(r'(?<![\w.])[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z0-9]+)+(?![\w.])')
+_DOTTED = re.compile(
+    r'(?<![\w.])[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9]*(?:\.[A-Za-zА-Яа-яЁё0-9]+)+(?![\w.])'
+)
 
 
 class ExpressionError(ValueError):

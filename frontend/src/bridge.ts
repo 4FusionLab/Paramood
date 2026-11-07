@@ -9,6 +9,7 @@ export interface Parameter {
   bindings?: ('sketch' | 'feature' | 'other' | 'unknown')[];
   entityToken?: string;
   driven?: boolean;
+  favorite?: boolean;
   valueExpression?: string | null;
 }
 export interface ModelState {
