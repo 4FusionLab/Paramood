@@ -32,6 +32,8 @@ def build(output_dir: Path, version_override: str = None) -> Path:
         if '__pycache__' not in path.parts:
             relative = path.relative_to(SOURCE).as_posix()
             files['Paramood/' + relative] = path.read_bytes()
+    files['Paramood/LICENSE'] = (ROOT / 'LICENSE').read_bytes()
+    files['Paramood/THIRD_PARTY_NOTICES.txt'] = (ROOT / 'THIRD_PARTY_NOTICES.txt').read_bytes()
     manifest['version'] = version
     files['Paramood/Paramood.manifest'] = (
         json.dumps(manifest, ensure_ascii=False, indent=2) + '\n'

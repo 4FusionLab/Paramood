@@ -154,3 +154,7 @@ The release builder creates `dist/Paramood-<version>.zip` and a matching `.sha25
 **[Perfora](https://github.com/4FusionLab/Perfora)** · **[Selectra](https://github.com/4FusionLab/Selectra)** · **[Ejix](https://github.com/4FusionLab/Ejix)** · **[RuEn](https://github.com/4FusionLab/RuEn)** · **[Planara](https://github.com/4FusionLab/Planara)**
 
 Paramood is an independent [4FusionLab](https://github.com/4FusionLab) project and is not affiliated with Autodesk.
+
+## License
+
+Paramood is available under the [PolyForm Noncommercial License 1.0.0](LICENSE). Commercial use outside its permitted purposes requires a separate agreement with 4FusionLab. Third-party components remain subject to their own licenses.
