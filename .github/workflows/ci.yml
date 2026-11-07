@@ -14,7 +14,28 @@ permissions:
   contents: read
 
 jobs:
+  version:
+    name: Resolve GitVersion package version
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.gitversion.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Calculate GitVersion 6.8.2
+        id: gitversion
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet tool install GitVersion.Tool --tool-path "$RUNNER_TEMP/gitversion" --version 6.8.2
+          version="$("$RUNNER_TEMP/gitversion/dotnet-gitversion" /showvariable MajorMinorPatch)"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "version=$version" >> "$GITHUB_OUTPUT"
   check:
+    needs: version
     name: Check (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
@@ -56,7 +77,7 @@ jobs:
           python -m ruff check Paramood scripts tests
           python -m ruff format --check Paramood scripts tests
           python -m pytest -q
-          python scripts/build_release.py
+          python scripts/build_release.py --version "${{ needs.version.outputs.version }}"
       - name: Upload release package
         if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -69,7 +90,7 @@ jobs:
   release:
     name: Publish verified release
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: check
+    needs: [version, check]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -87,8 +108,7 @@ jobs:
         id: version
         shell: bash
         run: |
-          dotnet tool install GitVersion.Tool --tool-path "$RUNNER_TEMP/gitversion" --version 6.8.2
-          version=$("$RUNNER_TEMP/gitversion/dotnet-gitversion" /showvariable MajorMinorPatch)
+          version="${{ needs.version.outputs.version }}"
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           echo "version=$version" >> "$GITHUB_OUTPUT"
           if [[ ! -s "docs/releases/$version.md" ]]; then
