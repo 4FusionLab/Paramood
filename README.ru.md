@@ -152,3 +152,7 @@ python scripts/build_release.py
 **[Perfora](https://github.com/4FusionLab/Perfora)** · **[Selectra](https://github.com/4FusionLab/Selectra)** · **[Ejix](https://github.com/4FusionLab/Ejix)** · **[RuEn](https://github.com/4FusionLab/RuEn)** · **[Planara](https://github.com/4FusionLab/Planara)**
 
 Paramood — независимый проект [4FusionLab](https://github.com/4FusionLab), не связанный с Autodesk.
+
+## Лицензия
+
+Paramood распространяется по [PolyForm Noncommercial License 1.0.0](LICENSE). Коммерческое использование за пределами разрешённых лицензией случаев возможно по отдельной договорённости с 4FusionLab. Сторонние компоненты сохраняют свои лицензии.
