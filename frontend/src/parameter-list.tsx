@@ -270,6 +270,8 @@ export function ParameterList({
 }) {
   const [expansion, setExpansion] = useState({ open: false, version: 0 });
   const [featuredOpen, setFeaturedOpen] = useState(false);
+  const [modelsOpen, setModelsOpen] = useState(false);
+  useEffect(() => setModelsOpen(expansion.open), [expansion.version]);
   const [editInFeatured, setEditInFeatured] = useState(false);
   const [sortBy, setSortBy] = useState<'name' | 'value'>('name');
   const [descending, setDescending] = useState(false);
@@ -373,9 +375,15 @@ export function ParameterList({
         {renderNodes(users, sort)}
         {!users.children.size && <p class="helper">No named parameters</p>}
         <div class="model-parameters">
-          <div class="minor-label">Model parameters</div>
-          {renderNodes(models)}
-          {!models.children.size && <p class="helper">No model parameters</p>}
+          <button
+            class="featured-heading"
+            aria-expanded={modelsOpen}
+            onClick={() => setModelsOpen(!modelsOpen)}
+          >
+            {modelsOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />} Model parameters
+          </button>
+          {modelsOpen && renderNodes(models)}
+          {modelsOpen && !models.children.size && <p class="helper">No model parameters</p>}
         </div>
       </div>
     </section>

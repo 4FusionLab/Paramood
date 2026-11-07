@@ -51,7 +51,7 @@ it('groups hierarchical user parameters before model parameters and edits a leaf
       host,
     ),
   );
-  expect(host.textContent!.indexOf('box')).toBeLessThan(host.textContent!.indexOf('d12'));
+  expect(host.querySelector('[aria-label="Edit value d12"]')).toBeNull();
   expect(host.querySelector('[aria-label="Expand box"]')).not.toBeNull();
   act(() => (host.querySelector('[aria-label="Expand all groups"]') as HTMLButtonElement).click());
   expect(host.querySelectorAll('[aria-label="Linked to model"]')).toHaveLength(2);
@@ -92,6 +92,11 @@ it('shows model expressions and makes driven dimensions read-only', () => {
       host,
     ),
   );
+  const modelHeading = Array.from(host.querySelectorAll('button')).find((button) =>
+    button.textContent?.includes('Model parameters'),
+  )!;
+  expect(modelHeading.getAttribute('aria-expanded')).toBe('false');
+  act(() => modelHeading.click());
   expect(host.textContent).toContain('20 (d_min)');
   expect(host.textContent).toContain('(25)');
   expect(host.querySelector('[aria-label="Edit value d24"]')).toBeNull();
