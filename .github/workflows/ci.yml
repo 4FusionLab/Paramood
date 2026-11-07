@@ -3,7 +3,6 @@ name: Check and release
 on:
   push:
     branches: [main, 'codex/**']
-    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -35,6 +34,23 @@ jobs:
           version="$("$RUNNER_TEMP/gitversion/dotnet-gitversion" /showvariable MajorMinorPatch)"
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           echo "version=$version" >> "$GITHUB_OUTPUT"
+  changes:
+    name: Check runtime changes
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.impact.outputs.release }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - run: python scripts/release_changes.py --self-test
+      - name: Detect addon changes
+        id: impact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: python scripts/release_changes.py --before "$BEFORE" --after "$GITHUB_SHA" --github-output "$GITHUB_OUTPUT"
   check:
     needs: version
     name: Check (${{ matrix.os }})
@@ -90,8 +106,8 @@ jobs:
 
   release:
     name: Publish verified release
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [version, check]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.release == 'true'
+    needs: [version, check, changes]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -105,35 +121,23 @@ jobs:
         with:
           name: Paramood-frontend
           path: frontend/dist
-      - name: Calculate version and build package
+      - name: Calculate version, generate notes, and validate package
         id: version
         shell: bash
         run: |
           set -euo pipefail
           version="${{ needs.version.outputs.version }}"
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          [[ "$GITHUB_REF_NAME" =~ ^v${version}(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]] || {
-            echo "Tag must match GitVersion MajorMinorPatch: $version" >&2
-            exit 1
-          }
-          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
-            echo "Release tag must point to a commit reachable from main." >&2
-            exit 1
-          }
-          test -s "docs/releases/$version.md" || {
-            echo "Explicitly tagged release requires reviewed notes: docs/releases/$version.md" >&2
-            exit 1
-          }
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "publish=true" >> "$GITHUB_OUTPUT"
+          python scripts/release_notes.py --product Paramood --version "$version" \
+            --output "$RUNNER_TEMP/release-notes.md" --candidate "docs/releases/$version.md"
           python scripts/build_release.py --version "$version"
           (cd dist && sha256sum -c "Paramood-$version.zip.sha256")
           python scripts/release_contract.py \
-            --version "$version" --tag "$GITHUB_REF_NAME" --channel "$(if [[ "$GITHUB_REF_NAME" == "v$version" ]]; then echo stable; else echo prerelease; fi)" \
+            --version "$version" --tag "v$version" --channel stable \
             --manifest Paramood/Paramood.manifest \
-            --archive "dist/Paramood-$version.zip" --notes "docs/releases/$version.md"
+            --archive "dist/Paramood-$version.zip" --notes "$RUNNER_TEMP/release-notes.md"
       - name: Publish release
-        if: steps.version.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
@@ -141,23 +145,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tag="$GITHUB_REF_NAME"
-          git rev-parse -q --verify "refs/tags/$tag^{commit}" >/dev/null || {
-            echo "The explicitly pushed release tag must already exist; refusing implicit tag creation." >&2
-            exit 1
-          }
-          test "$(git rev-list -n 1 "$tag")" = "$RELEASE_COMMIT" || {
-            echo "Tag $tag belongs to another commit" >&2
-            exit 1
-          }
+          tag="v$RELEASE_VERSION"
+          if git rev-parse -q --verify "refs/tags/$tag^{commit}" >/dev/null; then
+            test "$(git rev-parse "$tag^{commit}")" = "$RELEASE_COMMIT" || {
+              echo "Existing immutable version tag belongs to another commit: $tag" >&2
+              exit 1
+            }
+          fi
           if gh release view "$tag" >/dev/null 2>&1; then
-            echo "Release $tag already exists; keep its assets unchanged."
+            echo "Already published: $tag"
             exit 0
           fi
-          notes=(--notes-file "docs/releases/$RELEASE_VERSION.md")
-          channel=(--latest)
-          if [[ "$tag" != "v$RELEASE_VERSION" ]]; then
-            channel=(--prerelease --latest=false)
-          fi
           gh release create "$tag" "dist/Paramood-$RELEASE_VERSION.zip" "dist/Paramood-$RELEASE_VERSION.zip.sha256" \
-            --verify-tag --target "$RELEASE_COMMIT" --title "Paramood $tag" "${notes[@]}" "${channel[@]}"
+            --target "$RELEASE_COMMIT" --title "Paramood $tag" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" --latest

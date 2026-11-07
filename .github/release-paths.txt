@@ -1,0 +1,15 @@
+# Python backend, web palette, runtime dependencies and package builder.
+Paramood/**
+frontend/src/**
+frontend/public/**
+!frontend/**/*.test.*
+!frontend/**/*.spec.*
+frontend/index.html
+frontend/package.json
+frontend/package-lock.json
+frontend/vite.config.ts
+frontend/tsconfig.json
+src/**
+package.json
+pyproject.toml
+scripts/build_release.py
