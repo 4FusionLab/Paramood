@@ -1,11 +1,11 @@
-<p align="center">
-  <img src="assets/paramood-banner.svg" alt="Paramood — Keeper of Measure" width="100%">
-</p>
-
 <h1 align="center">Paramood — Parameter Manager for Autodesk Fusion</h1>
 <p align="center">
   <strong>Keeper of Measure. Every dimension has a reason.</strong><br>
-  A Fusion 360 add-in for editing parameters, formulas, and dimensions in a compact palette.
+  Edit Autodesk Fusion parameters, formulas, and model variants while keeping your design visible.
+</p>
+
+<p align="center">
+  <img src="assets/paramood-banner.svg" alt="Paramood — Keeper of Measure" width="100%">
 </p>
 
 <p align="center">
@@ -24,19 +24,27 @@ Paramood is an add-in for **Autodesk Fusion**, formerly Fusion 360, that puts a 
 
 The idea is simple: **use the precision of parametric CAD with the speed of an IDE**. Paramood is an interface over real Fusion parameters, not a separate parameter storage system.
 
-## Fusion parameter palette screenshots
+**Before editing:** Paramood changes update the active variant automatically, including newly changed parameters. Choose **Free** to leave saved variants unchanged. Applied values are kept even if a downstream Fusion feature fails; inspect geometry and the timeline before saving or sharing a configuration.
 
-The palette adapts to its width: the wide layout shows the calculator and parameter tree side by side, while the compact layout uses tabs.
+## One palette for the parameter list and input
 
-**Two-column view**
+The default **Hybrid** view keeps the parameter list visible and the shared input fixed at the bottom. Results, recent calculations, and assignment previews open in a dismissible panel above the input. **Calculator** and **Parameter list** remain available as separate views; switching views preserves your input.
 
-![Autodesk Fusion parameter manager showing the calculator and parameter tree side by side](assets/screenshots/palette-two-column.jpg)
+The header shows the current design, its length units, and the active variant. Synchronization with Fusion is automatic.
 
-**Compact view**
+## In Autodesk Fusion
 
-<img src="assets/screenshots/palette-compact-list.jpg" alt="Compact Autodesk Fusion user and model parameter list" width="390"> <img src="assets/screenshots/palette-compact-calculator.jpg" alt="Compact Autodesk Fusion parameter calculator" width="390">
+The supplied Cedar & Sage F3D opened in the installed add-in, with **Classic** selected. These are real Fusion screenshots on macOS.
 
-## What works today
+![Cedar & Sage feeder in Autodesk Fusion with the installed Paramood palette and Classic variant](assets/screenshots/fusion-classic.jpg)
+
+The palette keeps input below the list and opens results above it. The variant menu switches between the three configurations stored in the example.
+
+<img src="assets/screenshots/fusion-hybrid.jpg" alt="Paramood Hybrid view showing grouped parameters and a 90 mm calculator result" width="360"> <img src="assets/screenshots/fusion-variants.jpg" alt="Paramood menu showing Free and the saved Classic, Compact, and Garden variants" width="360">
+
+## Paramood 1.5.0 capabilities
+
+This overview describes the v1.5.0 source. The [Releases page](https://github.com/4FusionLab/Paramood/releases) lists published builds; check the installed version’s release notes when comparing features.
 
 | Area | Capability |
 | --- | --- |
@@ -50,6 +58,9 @@ The palette adapts to its width: the wide layout shows the calculator and parame
 | **Parameter removal** | Delete individual parameters from the list when Fusion permits it; failed or unsupported deletions return an error. |
 | **Model awareness** | Refresh on document changes; show indicators for known sketch, feature, or other parameter links. |
 | **Calculator** | Evaluate expressions against the current design, see formatted results, reuse recent calculations, and copy results or expressions. |
+| **Saved variants** | Named sets of existing parameter expressions, stored in the design and carried with an F3D export. Switch sizes or configurations from the header. |
+| **Text parameters** | Quoted text, references, concatenation, and supported conditional expressions; the list shows the computed text while editing preserves the formula. |
+| **Model units** | Select `mm`, `cm`, `m`, `in`, or `ft` beside the design name without changing physical sizes. |
 
 ### A short example
 
@@ -94,12 +105,41 @@ Click an editable value in the parameter tree. The inline editor supports the sa
 
 Creation and linking are validated together. Equation solving supports one new name multiplied or divided by numbers or existing dimensionless parameters; other forms are rejected. When a Fusion command or sketch edit prevents a transaction, finish it before creating and linking a parameter. Existing names are never overwritten by a new definition.
 
+## Save and switch variants
+
+Download the [Cedar & Sage F3D](examples/cedar-sage/Cedar-Sage-Paramood.f3d) and follow the [walkthrough](docs/DEMO.md). It includes Classic, Compact, and Garden, with geometry controls and text parameters. See its [model information and SHA-256](examples/cedar-sage/model-info.json). Use Paramood 1.5.0 for the variants and text workflows described here.
+
+1. Open **Free → Create variant** in the header.
+2. Name the variant and select at least one existing editable parameter. The editor uses the same name hierarchy as the parameter list, with `dN` dimensions under **Model parameters**.
+3. Change the selected expressions, or enter an assignment in the parameter search, such as `box.width=30`. This edits the draft; **Save & apply** writes it to the model.
+4. Create another variant and select either name from the header to apply it.
+
+While a variant is active, successful edits through Paramood update it and add any changed parameters to it. Choose **Free** before experimenting without updating a saved variant; choosing Free keeps the current model values. Removing a member or deleting a variant keeps the CAD parameters.
+
+Save the design or export it as F3D to carry the variants with it. On reopening, Paramood selects the first created variant whose saved values all match the model; otherwise it shows Free. External changes that no longer match the active variant switch to Free without overwriting it. Variants are partial parameter sets: switching changes their members, leaving other parameters as they are.
+
+## Create text parameters
+
+Enter a quoted value without selecting a type:
+
+```text
+caption = 'Body'
+```
+
+Double quotes are accepted too: `caption="Body"`. Paramood converts them to Fusion's single-quoted syntax. References and formulas remain editable:
+
+```text
+label = caption + ' / ' + 'Compact'
+```
+
+A supported conditional expression is `label=if(width<20 mm; 'Short'; 'Long')`, where `width` is an existing length parameter. Semicolons and equals signs inside quoted text are content. Existing numeric parameters cannot be converted to text, or text parameters to numbers. See the [user guide](docs/USER_GUIDE.md) for escapes, units, variants, and limitations.
+
 ## Install the Fusion 360 add-in
 
 1. Download the latest **Paramood ZIP** from [Releases](https://github.com/4FusionLab/Paramood/releases), then extract it.
 2. In Autodesk Fusion, open **Utilities → Scripts and Add-Ins → Add-Ins**.
 3. Click **+**, select the extracted `Paramood` folder, then select **Paramood** and click **Run**.
-4. Optionally turn on **Run on Startup**. Paramood opens as a dockable palette; use its toolbar command to reopen it.
+4. Enable **Run on Startup**. Paramood opens as a dockable palette; use the **Paramood** toolbar command to reopen it.
 
 The packaged add-in includes the compiled frontend. **Node.js is not required for installation.**
 
@@ -107,7 +147,7 @@ The packaged add-in includes the compiled frontend. **Node.js is not required fo
 
 - **Platforms:** Windows and macOS are declared in the manifest. Automated checks run on both (and Linux); interactive Fusion testing has been performed on macOS, while native Windows validation remains outstanding.
 - **Scope:** the active Fusion design. User parameters and editable model parameters are supported where Fusion allows changes; parameters in externally linked components are not edited.
-- **Safety:** assignment previews are validated again against the current document before applying. Unsupported expressions, dimensions, and stale previews are rejected rather than guessed. Fusion may still report downstream feature errors after a legitimate parameter change.
+- **Safety:** assignment previews are validated again against the current document before applying. Unsupported expressions, dimensions, and stale previews are rejected rather than guessed. Fusion may still report downstream feature errors after a legitimate parameter change. Timeline errors and warnings do not cause Paramood to roll back an applied value or variant; inspect the geometry after switching.
 - **Deletion:** per-parameter deletion is available, subject to Fusion's restrictions. **Automatic unused-parameter cleanup is not available in the current release.**
 - **Known limitations:** expression and unit support is intentionally conservative. Virtual dotted names do not create objects inside Fusion; they are a convenience in Paramood.
 
@@ -124,6 +164,13 @@ Yes. Enter an expression such as `height=width/2` to retain a dependency on `wid
 ### Does the add-in work on Windows and macOS?
 
 The package declares support for both platforms, and automated checks run on both. Interactive testing inside Fusion has been performed on macOS; native Windows validation remains outstanding.
+
+## Guides and release notes
+
+- [User guide](docs/USER_GUIDE.md): input, units, variants, text, and boundaries.
+- [Cedar & Sage walkthrough](docs/DEMO.md): a feeder model and parameter-group examples.
+- [Published releases](https://github.com/4FusionLab/Paramood/releases) and [1.5.0 release notes](docs/releases/1.5.0.md): published builds and the source version described here.
+- [Product concept](docs/PRODUCT_CONCEPT.md) and [IntelliSense details](docs/INTELLISENSE.md).
 
 ## Build from source
 
@@ -158,3 +205,5 @@ Paramood is an independent [4FusionLab](https://github.com/4FusionLab) project a
 ## License
 
 Paramood is available under the [PolyForm Noncommercial License 1.0.0](LICENSE). Commercial use outside its permitted purposes requires a separate agreement with 4FusionLab. Third-party components remain subject to their own licenses.
+
+[Acceptance results and platform limits](docs/ACCEPTANCE.md).

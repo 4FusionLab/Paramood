@@ -57,4 +57,28 @@ describe('inline parameter edits', () => {
       newName: 'count',
     });
   });
+  it.each(['6', '-2.5', '1e3', '6 n', 'this+2', 'post*2'])(
+    'preserves an existing scalar while editing %s beside its child parameters',
+    (input) => {
+      const post = { ...width, name: 'post', unit: '', expression: '4', value: '4' };
+      const parameters = [post, { ...width, name: 'post_height' }, { ...width, name: 'post_size' }];
+      const expected = ['6', '-2.5', '1e3'].includes(input) ? `${input} n` : input;
+      expect(prepareInlineEdit(post, input, parameters)).toEqual({ text: `post=${expected}` });
+    },
+  );
+});
+
+it('edits text expressions and quoted separators without creating or linking a new variable', () => {
+  const text = {
+    ...width,
+    name: 'caption',
+    unit: 'Text',
+    valueType: 'text' as const,
+    value: 'Body',
+    expression: "prefix+'Body'",
+  };
+  expect(prepareInlineEdit(text, "'a=b;c'", [text])).toEqual({ text: "caption='a=b;c'" });
+  expect(prepareInlineEdit(text, "prefix+'New'", [text])).toEqual({ text: "caption=prefix+'New'" });
+  expect(prepareInlineEdit(text, 'unknown', [text])).toEqual({ text: 'caption=unknown' });
+  expect(prepareInlineEdit(text, '30', [text])).toEqual({ text: 'caption=30' });
 });

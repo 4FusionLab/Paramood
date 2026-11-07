@@ -2,6 +2,7 @@ export interface Parameter {
   name: string;
   expression: string;
   value: string | number;
+  valueType?: 'text' | 'number';
   unit: string;
   comment?: string;
   kind?: 'user' | 'model';
@@ -17,7 +18,26 @@ export interface ModelState {
   documentId: string | null;
   documentName?: string;
   defaultLengthUnit?: string;
+  unitsSnapshotToken?: string;
   parameters: Parameter[];
+  variants?: Variant[];
+  activeVariantId?: string | null;
+  variantsToken?: string;
+  variantSnapshotToken?: string;
+  variantsError?: string;
+}
+export interface VariantParameter {
+  name: string;
+  entityToken: string;
+  expression: string;
+  unit: string;
+  value: number | string;
+  missing?: boolean;
+}
+export interface Variant {
+  id: string;
+  name: string;
+  parameters: VariantParameter[];
 }
 export interface PreviewItem {
   name: string;
@@ -137,7 +157,7 @@ function waitForFusionBridge(): Promise<void> {
       if (Date.now() >= deadline) {
         reject(
           new Error(
-            'Could not connect to Autodesk Fusion. Open Paramood from Fusion and try Refresh.',
+            'Could not connect to Autodesk Fusion. Reopen Paramood from Fusion and try again.',
           ),
         );
         return;

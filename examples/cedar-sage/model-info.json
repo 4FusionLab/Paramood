@@ -1,0 +1,41 @@
+{
+  "file": "Cedar-Sage-Paramood.f3d",
+  "sha256": "d61f74cae21e1981c8b33383a0d93ea6ea4d10712c2ec2bfa643c2e4fd385878",
+  "bytes": 520212,
+  "defaultVariant": "Classic",
+  "variants": {
+    "Classic": {
+      "tray_width": "180 mm",
+      "tray_depth": "130 mm",
+      "post_height": "120 mm",
+      "roof_pitch": "25 deg"
+    },
+    "Compact": {
+      "tray_width": "140 mm",
+      "tray_depth": "100 mm",
+      "post_height": "100 mm",
+      "roof_pitch": "30 deg"
+    },
+    "Garden": {
+      "tray_width": "220 mm",
+      "tray_depth": "160 mm",
+      "post_height": "150 mm",
+      "roof_pitch": "20 deg"
+    }
+  },
+  "caption": "'Cedar & Sage'",
+  "caption_label": "caption + ' / ' + caption_variant",
+  "post": {
+    "expression": "4",
+    "unit": ""
+  },
+  "acceptance": {
+    "date": "2026-11-07",
+    "platform": "macOS",
+    "fusion": "2706.1.17",
+    "reimported": true,
+    "resolvedVariantEntries": 24,
+    "bodies": 14,
+    "allVariantsHealthy": true
+  }
+}

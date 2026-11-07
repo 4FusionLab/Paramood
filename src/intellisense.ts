@@ -258,7 +258,7 @@ export function resolveParameterTarget(
   }
   const existing = index.nativeName(path);
   if (existing) return { nativeName: existing, diagnostics: [] };
-  const candidate = path.replaceAll('.', '_');
+  const candidate = path.split('.').join('_');
   if (index.nativeName(candidate)) {
     return {
       nativeName: null,

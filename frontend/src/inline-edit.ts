@@ -1,4 +1,5 @@
 import type { Parameter } from './bridge';
+import { hasAssignment, hasDefinitionSeparator } from './expression-syntax';
 
 const numeric = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 const reserved = new Set([
@@ -25,8 +26,14 @@ const reserved = new Set([
 
 export function prepareInlineEdit(parameter: Parameter, input: string, parameters: Parameter[]) {
   const expression = input.trim();
-  if (!expression || /[;\n\r]/.test(expression)) throw new Error('Enter a single expression.');
-  if (!expression.includes('=')) {
+  if (!expression || hasDefinitionSeparator(expression))
+    throw new Error('Enter a single expression.');
+  if (parameter.valueType === 'text' || parameter.unit === 'Text') {
+    if (hasAssignment(expression))
+      throw new Error('Edit the text expression directly, without an assignment.');
+    return { text: `${parameter.name}=${expression}` };
+  }
+  if (!hasAssignment(expression)) {
     const nativeName = expression.replace(/\./g, '_');
     if (
       /^(?:[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*|[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9]*(?:\.[A-Za-zА-Яа-яЁё0-9]+)+)$/.test(
@@ -44,7 +51,7 @@ export function prepareInlineEdit(parameter: Parameter, input: string, parameter
       };
     }
     return {
-      text: `${parameter.name}=${expression}${numeric.test(expression) && parameter.unit ? ` ${parameter.unit}` : ''}`,
+      text: `${parameter.name}=${expression}${numeric.test(expression) ? ` ${parameter.unit || 'n'}` : ''}`,
     };
   }
   const match = expression.match(

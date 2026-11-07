@@ -127,7 +127,7 @@ describe('separate palette views', () => {
     await vi.waitFor(() => expect(host.textContent).toContain('Design'));
     expect(host.querySelector('[aria-label="Parameter definitions"]')).toBeTruthy();
     expect(host.querySelector('header')).toBeNull();
-    expect(host.querySelector('.context [aria-label="Refresh model"]')).toBeTruthy();
+    expect(host.querySelector('.context [aria-label="Refresh model"]')).toBeNull();
     expect(host.querySelector('[aria-label="Calculator expression"]')).toBeNull();
     expect(calls.some((x) => x.action === 'cleanup.open')).toBe(false);
     act(() => {
@@ -240,7 +240,7 @@ describe('separate palette views', () => {
     await vi.waitFor(() => expect(host.textContent).toContain('Design'));
     expect(host.textContent).not.toContain('Analyze parameters');
     expect(host.querySelector('header')).toBeNull();
-    expect(host.querySelector('.context [aria-label="Refresh model"]')).toBeTruthy();
+    expect(host.querySelector('.context [aria-label="Refresh model"]')).toBeNull();
     expect(host.textContent).not.toContain('Deletion is not available yet');
     expect(host.querySelector('.cm-content')).toBeTruthy();
   });
@@ -696,4 +696,147 @@ it('applies a solved inline equation as one checked transaction', async () => {
     snapshotToken: 'token',
     requireTransaction: true,
   });
+});
+
+describe('hybrid palette', () => {
+  it('defaults to a parameter list with one universal field and a dismissible result panel', async () => {
+    mount('#parameters');
+    await vi.waitFor(() => expect(host.textContent).toContain('Design'));
+    expect(host.querySelector('[aria-label="Hybrid"]')?.getAttribute('aria-selected')).toBe('true');
+    expect(host.querySelector('.view-hybrid .list-pane .parameter-list')).toBeTruthy();
+    expect(host.querySelectorAll('[aria-label="Parameter definitions"]')).toHaveLength(1);
+    const editor = EditorView.findFromDOM(
+      host.querySelector<HTMLElement>('[aria-label="Parameter definitions"]')!,
+    )!;
+    act(() => editor.dispatch({ changes: { from: 0, insert: '2+3' } }));
+    await vi.waitFor(() =>
+      expect(host.querySelector('.feedback-sheet .result-value')?.textContent).toBe('5'),
+    );
+    act(() => host.querySelector<HTMLButtonElement>('[aria-label="Close result panel"]')!.click());
+    expect(host.querySelector('.feedback-sheet')).toBeNull();
+    expect(editor.state.doc.toString()).toBe('2+3');
+    act(() => host.querySelector<HTMLButtonElement>('.reopen-result')!.click());
+    expect(host.querySelector('.feedback-sheet')).toBeTruthy();
+  });
+  it('changes model units using the current document snapshot', async () => {
+    const calls: { action: string; payload: Record<string, unknown> }[] = [];
+    let unit = 'mm';
+    window.adsk = {
+      fusionSendData: (_action, raw) => {
+        const request = JSON.parse(raw);
+        calls.push(request);
+        if (request.action === 'document.units') unit = request.payload.unit;
+        window.fusionJavaScriptHandler!.handle(
+          'response',
+          JSON.stringify({
+            requestId: request.requestId,
+            ok: true,
+            documentId: 'doc',
+            data:
+              request.action === 'state.get'
+                ? {
+                    documentId: 'doc',
+                    documentName: 'Design',
+                    defaultLengthUnit: unit,
+                    unitsSnapshotToken: 'units-snapshot',
+                    parameters: [],
+                  }
+                : {},
+          }),
+        );
+      },
+    };
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    act(() => render(<App />, host));
+    await vi.waitFor(() => expect(host.querySelector('.model-context .model-unit')).toBeTruthy());
+    const select = host.querySelector<HTMLSelectElement>('[aria-label="Model length units"]')!;
+    act(() => {
+      select.value = 'in';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await vi.waitFor(() =>
+      expect(
+        calls.some(
+          (call) =>
+            call.action === 'document.units' &&
+            call.payload.unit === 'in' &&
+            call.payload.snapshotToken === 'units-snapshot',
+        ),
+      ).toBe(true),
+    );
+    await vi.waitFor(() => expect(select.value).toBe('in'));
+  });
+});
+
+describe('copy result fallback', () => {
+  it('copies the actual result without waiting for the embedded Clipboard API', async () => {
+    const previous = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    const writeText = vi.fn(() => new Promise<void>(() => {}));
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    let copied = '';
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: vi.fn((command: string) => {
+        if (command === 'copy') copied = (document.activeElement as HTMLTextAreaElement).value;
+        return true;
+      }),
+    });
+    try {
+      mount('#parameters');
+      await vi.waitFor(() => expect(host.textContent).toContain('Design'));
+      const editor = EditorView.findFromDOM(
+        host.querySelector<HTMLElement>('[aria-label="Parameter definitions"]')!,
+      )!;
+      act(() => editor.dispatch({ changes: { from: 0, insert: '2+3' } }));
+      await vi.waitFor(() => expect(host.querySelector('.result-value')?.textContent).toBe('5'));
+      act(() =>
+        host.querySelector<HTMLButtonElement>('[aria-label="Copy value and unit"]')!.click(),
+      );
+      await vi.waitFor(() => expect(copied).toBe('5'));
+      await vi.waitFor(() => expect(host.textContent).toContain('Copied to clipboard.'));
+      expect(writeText).not.toHaveBeenCalled();
+    } finally {
+      if (previous) Object.defineProperty(navigator, 'clipboard', previous);
+      else Reflect.deleteProperty(navigator, 'clipboard');
+      Reflect.deleteProperty(document, 'execCommand');
+    }
+  });
+});
+
+it('automatically dismisses a success toast after 3.5 seconds', async () => {
+  Object.defineProperty(document, 'execCommand', { configurable: true, value: () => true });
+  const previous = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText: vi.fn().mockResolvedValue(undefined) },
+  });
+  try {
+    mount('#parameters');
+    await vi.waitFor(() => expect(host.textContent).toContain('Design'));
+    const editor = EditorView.findFromDOM(
+      host.querySelector<HTMLElement>('[aria-label="Parameter definitions"]')!,
+    )!;
+    act(() => editor.dispatch({ changes: { from: 0, insert: '2+3' } }));
+    await vi.waitFor(() => expect(host.querySelector('.result-value')?.textContent).toBe('5'));
+    vi.useFakeTimers();
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>('[aria-label="Copy value and unit"]')!.click();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(host.textContent).toContain('Copied to clipboard.');
+    expect(host.textContent).not.toContain('Copy number');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3600);
+    });
+    expect(host.textContent).not.toContain('Copied to clipboard.');
+  } finally {
+    vi.useRealTimers();
+    Reflect.deleteProperty(document, 'execCommand');
+    if (previous) Object.defineProperty(navigator, 'clipboard', previous);
+    else Reflect.deleteProperty(navigator, 'clipboard');
+  }
 });

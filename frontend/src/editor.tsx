@@ -22,6 +22,7 @@ import {
   type Completion,
 } from '@codemirror/autocomplete';
 import type { Parameter } from './bridge';
+import { inString } from './expression-syntax';
 
 const functions = ['sqrt', 'sin', 'cos', 'tan', 'abs', 'floor', 'ceil', 'round', 'min', 'max'];
 const units = ['mm', 'cm', 'm', 'in', 'ft', 'deg', 'rad', 'n'];
@@ -44,6 +45,7 @@ export function completions(
   batch: boolean,
   currentTarget?: string,
 ) {
+  if (inString(context.state.sliceDoc(0, context.pos))) return null;
   const word = context.matchBefore(/[A-Za-zА-Яа-яЁё_0-9]*/);
   if (!word) return null;
   const text = context.state.doc.toString();
@@ -154,6 +156,7 @@ interface Props {
   onCancel?: () => void;
   autoFocus?: boolean;
   inline?: boolean;
+  singleLine?: boolean;
   currentTarget?: string;
   parameters: Parameter[];
   batch?: boolean;
@@ -172,13 +175,14 @@ function highlighting(
     const declared = new Set(declaredNames(text));
     const known = new Set(parameters().map((p) => p.name));
     const token =
-      /[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*(?:\.[A-Za-zА-Яа-яЁё0-9]+)*|(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?|[+*/^=;()-]/g;
+      /'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*(?:\.[A-Za-zА-Яа-яЁё0-9]+)*|(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?|[+*/^=;()-]/g;
     for (const match of text.matchAll(token)) {
       const value = match[0],
         from = match.index!,
         rest = text.slice(from + value.length);
       let kind = 'operator';
-      if (/^\d|^\./.test(value)) kind = 'number';
+      if (value.startsWith("'") || value.startsWith('"')) kind = 'string';
+      else if (/^\d|^\./.test(value)) kind = 'number';
       else if (/^[A-Za-zА-Яа-яЁё_]/.test(value)) {
         const left = text.slice(0, from).split(/[;\n]/).pop() ?? '';
         const current = batch() ? assignmentTarget(left) : currentTarget();
@@ -226,6 +230,13 @@ export function ExpressionEditor(props: Props) {
       state: EditorState.create({
         doc: latest.current.value,
         extensions: [
+          ...(props.singleLine
+            ? [
+                EditorState.transactionFilter.of((transaction) =>
+                  transaction.newDoc.lines > 1 ? [] : transaction,
+                ),
+              ]
+            : []),
           history(),
           highlighting(
             () => latest.current.parameters,

@@ -7,6 +7,35 @@ import { ParameterList, expressionWithoutUnit } from './parameter-list';
 afterEach(() => {
   document.body.innerHTML = '';
 });
+it('keeps a parent parameter editable while independently expanding its children', () => {
+  const host = document.createElement('div');
+  let selected = '';
+  act(() =>
+    render(
+      <ParameterList
+        parameters={[
+          { name: 'caption', expression: "'Feeder'", value: 'Feeder', unit: 'Text' },
+          { name: 'caption_variant', expression: "'Classic'", value: 'Classic', unit: 'Text' },
+        ]}
+        onDelete={() => {}}
+        onEdit={(parameter) => {
+          selected = parameter.name;
+        }}
+      />,
+      host,
+    ),
+  );
+  expect(host.querySelector('[aria-label="Edit value caption"]')?.textContent).toBe('Feeder');
+  expect(host.querySelector('[aria-label="Edit value caption_variant"]')).toBeNull();
+  act(() => (host.querySelector('[aria-label="Expand caption"]') as HTMLButtonElement).click());
+  act(() =>
+    (host.querySelector('[aria-label="Edit value caption_variant"]') as HTMLButtonElement).click(),
+  );
+  expect(selected).toBe('caption_variant');
+  act(() => (host.querySelector('[aria-label="Collapse caption"]') as HTMLButtonElement).click());
+  act(() => (host.querySelector('[aria-label="Edit value caption"]') as HTMLButtonElement).click());
+  expect(selected).toBe('caption');
+});
 it('edits a literal radian expression in the parameter degree unit', () => {
   expect(
     expressionWithoutUnit({
@@ -228,4 +257,24 @@ it('shows and toggles native favorites and collapses all groups', () => {
   expect(host.querySelector('[aria-expanded="true"]')?.textContent).toContain(
     'Featured parameters (1)',
   );
+});
+
+it('shows computed text while preserving its source expression for edits', () => {
+  const parameter = {
+    name: 'caption',
+    unit: 'Text',
+    valueType: 'text' as const,
+    value: 'Computed body',
+    expression: "prefix+'body'",
+  };
+  expect(expressionWithoutUnit(parameter)).toBe("prefix+'body'");
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  act(() =>
+    render(<ParameterList parameters={[parameter]} onEdit={() => {}} onDelete={() => {}} />, host),
+  );
+  expect(host.querySelector('[aria-label="Edit value caption"]')?.textContent).toBe(
+    'Computed body',
+  );
+  expect(host.querySelector('.tree-unit')?.textContent).toBe('');
 });

@@ -1,6 +1,6 @@
 import { render, type ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { Calculator, Copy, History, ListTree, RefreshCw, X } from 'lucide-preact';
+import { Calculator, Copy, History, ListTree, PanelBottom, X } from 'lucide-preact';
 import { ParameterList, expressionWithoutUnit } from './parameter-list';
 import { ExpressionEditor } from './editor';
 import { prepareInlineEdit } from './inline-edit';
@@ -17,6 +17,9 @@ import {
 } from './bridge';
 import './style.css';
 import { canApplyPreview } from './guards';
+import { VariantsControl } from './variants';
+import { copyText } from './clipboard';
+import { hasAssignment } from './expression-syntax';
 const CLEANUP_ENABLED: boolean = false;
 function Section({ title, children }: { title: string; children: ComponentChildren }) {
   return (
@@ -40,13 +43,25 @@ export function App() {
     [previewText, setPreviewText] = useState(''),
     [previewDoc, setPreviewDoc] = useState(''),
     [previewRevision, setPreviewRevision] = useState(0);
-  const [view, setView] = useState<'editor' | 'list'>('editor');
+  const [view, setView] = useState<'editor' | 'list' | 'hybrid'>('hybrid');
+  const [feedbackDismissed, setFeedbackDismissed] = useState(false);
+  const [noticeVersion, setNoticeVersion] = useState(0);
+  function showNotice(value: string) {
+    setNotice(value);
+    setNoticeVersion((version) => version + 1);
+  }
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(''), 3500);
+    return () => window.clearTimeout(timer);
+  }, [notice, noticeVersion]);
+  useEffect(() => setFeedbackDismissed(false), [text]);
   const [editing, setEditing] = useState<Parameter | null>(null);
   const [editText, setEditText] = useState('');
   const [editError, setEditError] = useState('');
   const editGeneration = useRef(0);
   const expression = text;
-  const assignment = text.includes('=');
+  const assignment = hasAssignment(text);
   const [result, setResult] = useState<Calculation | null>(null),
     [calcError, setCalcError] = useState('');
   const [history, setHistory] = useState<string[]>([]),
@@ -359,7 +374,7 @@ export function App() {
       );
       if (refreshFlight.current) await refreshFlight.current;
       if (doc.current === id) {
-        setNotice(`Deleted ${parameter.name}.`);
+        showNotice(`Deleted ${parameter.name}.`);
         await refreshOnFocus(true);
       }
     } catch (e) {
@@ -393,7 +408,10 @@ export function App() {
       if (doc.current === id) await refreshOnFocus(true);
       return true;
     } catch (e) {
-      if (doc.current === id) setProblem(message(e));
+      if (doc.current === id) {
+        setProblem(message(e));
+        await refreshOnFocus(true);
+      }
       return false;
     } finally {
       busyRef.current = false;
@@ -432,12 +450,35 @@ export function App() {
   }
   async function copy(value: string) {
     try {
-      await navigator.clipboard.writeText(value);
-      setNotice('Copied to clipboard.');
+      await copyText(value);
+      showNotice('Copied to clipboard.');
       if (expression.trim())
         setHistory((h) => [expression, ...h.filter((x) => x !== expression)].slice(0, 20));
-    } catch {
-      setProblem('Clipboard is unavailable in this environment.');
+    } catch (e) {
+      setProblem(message(e));
+    }
+  }
+  async function variantAction(action: string, payload: Record<string, unknown>): Promise<boolean> {
+    const id = doc.current;
+    if (!id || busyRef.current) return false;
+    busyRef.current = true;
+    setBusy(true);
+    setProblem('');
+    try {
+      await request(action, payload, id);
+      if (refreshFlight.current) await refreshFlight.current;
+      if (doc.current !== id) return false;
+      await refreshOnFocus(true);
+      return true;
+    } catch (e) {
+      if (doc.current === id) {
+        setProblem(message(e));
+        await refreshOnFocus(true);
+      }
+      return false;
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
     }
   }
   async function analyze() {
@@ -470,7 +511,7 @@ export function App() {
       await request('cleanup.delete', { names }, id);
       if (refreshFlight.current) await refreshFlight.current;
       if (doc.current === id) {
-        setNotice('Selected parameters deleted.');
+        showNotice('Selected parameters deleted.');
         await refresh();
       }
     } catch (e) {
@@ -482,18 +523,64 @@ export function App() {
   }
   const selected = cleanup?.filter((x) => x.selected && !x.protected && !x.favorite).length ?? 0;
   return (
-    <main>
+    <main class={view === 'hybrid' ? 'hybrid-palette' : ''}>
       <div class="context">
         <span class={`dot ${available ? 'online' : ''}`} />
-        <span>
-          {loading
-            ? 'Connecting to Fusion…'
-            : model?.documentId
-              ? model.documentName || 'Active design'
-              : 'No active design'}
-        </span>
+        <div class="model-context">
+          <span class="document-name" title={model?.documentName}>
+            {loading
+              ? 'Connecting to Fusion…'
+              : model?.documentId
+                ? model.documentName || 'Active design'
+                : 'No active design'}
+          </span>
+          {model?.defaultLengthUnit && (
+            <select
+              class="model-unit"
+              aria-label="Model length units"
+              title="Model length units"
+              value={model.defaultLengthUnit}
+              disabled={!available || busy || !model.unitsSnapshotToken}
+              onChange={(event) => {
+                const unit = event.currentTarget.value;
+                void variantAction('document.units', {
+                  unit,
+                  snapshotToken: model.unitsSnapshotToken,
+                });
+              }}
+            >
+              {!['mm', 'cm', 'm', 'in', 'ft'].includes(model.defaultLengthUnit) && (
+                <option value={model.defaultLengthUnit}>{model.defaultLengthUnit}</option>
+              )}
+              {['mm', 'cm', 'm', 'in', 'ft'].map((unit) => (
+                <option key={unit} value={unit}>
+                  {unit}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+        {mode === 'parameters' && model?.documentId && (
+          <VariantsControl
+            key={model.documentId}
+            model={model}
+            disabled={!available || busy}
+            error={problem}
+            onAction={variantAction}
+          />
+        )}
         {mode === 'parameters' && (
           <div class="view-tabs" role="tablist" aria-label="Palette views">
+            <button
+              class={`icon ${view === 'hybrid' ? 'active' : ''}`}
+              role="tab"
+              aria-selected={view === 'hybrid'}
+              aria-label="Hybrid"
+              title="Hybrid"
+              onClick={() => setView('hybrid')}
+            >
+              <PanelBottom size={15} />
+            </button>
             <button
               class={`icon ${view === 'editor' ? 'active' : ''}`}
               role="tab"
@@ -516,16 +603,12 @@ export function App() {
             </button>
           </div>
         )}
-        <span class="unit">{model?.defaultLengthUnit || ''}</span>
-        <button
-          class="icon refresh"
-          title="Refresh model"
-          aria-label="Refresh model"
-          onClick={() => void refresh()}
-        >
-          <RefreshCw size={14} />
-        </button>
       </div>
+      {model?.variantsError && (
+        <div class="alert" role="alert">
+          {model.variantsError}
+        </div>
+      )}
       {problem && (
         <div class="alert" role="alert">
           {problem}
@@ -545,6 +628,103 @@ export function App() {
       {mode === 'parameters' && (
         <div class={`palette-layout view-${view}`}>
           <div class="editor-pane">
+            {(!feedbackDismissed || view !== 'hybrid') &&
+              (showHistory || (assignment ? !!preview || !!previewError : !!text.trim())) && (
+                <div
+                  class="feedback-sheet"
+                  aria-label={assignment ? 'Parameter preview' : 'Calculation result'}
+                >
+                  {view === 'hybrid' && (
+                    <div class="feedback-sheet-header">
+                      <strong>{showHistory ? 'History' : assignment ? 'Preview' : 'Result'}</strong>
+                      <button
+                        class="icon"
+                        aria-label="Close result panel"
+                        onClick={() => {
+                          setFeedbackDismissed(true);
+                          setShowHistory(false);
+                        }}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
+                  {assignment && previewError && (
+                    <div class="error" role="alert">
+                      {previewError}
+                    </div>
+                  )}
+                  {assignment && preview && (
+                    <div class="preview">
+                      <div class="minor-label">Preview</div>
+                      {preview.items.map((item) => (
+                        <div class="preview-row" key={item.name}>
+                          <div>
+                            <strong>{item.name}</strong>
+                            <span class="formula">{item.expression}</span>
+                            {item.message && <span class="error">{item.message}</span>}
+                          </div>
+                          <div class="row-end">
+                            <span>
+                              {item.previous ? `${item.previous} → ` : ''}
+                              {item.value ?? ''} {item.unit ?? ''}
+                            </span>
+                            <span class={`badge ${item.status.toLowerCase()}`}>{item.status}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {showHistory && !assignment && (
+                    <div class="history">
+                      {history.length ? (
+                        history.map((item) => (
+                          <button
+                            onClick={() => {
+                              setText(item);
+                              setShowHistory(false);
+                            }}
+                          >
+                            {item}
+                          </button>
+                        ))
+                      ) : (
+                        <span>No calculations yet.</span>
+                      )}
+                    </div>
+                  )}
+                  {mode === 'parameters' && !assignment && !!text.trim() && (
+                    <Section title="Result">
+                      {calcError && (
+                        <div class="error" role="alert">
+                          {calcError}
+                        </div>
+                      )}
+                      <div class="result">
+                        <div>
+                          <span class="minor-label">Result</span>
+                          <div class="result-value">{result?.formatted ?? '—'}</div>
+                        </div>
+                        <button
+                          class="icon"
+                          title="Copy value and unit"
+                          aria-label="Copy value and unit"
+                          disabled={!result}
+                          onClick={() => result && void copy(result.formatted)}
+                        >
+                          <Copy size={15} />
+                        </button>
+                      </div>
+                      <div class="actions secondary-actions">
+                        <button disabled={!expression} onClick={() => void copy(expression)}>
+                          Copy expression
+                        </button>
+                      </div>
+                    </Section>
+                  )}
+                </div>
+              )}
+
             {mode === 'parameters' && (
               <Section title="Paramood">
                 <p class="helper">Calculate an expression or assign it to a parameter</p>
@@ -565,33 +745,12 @@ export function App() {
                     : 'Use model parameters in expressions'}{' '}
                   <span>{assignment ? 'Enter to apply' : ''}</span>
                 </div>
-                {assignment && previewError && (
-                  <div class="error" role="alert">
-                    {previewError}
-                  </div>
-                )}
-                {assignment && preview && (
-                  <div class="preview">
-                    <div class="minor-label">Preview</div>
-                    {preview.items.map((item) => (
-                      <div class="preview-row" key={item.name}>
-                        <div>
-                          <strong>{item.name}</strong>
-                          <span class="formula">{item.expression}</span>
-                          {item.message && <span class="error">{item.message}</span>}
-                        </div>
-                        <div class="row-end">
-                          <span>
-                            {item.previous ? `${item.previous} → ` : ''}
-                            {item.value ?? ''} {item.unit ?? ''}
-                          </span>
-                          <span class={`badge ${item.status.toLowerCase()}`}>{item.status}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
                 <div class="actions parameter-actions">
+                  {view === 'hybrid' && feedbackDismissed && text.trim() && (
+                    <button class="reopen-result" onClick={() => setFeedbackDismissed(false)}>
+                      Show result
+                    </button>
+                  )}
                   {CLEANUP_ENABLED && (
                     <button
                       disabled={!available || busy}
@@ -609,7 +768,10 @@ export function App() {
                     aria-label="Calculation history"
                     title="Calculation history"
                     disabled={assignment}
-                    onClick={() => setShowHistory(!showHistory)}
+                    onClick={() => {
+                      setShowHistory(!showHistory);
+                      setFeedbackDismissed(false);
+                    }}
                   >
                     <History size={15} />
                   </button>
@@ -638,59 +800,6 @@ export function App() {
                     </button>
                   )}
                 </div>
-                {showHistory && !assignment && (
-                  <div class="history">
-                    {history.length ? (
-                      history.map((item) => (
-                        <button
-                          onClick={() => {
-                            setText(item);
-                            setShowHistory(false);
-                          }}
-                        >
-                          {item}
-                        </button>
-                      ))
-                    ) : (
-                      <span>No calculations yet.</span>
-                    )}
-                  </div>
-                )}
-              </Section>
-            )}
-            {mode === 'parameters' && !assignment && !!text.trim() && (
-              <Section title="Result">
-                {calcError && (
-                  <div class="error" role="alert">
-                    {calcError}
-                  </div>
-                )}
-                <div class="result">
-                  <div>
-                    <span class="minor-label">Result</span>
-                    <div class="result-value">{result?.formatted ?? '—'}</div>
-                  </div>
-                  <button
-                    class="icon"
-                    title="Copy value and unit"
-                    aria-label="Copy value and unit"
-                    disabled={!result}
-                    onClick={() => result && void copy(result.formatted)}
-                  >
-                    <Copy size={15} />
-                  </button>
-                </div>
-                <div class="actions secondary-actions">
-                  <button
-                    disabled={!result}
-                    onClick={() => result && void copy(String(result.value))}
-                  >
-                    Copy number
-                  </button>
-                  <button disabled={!expression} onClick={() => void copy(expression)}>
-                    Copy expression
-                  </button>
-                </div>
               </Section>
             )}
           </div>
@@ -711,7 +820,7 @@ export function App() {
                     hint="Expression"
                     parameters={model?.parameters || []}
                     currentTarget={editing.name}
-                    batch={editText.includes('=')}
+                    batch={hasAssignment(editText)}
                     value={editText}
                     disabled={busy}
                     onChange={(value) => {
