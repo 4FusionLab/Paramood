@@ -1,19 +1,22 @@
-# Уточнение интерфейса от 5 ноября 2026
+# Interface clarification of 5 November 2026
 
-Эти требования заменяют противоречащие им положения исходного `REQUIREMENTS.md`.
+[Русская версия](PALETTE_REQUIREMENTS.ru.md)
 
-- Одна основная палитра `Paramood` содержит общее поле: выражение без `=` вычисляется, присваивания показывают предпросмотр и применяются явно. Пакеты разделяются `;`.
-- Размещение по умолчанию — нижняя левая часть области моделирования, над Comments, как на предоставленном изображении; при ограничениях Fusion использовать ближайший официально поддержанный вариант и указать проверенные ограничения.
-- Интерфейс вертикально компактный без потери информации. IntelliSense визуально согласован с интерфейсом Fusion.
-- Parameter Cleanup — отдельная палитра, изначально закрытая. Открывается кнопкой в палитре Paramood или командой рядом с Show Paramood в верхнем меню. Пока доступен только анализ; удаление заблокировано.
-- Остальные требования исходной спецификации сохраняются, включая безопасность модели и отсутствие сортировки параметров.
+> **Historical requirements.** This note records decisions and implementation limits at the time. For current behavior and validation status, see the [README](../README.md).
 
-- Название `Paramood` отображается в штатном заголовке Fusion без повторного брендинга внутри.
+These requirements replace conflicting provisions of the original `REQUIREMENTS.md`.
 
-## Структурированный список параметров — 5 ноября
+- One main `Paramood` palette contains a shared field: an expression without `=` is calculated, while assignments show a preview and are applied explicitly. Batches are separated by `;`.
+- Default placement is the lower-left modeling area above Comments, as in the supplied image; if Fusion limits placement, use the nearest officially supported option and state the verified limits.
+- The interface is vertically compact without losing information. IntelliSense is visually aligned with Fusion.
+- Parameter Cleanup is a separate palette, initially closed. It opens from a button in the Paramood palette or a command next to Show Paramood in the top menu. Only analysis is available at this stage; deletion is blocked.
+- Other requirements of the original specification remain, including model safety and the absence of parameter sorting.
+- The name `Paramood` appears in the native Fusion title without duplicate branding inside.
 
-- В узкой палитре кнопки с иконками переключают основной редактор и список; по умолчанию открыт редактор. При ширине от 640 px обе области отображаются рядом, кнопки скрываются.
-- Список отображает пользовательские параметры перед параметрами модели, сохраняя порядок внутри групп. Имена с непустыми сегментами через `_` образуют сворачиваемую иерархию как в IntelliSense. Цепочка обозначает обнаруженную прямую или косвенную зависимость параметра модели от пользовательского параметра.
-- Пользовательский параметр редактируется в списке через preview и явное применение с проверкой снимка документа. Редактирование параметров модели пока заблокировано существующим адаптером и требует отдельной проверки; это ограничение реализации, а не целевое требование.
-- Редактирование пользовательского параметра открывается по нажатию на его выражение или значок редактирования непосредственно в строке. При двухколоночном расположении области прокручиваются независимо.
-- Уточнение: выражение изменяется в компактном поле на месте значения; Enter применяет, Escape отменяет. Видимый preview и отдельные кнопки не нужны; проверка и снимок модели сохраняются внутри операции.
+## Structured parameter list — 5 November
+
+- In a narrow palette, icon buttons switch between the main editor and list; the editor is shown by default. At widths from 640 px, both areas appear side by side and the buttons are hidden.
+- The list shows user parameters before model parameters, preserving order within groups. Names with nonempty `_`-separated segments form a collapsible hierarchy as in IntelliSense. A chain indicates a discovered direct or indirect dependency of a model parameter on a user parameter.
+- A user parameter is edited in the list through preview and explicit application with a document-snapshot check. At this stage, model-parameter editing is blocked by the existing adapter and requires separate validation; this is an implementation limitation, not a target requirement.
+- Editing a user parameter opens by clicking its expression or edit icon in the row. In the two-column layout, the areas scroll independently.
+- Clarification: the expression is changed in a compact inline field at the value; Enter applies, Escape cancels. Visible preview and separate buttons are unnecessary; validation and model snapshot remain inside the operation.
