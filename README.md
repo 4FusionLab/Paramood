@@ -145,7 +145,7 @@ python -m pytest -q
 python scripts/build_release.py
 ```
 
-The release builder creates `dist/Paramood-<version>.zip` and a matching `.sha256` file. GitVersion computes release versions from tags and Conventional Commit messages. After successful CI checks, pushes to `main` trigger automated release publishing.
+The release builder creates `dist/Paramood-<version>.zip` and a matching `.sha256` file. GitVersion computes release versions from tags and Conventional Commit messages. After successful CI checks, pushes to `main` can publish when shipped runtime changes are eligible. A documentation-only push can also retry an earlier missed runtime release; documentation alone does not create a release.
 
 **Tech stack:** Fusion Python API · Preact · TypeScript · CodeMirror 6 · Vite · Vitest · Pytest.
 
