@@ -92,6 +92,13 @@ jobs:
           python -m ruff format --check Paramood scripts tests
           python -m pytest -q
           python scripts/build_release.py --version "${{ needs.version.outputs.version }}"
+      - name: Verify built Fusion ZIP and SHA-256 (shared contract)
+        uses: 4FusionLab/.github/.github/actions/verify-archive@ad9d60ba4aabc494b4f2c85d6c566a50ca423751
+        with:
+          product: Paramood
+          version: ${{ needs.version.outputs.version }}
+          archives: dist/Paramood-${{ needs.version.outputs.version }}.zip
+          manifest: Paramood/Paramood.manifest
       - name: Upload release package
         if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
