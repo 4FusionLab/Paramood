@@ -16,7 +16,7 @@
 
 ## This repository
 
-Runtime allowlist: `Paramood/**`, `frontend/src/**`, frontend build inputs, `src/**`, runtime dependency metadata, `scripts/build_release.py`. Run cross-platform Python/TypeScript checks and verify embedded Fusion manifest.
+Runtime allowlist: `Paramood/**`, shipped `frontend/src/**` excluding test/spec files, frontend HTML/public assets and build/dependency inputs, and `scripts/build_release.py`. Root `src/**` (the standalone, private IntelliSense module), root `package.json` (test-only) and `pyproject.toml` (test/lint configuration) do not affect the published add-in ZIP and must not create a release. Run cross-platform Python/TypeScript checks and verify the embedded Fusion manifest.
 
 If a push changes no eligible runtime file, CI may run but the GitHub Release job is skipped, even when GitVersion computes a different candidate version.
 

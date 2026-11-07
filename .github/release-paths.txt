@@ -9,7 +9,8 @@ frontend/package.json
 frontend/package-lock.json
 frontend/vite.config.ts
 frontend/tsconfig.json
-src/**
-package.json
-pyproject.toml
 scripts/build_release.py
+
+# Top-level src/ is a standalone, private IntelliSense test module and is not
+# imported into the shipped frontend. Root package.json and pyproject.toml are
+# test/lint metadata, not distribution inputs.
