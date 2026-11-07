@@ -118,6 +118,13 @@ jobs:
         with:
           name: Paramood-frontend
           path: frontend/dist
+      - name: Generate release notes (shared platform)
+        uses: 4FusionLab/.github/.github/actions/release-notes@ad9d60ba4aabc494b4f2c85d6c566a50ca423751
+        with:
+          product: Paramood
+          version: ${{ needs.version.outputs.version }}
+          candidate: docs/releases/${{ needs.version.outputs.version }}.md
+          output: ${{ runner.temp }}/release-notes.md
       - name: Calculate version, generate notes, and validate package
         id: version
         shell: bash
@@ -126,14 +133,20 @@ jobs:
           version="${{ needs.version.outputs.version }}"
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          python scripts/release_notes.py --product Paramood --version "$version" \
-            --output "$RUNNER_TEMP/release-notes.md" --candidate "docs/releases/$version.md"
           python scripts/build_release.py --version "$version"
           (cd dist && sha256sum -c "Paramood-$version.zip.sha256")
           python scripts/release_contract.py \
             --version "$version" --tag "v$version" --channel stable \
             --manifest Paramood/Paramood.manifest \
             --archive "dist/Paramood-$version.zip" --notes "$RUNNER_TEMP/release-notes.md"
+      - name: Verify Paramood Fusion ZIP (shared platform)
+        uses: 4FusionLab/.github/.github/actions/verify-archive@ad9d60ba4aabc494b4f2c85d6c566a50ca423751
+        with:
+          product: Paramood
+          version: ${{ steps.version.outputs.version }}
+          archives: dist/Paramood-${{ steps.version.outputs.version }}.zip
+          manifest: Paramood/Paramood.manifest
+          notes: ${{ runner.temp }}/release-notes.md
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
