@@ -1,30 +1,32 @@
-# Правила разработки Paramood
+# Paramood development rules
 
-- Документация и планы ведутся на русском, текст интерфейса — на английском.
-- Действующая спецификация: `docs/REQUIREMENTS.md`; статус и ограничения: `docs/PROJECT_STATUS.md`.
-- Fusion API — источник истины. Каждый вызов API проверять по официальной документации Autodesk; не выдумывать методы.
-- Чистая логика не импортирует `adsk`; выполнять Fusion API только в допустимом контексте главного потока.
-- Перед изменением повторно проверять активный документ, выражения, размерности и зависимости. Не удалять данные при неопределённости.
-- Изменения покрывать значимыми тестами. Указывать отдельно результаты offline, браузерной и реальной проверки Fusion.
-- Не изменять пользовательские документы при проверке; использовать выделенную временную модель и проверять состояние перед записью.
-- Мост содержит идентификатор запроса, структурированные ошибки и проверку актуальности документа.
-- Согласовывать контракты между фронтендом, ядром и адаптером; проводить ревью безопасности и тесты перед интеграцией.
-- Сборку и форматирование сохранять совместимыми с поддерживаемой версией Python в Fusion. Обычные GitHub Releases при изменениях runtime в `main` уже автоматизированы и согласованы; прочие публикации и внешнее развёртывание требуют отдельного разрешения.
+[Русская версия](AGENTS.ru.md)
 
-## Стиль и проверки кода
+- Write documents in English and maintain separate Russian versions of documentation. Intermediate working notes do not require translation. Communicate and make plans in Russian; UI text is English.
+- The specification is `docs/REQUIREMENTS.md`; current status and limitations are in the [README](README.md).
+- Fusion API is the source of truth. Check every API call against official Autodesk documentation; do not invent methods.
+- Pure logic does not import `adsk`; execute Fusion API only in a permitted main-thread context.
+- Recheck the active document, expressions, dimensions and dependencies before changing anything. Do not delete data when uncertain.
+- Cover changes with meaningful tests. Report offline, browser and real Fusion results separately.
+- Do not modify user documents during validation; use a dedicated temporary model and check state before writing.
+- The bridge includes a request ID, structured errors and a check for current document identity.
+- Align contracts among frontend, core and adapter; perform security review and tests before integration.
+- Keep builds and formatting compatible with the Python version supported by Fusion. Normal GitHub Releases for runtime changes on `main` are already automated and authorized; other publication and external deployment require separate permission.
 
-- Использовать UTF-8, LF и пробелы; сохранять код и тесты читаемыми, имена — содержательными. Комментарии объясняют причины и ограничения, а не повторяют код.
-- Python: Ruff 0.17.3, целевая совместимость `py39`, длина строки 100, одинарные кавычки; команды из корня: `python -m ruff format Paramood scripts tests`, `python -m ruff format --check Paramood scripts tests`, `python -m ruff check Paramood scripts tests`. Целевая версия форматтера не заменяет проверку исполнения в поддерживаемом Fusion.
-- TypeScript, JavaScript, CSS, HTML, JSON и YAML: настройки Prettier в корне, ESLint для исполняемого JS/TS. После `npm ci --prefix frontend` выполнять `npm run format --prefix frontend`, `npm run format:check --prefix frontend` и `npm run lint --prefix frontend`. Проверки охватывают корневые исходники и тест IntelliSense, фронтенд и конфигурации.
-- Не форматировать автоматически зависимости, lock-файл, сгенерированные файлы и сборки; документацию и SVG редактировать осмысленно, сохраняя их структуру. TOML поддерживать читаемым вручную по существующему стилю.
-- Перед передачей изменений выполнять проверки форматирования и линтеры, `python -m pytest -q`, `npm test`, `npm test --prefix frontend`, `npm run build --prefix frontend` и сборку пакета. CI выполняет эти проверки; локальный успех не заменяет проверку в Fusion.
+## Code style and checks
 
-## Общий инженерный контракт 4FusionLab
+- Use UTF-8, LF and spaces; keep code and tests readable and names meaningful. Comments explain reasons and limitations rather than repeating code.
+- Python: Ruff 0.17.3, `py39` target compatibility, line length 100, single quotes; from the root run `python -m ruff format Paramood scripts tests`, `python -m ruff format --check Paramood scripts tests`, `python -m ruff check Paramood scripts tests`. The formatter target does not replace execution checks in supported Fusion.
+- TypeScript, JavaScript, CSS, HTML, JSON and YAML: use root Prettier settings and ESLint for executable JS/TS. After `npm ci --prefix frontend`, run `npm run format --prefix frontend`, `npm run format:check --prefix frontend` and `npm run lint --prefix frontend`. Checks cover root sources and IntelliSense test, frontend and configurations.
+- Do not automatically format dependencies, lockfiles, generated files or builds; edit documentation and SVG deliberately, preserving structure. Maintain TOML readably by hand in the existing style.
+- Before delivery run formatting and lint checks, `python -m pytest -q`, `npm test`, `npm test --prefix frontend`, `npm run build --prefix frontend` and package build. CI performs these checks; local success does not replace validation in Fusion.
 
-- Корпоративные правила и общие CI-компоненты описаны в [4FusionLab/.github](https://github.com/4FusionLab/.github/blob/main/AGENTS.md) и [Release Platform](https://github.com/4FusionLab/.github/blob/main/RELEASE_PLATFORM.md). Настоящие правила конкретного продукта действуют дополнительно.
-- Перед правками проверь существующие Git-изменения, документацию, автоматические проверки и совместимость с Autodesk Fusion. Не удаляй пользовательские данные, не меняй существующие IDs команд, UUID manifest или структуру аддона без миграционного плана.
-- Для обычной разработки используй Conventional Commits; предпочтителен небольшой PR с CI, но прямой push в `main` допускается политикой репозитория. Не переписывай историю и не изменяй опубликованные теги/артефакты.
-- Включён **автоматический выпуск только при изменении распространяемого продукта**: push или merge в `main` → проверка `.github/release-paths.txt` → тесты → GitVersion 6.8.2 → новый неизменяемый тег и GitHub Release. Теги вручную не создавай; изменения README, документации, тестов, workflow, `AGENTS.md` не должны публиковать релиз.
-- Общие GitHub Actions подключай только по **точному SHA** проверенного коммита `4FusionLab/.github`, а не по `@main`. Пакет, manifest, SHA-256, release notes и version согласованы; существующие релизы не перезаписывай.
-- Выполнение unit-тестов и успешная сборка ZIP **не доказывают** работоспособность в установленном Autodesk Fusion. Для изменений Fusion API и пользовательского интерфейса фиксируй фактическую CAD-приёмку и ОС отдельно.
-- Сохраняй существующие английскую и русскую версии документации, лицензии, ограничения и уникальные сценарии проекта. Не публикуй секреты, персональные CAD-документы, токены или артефакты с локальной машины.
+## Shared 4FusionLab engineering contract
+
+- Organization rules and shared CI components are described in [4FusionLab/.github](https://github.com/4FusionLab/.github/blob/main/AGENTS.md) and [Release Platform](https://github.com/4FusionLab/.github/blob/main/RELEASE_PLATFORM.md). These product-specific rules apply in addition.
+- Before edits inspect existing Git changes, documentation, automated checks and Autodesk Fusion compatibility. Do not delete user data or change existing command IDs, manifest UUID or add-in structure without a migration plan.
+- Use Conventional Commits for ordinary development; a small PR with CI is preferred, though direct push to `main` is allowed by repository policy. Do not rewrite history or modify published tags/artifacts.
+- **Automatic releases occur only for shipped product changes**: push or merge to `main` → check `.github/release-paths.txt` → tests → GitVersion 6.8.2 → a new immutable tag and GitHub Release. Do not create tags manually; changes to README, documentation, tests, workflows or `AGENTS.md` must not independently publish a release.
+- Pin shared GitHub Actions to the **exact SHA** of a reviewed `4FusionLab/.github` commit, not `@main`. Package, manifest, SHA-256, release notes and version must agree; do not overwrite existing releases.
+- Passing unit tests and building a ZIP **does not prove** operation in installed Autodesk Fusion. Record actual CAD acceptance and OS separately for Fusion API and UI changes.
+- Preserve existing English and Russian documentation, licenses, limitations and project-specific workflows. Do not publish secrets, personal CAD documents, tokens or local-machine artifacts.

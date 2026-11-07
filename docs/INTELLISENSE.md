@@ -1,5 +1,7 @@
 # Paramood IntelliSense — virtual parameter objects
 
+> **Historical design note.** The status and future-work statements below describe the standalone prototype, not the current integrated palette. For current behavior and limitations, see the [README](../README.md).
+
 **Status:** standalone TypeScript core and CodeMirror 6 adapter implemented. Fusion HTML Palette and Python bridge integration remain future work.
 
 | Native Fusion name | Paramood virtual path |
