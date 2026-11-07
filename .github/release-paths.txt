@@ -1,6 +1,9 @@
 # Python backend, web palette, runtime dependencies and package builder.
 Paramood/**
 frontend/src/**
+frontend/public/**
+!frontend/**/*.test.*
+!frontend/**/*.spec.*
 frontend/index.html
 frontend/package.json
 frontend/package-lock.json
