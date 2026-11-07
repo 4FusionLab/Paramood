@@ -12,6 +12,10 @@ Enter `2+3` to calculate without writing to the model. Enter `width=30mm; height
 
 Names separated by underscores form virtual groups: `box_wall_thickness` appears as `box.wall.thickness`. Both forms work in input. `dN` dimensions appear under **Model parameters**. Driven sketch dimensions are read-only. Click an editable value to edit it; **Enter** validates and applies, and **Escape** cancels. Renaming an editable parameter updates references without changing matching words inside quoted text.
 
+IntelliSense offers model dimensions such as `d1` only when the current token is exactly `d` or `D`, on either side of an assignment. Typing `de`, `d1`, or a number hides those suggestions; existing dimension names remain valid in expressions.
+
+In an inline numeric edit, use `+=5`, `-=5`, `*=2`, or `/=2` to update the existing expression. Addition and subtraction use the parameter's unit for a bare number; multiplication and division use a dimensionless number. Existing formula dependencies are preserved.
+
 The unit selector beside the design name changes the design's display units to `mm`, `cm`, `m`, `in`, or `ft`. It preserves physical sizes. In an inline numeric edit or a variant search assignment, a bare number uses that parameter's unit; explicit units make examples easier to share.
 
 Use the copy icon beside a calculator result to copy its value with units. **Copy expression** copies the input expression. A success notification disappears after 3.5 seconds; errors remain until dismissed.

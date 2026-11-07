@@ -55,6 +55,8 @@ export function completions(
       /(?:^|[^A-Za-zА-Яа-яЁё_0-9.])([A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9]*\.(?:[A-Za-zА-Яа-яЁё0-9]+\.)*)$/,
     )?.[1];
   if (word.from === word.to && !context.explicit && !path) return null;
+  if (!path && /^\d/.test(word.text)) return null;
+  const showModelDimensions = !path && /^d$/i.test(word.text);
   const left = text.slice(0, context.pos).split(/[;\n]/).pop() ?? '';
   const nameContext = batch && !left.includes('=');
   const target =
@@ -70,7 +72,9 @@ export function completions(
       )
     : [];
   const seen = new Set(parameters.map((p) => p.name.toLowerCase()));
-  const allNames = [...parameters.map((p) => p.name), ...localNames];
+  const allNames = [...parameters.map((p) => p.name), ...localNames].filter(
+    (name) => showModelDimensions || !/^d\d+$/i.test(name),
+  );
   const hierarchy = allNames.filter((name) =>
     /^[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9]*(?:_[A-Za-zА-Яа-яЁё0-9]+)+$/.test(name),
   );
@@ -122,14 +126,16 @@ export function completions(
     });
     return { from: word.from, options: [...objectOptions, ...leafOptions] };
   }
-  const options: Completion[] = parameters.map((p) => ({
-    label: p.name,
-    type: 'variable',
-    detail: `${p.value} ${p.unit}`.trim(),
-    info: [p.expression, p.comment].filter(Boolean).join(' · '),
-  }));
+  const options: Completion[] = parameters
+    .filter((p) => showModelDimensions || !/^d\d+$/i.test(p.name))
+    .map((p) => ({
+      label: p.name,
+      type: 'variable',
+      detail: `${p.value} ${p.unit}`.trim(),
+      info: [p.expression, p.comment].filter(Boolean).join(' · '),
+    }));
   for (const name of localNames)
-    if (!seen.has(name.toLowerCase()))
+    if (!seen.has(name.toLowerCase()) && (showModelDimensions || !/^d\d+$/i.test(name)))
       options.push({ label: name, type: 'variable', detail: 'In this batch' });
   if (nameContext) return { from: word.from, options: [...objectOptions, ...options] };
   if (targetExists) options.push({ label: 'this', type: 'variable', detail: 'Current value' });

@@ -246,7 +246,13 @@ describe('separate palette views', () => {
   });
 });
 
-it('applies an inline edit on Enter with a checked snapshot and no preview controls', async () => {
+it.each([
+  ['20', 'width=20 mm'],
+  ['+=5', 'width+=5'],
+  ['-=2', 'width-=2'],
+  ['*=2', 'width*=2'],
+  ['/ = 2', 'width/=2'],
+])('applies inline edit %s on Enter with a checked snapshot', async (inputText, submitted) => {
   const calls: { action: string; payload: Record<string, unknown> }[] = [];
   window.adsk = {
     fusionSendData: (_action, raw) => {
@@ -289,7 +295,7 @@ it('applies an inline edit on Enter with a checked snapshot and no preview contr
   expect(inline.state.selection.main.to).toBe(2);
   expect(input.closest('.tree-row')?.querySelector('.tree-unit')?.textContent).toBe('mm');
   act(() => {
-    inline.dispatch({ changes: { from: 0, to: inline.state.doc.length, insert: '20' } });
+    inline.dispatch({ changes: { from: 0, to: inline.state.doc.length, insert: inputText } });
   });
   expect(host.textContent).not.toContain('Preview');
   act(() => {
@@ -300,9 +306,9 @@ it('applies an inline edit on Enter with a checked snapshot and no preview contr
     expect(host.querySelector('[aria-label="Expression for width"]')).toBeNull(),
   );
   expect(host.textContent).not.toContain('Parameter updated.');
-  expect(calls.find((c) => c.action === 'parameters.preview')?.payload.text).toBe('width=20 mm');
+  expect(calls.find((c) => c.action === 'parameters.preview')?.payload.text).toBe(submitted);
   expect(calls.find((c) => c.action === 'parameters.apply')?.payload).toEqual({
-    text: 'width=20 mm',
+    text: submitted,
     snapshotToken: 'token',
   });
 });

@@ -33,6 +33,12 @@ export function prepareInlineEdit(parameter: Parameter, input: string, parameter
       throw new Error('Edit the text expression directly, without an assignment.');
     return { text: `${parameter.name}=${expression}` };
   }
+  const relative = expression.match(/^([+*/-])\s*=\s*(.*)$/s);
+  if (relative) {
+    if (!relative[2].trim() || hasAssignment(relative[2]))
+      throw new Error('Enter one expression after the relative operator.');
+    return { text: `${parameter.name}${relative[1]}=${relative[2].trim()}` };
+  }
   if (!hasAssignment(expression)) {
     const nativeName = expression.replace(/\./g, '_');
     if (

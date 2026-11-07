@@ -430,6 +430,87 @@ describe('hierarchical parameter completion', () => {
   });
 });
 
+describe('model dimension completion', () => {
+  const parameters = [
+    { name: 'd1', expression: '10 mm', value: 10, unit: 'mm', kind: 'model' as const },
+    { name: 'd25', expression: '20 mm', value: 20, unit: 'mm', kind: 'model' as const },
+    { name: 'depth', expression: '30 mm', value: 30, unit: 'mm', kind: 'user' as const },
+  ];
+  it('offers dN only for the exact d prefix on either side of an assignment', () => {
+    for (const text of ['d', 'width=d', 'D', 'width=D']) {
+      const result = completions(
+        new CompletionContext(EditorState.create({ doc: text }), text.length, false),
+        parameters,
+        true,
+      );
+      expect(result?.options.map((option) => option.label)).toEqual(
+        expect.arrayContaining(['d1', 'd25']),
+      );
+    }
+    for (const text of ['de', 'width=de', 'd1', 'width=d1', '', 'width=']) {
+      const result = completions(
+        new CompletionContext(EditorState.create({ doc: text }), text.length, true),
+        parameters,
+        true,
+      );
+      expect(result?.options.map((option) => option.label) ?? []).not.toEqual(
+        expect.arrayContaining(['d1']),
+      );
+      expect(result?.options.map((option) => option.label) ?? []).not.toEqual(
+        expect.arrayContaining(['d25']),
+      );
+    }
+    for (const text of ['25', 'width=25']) {
+      expect(
+        completions(
+          new CompletionContext(EditorState.create({ doc: text }), text.length, true),
+          parameters,
+          true,
+        ),
+      ).toBeNull();
+    }
+    const result = completions(
+      new CompletionContext(EditorState.create({ doc: 'de' }), 2, false),
+      parameters,
+      true,
+    );
+    expect(result?.options.map((option) => option.label)).toContain('depth');
+  });
+  it.each(['e', '1'])('removes dimensions from the live popup when d gains %s', async (suffix) => {
+    act(() =>
+      render(
+        <ExpressionEditor
+          value="d"
+          onChange={() => {}}
+          parameters={parameters}
+          batch
+          label="Expression"
+          hint="Example"
+        />,
+        host,
+      ),
+    );
+    const view = EditorView.findFromDOM(host.querySelector<HTMLElement>('.cm-content')!)!;
+    view.dispatch({ selection: { anchor: 1 } });
+    startCompletion(view);
+    await vi.waitFor(() =>
+      expect(currentCompletions(view.state).map((c) => c.label)).toContain('d1'),
+    );
+    view.dispatch({
+      changes: { from: 1, insert: suffix },
+      selection: { anchor: 2 },
+      userEvent: 'input.type',
+    });
+    await vi.waitFor(() => {
+      const labels = currentCompletions(view.state).map((c) => c.label);
+      expect(labels).not.toContain('d1');
+      if (suffix === 'e') expect(labels).toContain('depth');
+      else expect(completionStatus(view.state)).not.toBe('pending');
+    });
+    expect(currentCompletions(view.state).map((c) => c.label)).not.toContain('d25');
+  });
+});
+
 it('completes Cyrillic hierarchical parameter names', () => {
   const text = 'корпус.ш';
   const state = EditorState.create({ doc: text });

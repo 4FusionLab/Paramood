@@ -10,6 +10,21 @@ const width = {
   valueExpression: '1.2345678901234567 cm',
 };
 describe('inline parameter edits', () => {
+  it.each([
+    ['+=5', 'width+=5'],
+    ['-= 2 mm', 'width-=2 mm'],
+    ['*=2', 'width*=2'],
+    ['/ = height / 2', 'width/=height / 2'],
+  ])('routes relative edit %s to the existing parameter', (input, text) => {
+    expect(prepareInlineEdit(width, input, [width])).toEqual({ text });
+  });
+  it.each(['+=', '*=  ', '+=x=3', '+=5;other=2'])(
+    'rejects incomplete or multiple assignments in a relative edit: %s',
+    (input) => expect(() => prepareInlineEdit(width, input, [width])).toThrow(),
+  );
+  it('does not allow relative arithmetic on a text parameter', () => {
+    expect(() => prepareInlineEdit({ ...width, valueType: 'text' }, '+=5', [width])).toThrow();
+  });
   it('sends an equation with an expression on the left for solving', () => {
     expect(prepareInlineEdit(width, '-length/5=50', [width])).toEqual({
       text: '',
