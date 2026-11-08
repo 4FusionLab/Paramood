@@ -9,7 +9,7 @@ def decode_variants(raw):
     if not raw:
         return []
     data = json.loads(raw)
-    if not isinstance(data, dict) or data.get('version') != 1:
+    if not isinstance(data, dict) or data.get('version') != 2:
         raise ValueError('Unsupported variants format.')
     variants = data.get('variants')
     if not isinstance(variants, list):
@@ -26,7 +26,7 @@ def decode_variants(raw):
         ids.add(identity)
         names.add(name.casefold())
         entries = variant.get('parameters')
-        if not isinstance(entries, list) or not entries:
+        if not isinstance(entries, list):
             raise ValueError('A variant needs at least one parameter.')
         tokens = set()
         for entry in entries:
@@ -46,12 +46,51 @@ def decode_variants(raw):
                     raise ValueError('Invalid text variant value.')
             elif type(value) not in (float, int) or not math.isfinite(value):
                 raise ValueError('Invalid variant parameter value.')
+        features = variant.get('features', [])
+        if not isinstance(features, list):
+            raise ValueError('Invalid variant features.')
+        feature_tokens = set()
+        for entry in features:
+            if (
+                not isinstance(entry, dict)
+                or any(
+                    not isinstance(entry.get(k), str) or not entry[k]
+                    for k in ('name', 'entityToken')
+                )
+                or type(entry.get('enabled')) is not bool
+                or entry['entityToken'] in feature_tokens
+            ):
+                raise ValueError('Invalid variant feature.')
+            feature_tokens.add(entry['entityToken'])
+    columns = data.get('columns')
+    if not isinstance(columns, list) or (variants and not columns):
+        raise ValueError('Select at least one parameter or feature.')
+    keys = set()
+    for column in columns:
+        if (
+            not isinstance(column, dict)
+            or column.get('kind') not in ('parameter', 'feature')
+            or any(
+                not isinstance(column.get(k), str) or not column[k] for k in ('name', 'entityToken')
+            )
+            or (column['kind'], column['entityToken']) in keys
+            or (column['kind'] == 'parameter' and not isinstance(column.get('unit'), str))
+        ):
+            raise ValueError('Invalid or duplicate table column.')
+        keys.add((column['kind'], column['entityToken']))
+    parameter_tokens = [c['entityToken'] for c in columns if c['kind'] == 'parameter']
+    feature_tokens = [c['entityToken'] for c in columns if c['kind'] == 'feature']
+    for variant in variants:
+        if [p['entityToken'] for p in variant['parameters']] != parameter_tokens or [
+            f['entityToken'] for f in variant.get('features', [])
+        ] != feature_tokens:
+            raise ValueError('All variants must use the same ordered parameters and features.')
     return variants
 
 
-def encode_variants(variants):
+def encode_variants(variants, columns):
     raw = json.dumps(
-        {'version': 1, 'variants': variants},
+        {'version': 2, 'columns': columns, 'variants': variants},
         ensure_ascii=False,
         allow_nan=False,
         separators=(',', ':'),
@@ -60,6 +99,13 @@ def encode_variants(variants):
     if len(raw.encode('utf-8')) > 2097152:
         raise ValueError('Variants exceed the Fusion attribute size limit (2 MiB).')
     return raw
+
+
+def decode_variant_table(raw):
+    """Only the major-version-2 table format is supported."""
+    variants = decode_variants(raw)
+    data = json.loads(raw) if raw else {'version': 2, 'columns': []}
+    return {'version': 2, 'columns': data['columns'], 'variants': variants}
 
 
 def variants_token(raw):

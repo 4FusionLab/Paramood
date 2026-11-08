@@ -814,6 +814,211 @@ kbd {
   box-shadow: 0 8px 24px #0003;
   overflow: auto;
 }
+.variant-table-dialog {
+  max-width: none;
+  --variant-name-width: 140px;
+  --variant-cell-width: 96px;
+}
+@media (max-width: 559px) {
+  .variant-table-dialog {
+    --variant-name-width: 112px;
+    --variant-cell-width: 76px;
+  }
+}
+.variant-table-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  flex-wrap: wrap;
+}
+.variant-table-toolbar button {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+.variant-table-toolbar > span {
+  margin-left: auto;
+  color: var(--muted);
+}
+.variant-table-picker {
+  padding: 10px 12px;
+  background: var(--subtle);
+  border-block: 1px solid var(--border);
+}
+.variant-table-picker > input {
+  display: block;
+  width: 100%;
+  margin-block: 8px;
+  padding: 6px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+.table-feature-heading {
+  display: block;
+  margin-top: 10px;
+}
+.table-feature-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 0;
+}
+.variant-table-scroll {
+  overflow: auto;
+  flex-shrink: 0;
+  border-block: 1px solid var(--border);
+}
+.variant-config-table {
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+}
+.variant-config-table th,
+.variant-config-table td {
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 6px;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+.variant-config-table th {
+  background: var(--subtle);
+  font-weight: 500;
+}
+.variant-config-table tr:last-child > * {
+  border-bottom: 0;
+}
+.variant-config-table tr > :first-child {
+  position: sticky;
+  left: 0;
+  width: var(--variant-name-width);
+  z-index: 1;
+  background: var(--surface);
+  border-right: 2px solid var(--border);
+}
+.variant-config-table thead th:first-child {
+  background: var(--subtle);
+}
+.variant-table-heading {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+.variant-table-heading small {
+  display: block;
+  color: var(--muted);
+  font-weight: 400;
+}
+.table-drag-handle {
+  padding: 2px;
+  border: 0;
+  background: transparent;
+  cursor: grab;
+  flex-shrink: 0;
+}
+.table-drag-handle:active {
+  cursor: grabbing;
+}
+.table-drop-target {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.variant-table-name {
+  border: 0;
+  background: transparent;
+  padding: 3px;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.variant-config-table input:not([type='checkbox']) {
+  min-width: 0;
+  width: 100%;
+  padding: 5px 2px;
+  border: 1px solid transparent;
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 2px;
+}
+.variant-config-table input:not([type='checkbox']):hover {
+  border-color: var(--border);
+}
+.variant-config-table td.variant-feature-cell {
+  text-align: center;
+}
+.variant-feature-cell input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+.variant-row-heading {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+.variant-row-heading .variant-table-name {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  padding: 2px;
+}
+.variant-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.variant-row-actions .icon {
+  padding: 3px;
+}
+.variant-active-label {
+  color: var(--accent);
+}
+.variant-add-row button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  color: var(--accent);
+}
+.variant-add-row > td {
+  position: static !important;
+}
+.variant-delete-row > td {
+  position: static !important;
+  background: var(--subtle);
+}
+.variant-inline-confirm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.variant-table-dialog .variant-dialog-footer > span {
+  margin-right: auto;
+  color: var(--muted);
+}
+.table-fill {
+  color: var(--accent);
+  padding: 3px;
+}
+.configured-parameter {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+.variant-table-dialog .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
 .variant-dialog-header {
   display: flex;
   align-items: center;

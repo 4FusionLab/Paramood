@@ -24,7 +24,7 @@ Paramood is an add-in for **Autodesk Fusion**, formerly Fusion 360, that puts a 
 
 The idea is simple: **use the precision of parametric CAD with the speed of an IDE**. Paramood is an interface over real Fusion parameters, not a separate parameter storage system.
 
-**Before editing:** Paramood changes update the active variant automatically, including newly changed parameters. Choose **Free** to leave saved variants unchanged. Applied values are kept even if a downstream Fusion feature fails; inspect geometry and the timeline before saving or sharing a configuration.
+**Before editing:** Paramood changes to configured parameters update the active variant automatically; parameters outside the configured set remain global. Choose **Free** to leave saved variants unchanged. Applied values are kept even if a downstream Fusion feature fails; inspect geometry and the timeline before saving or sharing a configuration.
 
 ## One palette for the parameter list and input
 
@@ -107,16 +107,23 @@ Creation and linking are validated together. Equation solving supports one new n
 
 ## Save and switch variants
 
-Download the [Cedar & Sage F3D](examples/cedar-sage/Cedar-Sage-Paramood.f3d) and follow the [walkthrough](docs/DEMO.md). It includes Classic, Compact, and Garden, with geometry controls and text parameters. See its [model information and SHA-256](examples/cedar-sage/model-info.json). Use Paramood 1.5.0 for the variants and text workflows described here.
+The 2.0 variant editor is awaiting the owner's personal review; release is not yet authorized.
 
-1. Open **Free → Create variant** in the header.
-2. Name the variant and select at least one existing editable parameter. The editor uses the same name hierarchy as the parameter list, with `dN` dimensions under **Model parameters**.
-3. Change the selected expressions, or enter an assignment in the parameter search, such as `box.width=30`. This edits the draft; **Save & apply** writes it to the model.
-4. Create another variant and select either name from the header to apply it.
+1. Open **Free → Create variant**, or the pencil beside an existing variant.
+2. Use **Configure** to choose the model-wide set of parameters and timeline features.
+3. Variants are always rows; parameters and features are always columns. Click a value to
+   edit that variant's expression. A checked feature is **Enabled**; unchecked is **Suppressed**.
+   Drag handles reorder parameters and variants.
+4. **Save** stores the complete table and applies the edited active variant. Other variants are
+   saved without switching. **Cancel** lets you discard the draft without changing the model.
 
-While a variant is active, successful edits through Paramood update it and add any changed parameters to it. Choose **Free** before experimenting without updating a saved variant; choosing Free keeps the current model values. Removing a member or deleting a variant keeps the CAD parameters.
+Controlled parameters have a small table icon in the common list. Parameters outside the set
+remain global and are never enrolled automatically. **Free** keeps the current geometry and lets
+parameter edits leave saved variants unchanged. The switcher keeps its existing interaction.
 
-Save the design or export it as F3D to carry the variants with it. On reopening, Paramood selects the first created variant whose saved values all match the model; otherwise it shows Free. External changes that no longer match the active variant switch to Free without overwriting it. Variants are partial parameter sets: switching changes their members, leaving other parameters as they are.
+Format 2 is stored separately in the model: old 1.x variants are not read or migrated.
+The Cedar & Sage example and older screenshots describe 1.x; recreate its variants for 2.0.
+See [Variants 2.0](docs/VARIANTS_V2.md) for workflow, verification and limitations.
 
 ## Create text parameters
 

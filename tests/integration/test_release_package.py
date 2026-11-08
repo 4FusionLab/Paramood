@@ -56,6 +56,7 @@ def test_packaged_addin_imports_under_its_release_name(tmp_path, monkeypatch):
     fusion = types.ModuleType('adsk.fusion')
     for name in (
         'HTMLEventHandler',
+        'ActiveSelectionEventHandler',
         'CommandEventHandler',
         'CommandCreatedEventHandler',
         'DocumentEventHandler',

@@ -142,7 +142,23 @@ def test_text_variant_schema_roundtrips_empty_and_exact_values():
             ],
         }
     ]
-    assert decode_variants(encode_variants(variants)) == variants
+    assert (
+        decode_variants(
+            encode_variants(
+                variants,
+                [
+                    dict(
+                        kind='parameter',
+                        **{
+                            key: variants[0]['parameters'][0][key]
+                            for key in ('name', 'entityToken', 'unit')
+                        },
+                    )
+                ],
+            )
+        )
+        == variants
+    )
     assert values_match('a  b', 'a  b')
     assert not values_match('a  b', 'a b')
     assert not values_match('1', 1)

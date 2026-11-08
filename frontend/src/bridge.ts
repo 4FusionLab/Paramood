@@ -12,6 +12,7 @@ export interface Parameter {
   driven?: boolean;
   favorite?: boolean;
   valueExpression?: string | null;
+  configured?: boolean;
 }
 export interface ModelState {
   draftId?: string;
@@ -25,6 +26,9 @@ export interface ModelState {
   variantsToken?: string;
   variantSnapshotToken?: string;
   variantsError?: string;
+  variantColumns?: VariantColumn[];
+  variantTableVersion?: number;
+  timelineFeatures?: VariantFeature[];
 }
 export interface VariantParameter {
   name: string;
@@ -38,6 +42,20 @@ export interface Variant {
   id: string;
   name: string;
   parameters: VariantParameter[];
+  features?: VariantFeature[];
+}
+export interface VariantFeature {
+  name: string;
+  entityToken: string;
+  enabled: boolean;
+  missing?: boolean;
+}
+export interface VariantColumn {
+  kind: 'parameter' | 'feature';
+  name: string;
+  entityToken: string;
+  unit?: string;
+  missing?: boolean;
 }
 export interface PreviewItem {
   name: string;
@@ -94,8 +112,33 @@ export interface Prefill {
   prefillId: string;
 }
 let prefillListener: ((payload: Prefill) => void) | undefined;
+export interface TimelineSelection {
+  documentId: string;
+  features: VariantFeature[];
+}
+let timelineSelectionListener: ((payload: TimelineSelection) => void) | undefined;
 window.fusionJavaScriptHandler = {
   handle(action, raw) {
+    if (action === 'variants.selection') {
+      try {
+        const payload = JSON.parse(raw) as TimelineSelection;
+        if (
+          typeof payload.documentId !== 'string' ||
+          !Array.isArray(payload.features) ||
+          !payload.features.every(
+            (f) =>
+              typeof f.name === 'string' &&
+              typeof f.entityToken === 'string' &&
+              typeof f.enabled === 'boolean',
+          )
+        )
+          return 'Invalid payload';
+        timelineSelectionListener?.(payload);
+        return 'OK';
+      } catch {
+        return 'Invalid payload';
+      }
+    }
     if (action === 'state.changed') {
       eventListener?.();
       return 'OK';
@@ -137,6 +180,12 @@ export function onStateChanged(listener: () => void): () => void {
   eventListener = listener;
   return () => {
     if (eventListener === listener) eventListener = undefined;
+  };
+}
+export function onTimelineSelection(listener: (payload: TimelineSelection) => void): () => void {
+  timelineSelectionListener = listener;
+  return () => {
+    if (timelineSelectionListener === listener) timelineSelectionListener = undefined;
   };
 }
 export function onParametersPrefill(listener: (payload: Prefill) => void): () => void {

@@ -11,6 +11,7 @@ def test_fusion_entry_import_ignores_other_addins_common_module_names(monkeypatc
     fusion = types.ModuleType('adsk.fusion')
     for name in (
         'HTMLEventHandler',
+        'ActiveSelectionEventHandler',
         'CommandEventHandler',
         'CommandCreatedEventHandler',
         'DocumentEventHandler',

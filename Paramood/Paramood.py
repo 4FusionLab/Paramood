@@ -134,7 +134,7 @@ class HtmlHandler(adsk.core.HTMLEventHandler):
                 'parameters.delete',
                 'parameters.rename',
                 'parameters.favorite',
-                'variants.save',
+                'variants.table.save',
                 'variants.apply',
                 'variants.delete',
                 'variants.free',
@@ -366,6 +366,16 @@ class ExternalCommandEnded(adsk.core.ApplicationCommandEventHandler):
             _broadcast('state.changed', {})
 
 
+class TimelineSelectionChanged(adsk.core.ActiveSelectionEventHandler):
+    def notify(self, args):
+        try:
+            if _adapter and 'parameters' in _ready_modes and _ui.activeCommand == 'SelectCommand':
+                _send('parameters', 'variants.selection', _adapter._variant_timeline_selection())
+        except Exception:
+            if _app:
+                _app.log(traceback.format_exc())
+
+
 def _definition(identifier, name, handler):
     existing = _ui.commandDefinitions.itemById(identifier)
     if existing:
@@ -400,6 +410,7 @@ def run(context):
         for event in (_app.documentClosed, _app.documentOpened):
             _listen(event, DocumentChanged())
         _listen(_ui.commandTerminated, ExternalCommandEnded())
+        _listen(_ui.activeSelectionChanged, TimelineSelectionChanged())
         _listen(_ui.workspaceActivated, WorkspaceChanged())
         if _adapter._design():
             _show_palette('parameters')
