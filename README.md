@@ -26,6 +26,9 @@ The idea is simple: **use the precision of parametric CAD with the speed of an I
 
 **Before editing:** Paramood changes to configured parameters update the active variant automatically; parameters outside the configured set remain global. Choose **Free** to leave saved variants unchanged. Applied values are kept even if a downstream Fusion feature fails; inspect geometry and the timeline before saving or sharing a configuration.
 
+> [!WARNING]
+> **Upgrading from 1.x:** Paramood 2.0 uses separate `variants.v2` storage. Existing `variants.v1` records are preserved in the model, but 2.0 does not read or migrate them. Old variants will not appear in the variant table; recreate them in the new table to use them in 2.0.
+
 ## One palette for the parameter list and input
 
 The default **Hybrid** view keeps the parameter list visible and the shared input fixed at the bottom. Results, recent calculations, and assignment previews open in a dismissible panel above the input. **Calculator** and **Parameter list** remain available as separate views; switching views preserves your input.
@@ -137,7 +140,7 @@ Controlled parameters have a small table icon in the common list. Parameters out
 remain global and are never enrolled automatically. **Free** keeps the current geometry and lets
 parameter edits leave saved variants unchanged. The switcher keeps its existing interaction.
 
-Format 2 is stored separately in the model: old 1.x variants are not read or migrated.
+Format 2 is stored separately in the model: old 1.x variants are preserved but are not read or migrated. Recreate them in the new table to use them in 2.0.
 The original Cedar & Sage 1.x example retains the old format; use the separate [2.0 example](docs/DEMO_V2_DRAFT.md) or recreate its variants.
 See [Variants 2.0](docs/VARIANTS_V2.md) for workflow, verification and limitations.
 
