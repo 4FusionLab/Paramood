@@ -1202,3 +1202,23 @@ kbd {
 .expression-signature > div + div {
   margin-top: 4px;
 }
+
+.preview-note {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  white-space: normal;
+}
+
+.preview-row > div:first-child {
+  min-width: 0;
+  flex: 1;
+}
+.preview-row > .row-end {
+  max-width: 52%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.preview-row .formula {
+  overflow-wrap: anywhere;
+}

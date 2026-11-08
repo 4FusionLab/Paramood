@@ -19,7 +19,11 @@ export interface FusionFunction {
 }
 export const fusionFunctions: readonly FusionFunction[] = catalog.functions;
 export const fusionConstants = catalog.constants;
-export const fusionUnits: readonly string[] = [...catalog.units, 'n'];
+export const fusionUnits: readonly string[] = [
+  ...catalog.units,
+  ...catalog.unitDefinitions.flatMap((unit) => unit.aliases),
+  'n',
+];
 export const fusionOperators = catalog.operators;
 export const functionByName = new Map(fusionFunctions.map((f) => [f.name, f]));
 export const constantByName = new Map(fusionConstants.map((c) => [c.name, c]));

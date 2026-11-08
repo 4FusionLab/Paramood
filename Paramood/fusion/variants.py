@@ -66,8 +66,13 @@ class VariantsMixin:
         return current
 
     def _variant_matches(self, design, variant):
+        dynamic = self._stochastic_parameters(design)
         for entry in variant['parameters']:
             parameter = self._resolve_variant_parameter(design, entry)
+            if parameter and parameter.name in dynamic:
+                if ''.join(parameter.expression.split()) != ''.join(entry['expression'].split()):
+                    return False
+                continue
             if not parameter or not values_match(
                 parameter.textValue if parameter.unit == 'Text' else parameter.value, entry['value']
             ):

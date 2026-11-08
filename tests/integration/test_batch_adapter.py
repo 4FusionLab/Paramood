@@ -1374,3 +1374,39 @@ def test_mixed_snapshot_checks_text_dependency_links(adapter_module):
     text.dependencyParameters = [numeric]
     with pytest.raises(adapter_module.BridgeError, match='Inconsistent'):
         adapter._dependency_snapshot(adapter._design())
+
+
+def test_stochastic_values_do_not_invalidate_snapshot_but_formulas_and_fixed_values_do(
+    adapter_module,
+):
+    adapter, parameters = make_adapter(adapter_module)
+    parameters.entries.update(
+        {
+            'roll': SimpleNamespace(name='roll', expression='random()', unit='', value=0.2),
+            'span': SimpleNamespace(name='span', expression='roll*10 mm', unit='mm', value=0.2),
+            'width': SimpleNamespace(name='width', expression='10 mm', unit='mm', value=1.0),
+        }
+    )
+    design = adapter._design()
+    token = adapter._snapshot_token(design, 'width=20')
+    parameters.entries['roll'].value = 0.9
+    parameters.entries['span'].value = 0.9
+    assert adapter._snapshot_token(design, 'width=20') == token
+    parameters.entries['width'].value = 2.0
+    assert adapter._snapshot_token(design, 'width=20') != token
+    token = adapter._snapshot_token(design, 'width=20')
+    parameters.entries['roll'].expression = 'random()*2'
+    assert adapter._snapshot_token(design, 'width=20') != token
+
+
+def test_random_write_preserves_expression_and_checks_type_instead_of_sample_equality(
+    adapter_module,
+):
+    adapter, parameters = make_adapter(adapter_module)
+    operations = adapter_module.plan_batch(
+        'roll=random()', {}, 'mm', lambda *_: adapter_module.Quantity(0.25)
+    )
+    assert operations[0].quantity.stochastic
+    adapter._execute_new_batch(adapter._design(), operations)
+    assert parameters.entries['roll'].expression == 'random()'
+    assert parameters.entries['roll'].value != operations[0].quantity.value

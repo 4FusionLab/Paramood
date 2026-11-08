@@ -12,7 +12,7 @@ afterEach(() => {
   delete window.adsk;
   window.location.hash = '';
 });
-function mount(hash: string) {
+function mount(hash: string, sampledPreview = false) {
   window.location.hash = hash;
   const calls: { action: string; payload: Record<string, unknown> }[] = [];
   window.adsk = {
@@ -23,7 +23,24 @@ function mount(hash: string) {
         data.action === 'state.get'
           ? { documentId: 'doc', documentName: 'Design', parameters: [] }
           : data.action === 'parameters.preview'
-            ? { valid: false, items: [] }
+            ? sampledPreview
+              ? {
+                  valid: true,
+                  snapshotToken: 'sample-preview',
+                  items: [
+                    {
+                      name: 'roll',
+                      expression: 'random()',
+                      value: 0.25,
+                      unit: '',
+                      status: 'New',
+                      estimated: true,
+                      message:
+                        'Sample value. Fusion will evaluate this expression again when applied.',
+                    },
+                  ],
+                }
+              : { valid: false, items: [] }
             : data.action === 'calculator.evaluate'
               ? { value: 5, formatted: '5' }
               : {};
@@ -867,5 +884,29 @@ it('waits for complete function calls before native Preview or Calculate request
   );
   await vi.waitFor(() =>
     expect(calls.some((call) => call.action === 'parameters.preview')).toBe(true),
+  );
+});
+
+it('shows sampled previews and applies the original random expression', async () => {
+  const calls = mount('#parameters', true);
+  await vi.waitFor(() => expect(host.textContent).toContain('Design'));
+  const editor = EditorView.findFromDOM(host.querySelector<HTMLElement>('.cm-content')!)!;
+  act(() => editor.dispatch({ changes: { from: 0, insert: 'roll=random()' } }));
+  await vi.waitFor(() => expect(host.textContent).toContain('≈ 0.25'));
+  expect(host.querySelector('.preview-note')?.textContent).toContain('Sample value');
+  const apply = Array.from(host.querySelectorAll('button')).find((b) =>
+    b.textContent?.includes('Apply parameters'),
+  )!;
+  expect(apply.disabled).toBe(false);
+  act(() => apply.click());
+  await vi.waitFor(() =>
+    expect(
+      calls.some(
+        (c) =>
+          c.action === 'parameters.apply' &&
+          c.payload.text === 'roll=random()' &&
+          c.payload.snapshotToken === 'sample-preview',
+      ),
+    ).toBe(true),
   );
 });

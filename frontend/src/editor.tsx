@@ -210,7 +210,7 @@ function highlighting(
           kind = 'new';
         else kind = 'unknown';
       }
-      const diagnostic = diagnostics.find((d) => d.from === from);
+      const diagnostic = diagnostics.find((d) => d.from === from && d.severity !== 'info');
       ranges.push(
         Decoration.mark({
           class: `token-${kind}${diagnostic ? ' token-error' : ''}`,

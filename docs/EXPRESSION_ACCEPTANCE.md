@@ -1,34 +1,31 @@
-# Expression IntelliSense acceptance
+# Native expression acceptance
 
-Date: 2026-11-08. Native platform: macOS, Autodesk Fusion 2706.1.17.
+Date: 2026-11-08. Autodesk Fusion 2706.1.17, macOS.
 
-## Native numerical and adapter checks
+## Reproducible native suite
 
-An isolated copy of the new modules ran on Fusion's main thread in a dedicated temporary design. Existing user documents were preserved and the original document was restored afterward.
+Run `scripts/fusion_expression_parity.py` inside Fusion. It loads the checkout as an isolated package, creates a dedicated temporary model, restores the original document, and never stops the installed add-in. F3D and JSON reports stay in the OS temporary directory outside the repository.
 
-- Catalog-driven batch Preview produced no model writes; Apply created 29 parameters: examples for all 25 deterministic functions and all four constants.
-- All 25 function results matched the local planner within `1e-9` relative/absolute tolerance, after converting Fusion's internal cm to the planner's mm where required.
-- Existing-parameter update, relative addition, `this`, virtual paths, and a dependent conditional parameter passed.
-- Quick Calculator evaluated all 25 deterministic function examples, two preference-sensitive bare trigonometric calls through the native fallback, one native `random()` sample, and both physical constants as derived calculator quantities.
-- Stable random-dependent Preview was rejected with `NONDETERMINISTIC_EXPRESSION`.
-- A local F3D export was reopened through Fusion's archive importer: all 31 parameters retained units and values; the saved variant retained its identity. This is a native archive round trip, not a cloud Save test.
+The actual native suite passed:
 
-The native script used actual `FusionUnitsManager`, `UserParameters`, `Design.modifyParameters`, export/import, and the new Fusion adapter. These checks were not mock tests. Windows Fusion and cloud document save/reopen were not exercised.
+- All 96 official unit abbreviations: Preview without model writes, Create, finite native readback, unit matching, and canonical aliases.
+- All 26 function examples, including `random()` through Preview and Apply.
+- 25 additional scenarios: area, volume, physical units, negative Celsius, physical constants as parameters, cube roots of volume, lazy conditions, unitless branch promotion, dimensioned rounding/sign, long unit aliases, native quote/symbol suffixes, random-dependent batches, existing random updates, relative physical-unit edits, and `this` on an area parameter; text creation, references, and concatenation.
+- Native random recompute did not invalidate a preview. A deterministic external expression edit did invalidate it.
+- A random-containing saved variant retained its active identity after recompute. F3D export/reopen preserved all parameter expressions and units and restored the active variant.
 
-## Native palette checks
+These checks used real Fusion APIs and actual model parameters, not mocks. The complete suite created and reopened 144 parameters. No original user document was modified.
 
-The production frontend from an installed test ZIP was loaded in an isolated 361-pixel-wide Fusion Palette with the new adapter and a temporary document. The installed user add-in was not stopped or restarted.
+## Automated checks
 
-- Selecting `pow` inserted parentheses and placed the cursor inside.
-- Typing `probe=pow(2; max(` displayed the nested `max(first; second)` signature. After `3; `, `second` was emphasized. Closing `max` restored `pow(base; exponent)` with `exponent` emphasized; closing `pow` hid Signature Help.
-- Dark-theme text contrast and narrow-width wrapping were visually checked after correcting a native-only tooltip styling conflict.
-- Incomplete calls produced no automatic native Preview requests after the draft guard was added.
-- The completed expression previewed as `16`, and clicking Apply created the actual Fusion parameter with value `16`.
-- Inline editing to `PI * 2` displayed the constant color and committed the value `6.283185307179586`; this value was read back through the Fusion API.
-- The test palette and test document were closed, and the original document was restored.
+Catalog-driven unit and native-callback contract tests cover all 96 units, affine offsets, compound dimensions, fractional powers producing valid dimensions, raw expression preservation, random dependency propagation, snapshot identity, variant matching, quote suffixes, and sampled preview rendering. Native-callback fixtures are reported as offline tests, not native evidence.
 
-Full add-in stop/restart, Windows UI, light-theme native rendering, and cloud Save were not tested. The previously reported restart crash is outside this change.
+Native Windows Fusion, cloud Save, and full add-in stop/restart are separate unverified scopes. Existing Windows/macOS/Linux CI checks do not establish native Windows CAD acceptance.
 
-## Automated validation
+## Native Palette rendering
 
-Local macOS checks passed: 379 Python tests plus 22 subtests, 160 frontend tests, and 47 standalone IntelliSense tests. Ruff 0.17.3 formatting/lint, Prettier, ESLint, TypeScript, Vite production build, Python compilation, deterministic ZIP tests, embedded catalog checks, and the stable release archive contract passed. CI is evaluated separately on the PR and on the merge commit.
+The production frontend from an installed test ZIP was loaded in an isolated 363-pixel Fusion Palette. Supported prefill/state notifications drove the visual check: `randomBatch=random();randomSize=randomBatch*10 mm` showed sample markers and explanatory text for both rows, and remained applicable. The actual native adapter applied the original formulas; a state refresh showed their native values. Long before/after values wrap inside the narrow palette. These checks cover native rendering and adapter integration; pointer/keyboard interaction was not reaccepted in this run. The test document and palette were closed and the original document restored.
+
+## Local quality gates
+
+496 Python tests plus 22 subtests, 162 frontend tests, and 48 IntelliSense tests passed. Ruff 0.17.3 formatting/lint, Python compilation, Prettier, ESLint, TypeScript, production build, package/catalog integrity, SHA-256 and the stable release contract passed. PR and main CI are checked independently.

@@ -9,7 +9,6 @@ from Paramood.core.expressions import (
     SCALAR,
     ExpressionError,
     LocalEvaluationUnsupported,
-    NondeterministicExpression,
     Quantity,
     ParameterSnapshot,
     evaluate,
@@ -34,7 +33,7 @@ def test_every_catalog_function(function):
     for arg in function['arguments']:
         assert arg['name'] and arg['type'] and arg['dimension'] and arg['description']
     if function['name'] == 'random':
-        with pytest.raises(NondeterministicExpression):
+        with pytest.raises(LocalEvaluationUnsupported):
             evaluate(function['example'], {})
     else:
         result = evaluate(function['example'], {})
@@ -130,9 +129,9 @@ def test_invalid_expression_rejected(expression):
 
 
 @pytest.mark.parametrize('expression', ['random()', 'if(1<2;2;random())'])
-def test_random_never_becomes_a_stable_plan(expression):
+def test_random_requires_a_native_evaluator_offline(expression):
     for planner in (plan_batch, plan_batch_snapshot):
-        with pytest.raises(NondeterministicExpression):
+        with pytest.raises(LocalEvaluationUnsupported):
             planner('probe=' + expression, {}, 'mm')
 
 
@@ -148,8 +147,7 @@ def test_unsupported_is_distinct_from_invalid_and_native_fallback_is_narrow():
     assert evaluate('sin(30)', {}, native).value == 0.5
     assert calls == [('sin', [Quantity(30)], SCALAR)]
     assert evaluate('random()', {}, native, allow_nondeterministic=True).value == 0.5
-    with pytest.raises(LocalEvaluationUnsupported):
-        evaluate('1 kg', {})
+    assert evaluate('1 kg', {}).dimension == (0, 0, 0, 1)
 
 
 def test_unitless_parameter_and_scientific_notation_are_not_constants():
