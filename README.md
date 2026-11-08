@@ -34,19 +34,30 @@ The header shows the current design, its length units, and the active variant. S
 
 ## The palette in Fusion
 
-The palette brings the parameter tree, text values and calculator together. This Fusion screenshot shows the Hybrid view evaluating an expression using a model parameter:
+The Hybrid palette keeps the parameter tree and expression input together. IntelliSense suggests model parameters as you type, while the calculator evaluates expressions using their current values:
 
-<p align="center"><img src="assets/screenshots/fusion-hybrid.jpg" alt="Paramood palette with grouped parameters and a calculator result" width="360"></p>
+<p align="center"><img src="assets/screenshots/v2-review/palette-intellisense.jpg" alt="Paramood 2.0 palette with a parameter completion and calculator result" width="360"></p>
 
-Expand groups to inspect related parameters, their values and units. Text parameters can appear alongside numeric dimensions:
+In a wide palette, the calculator view places the input and result next to the parameter tree:
 
-<p align="center"><img src="assets/screenshots/fusion-groups-text.jpg" alt="Expanded numeric and text parameter groups in the Paramood palette" width="360"></p>
+![Paramood 2.0 wide palette with calculator and parameter tree side by side](assets/screenshots/v2-review/palette-wide.jpg)
 
-The 2.0 variant table stores parameter expressions and supported feature states in the design. Here **Compact** is selected and its tray width is 120 mm; further columns are accessible by scrolling horizontally:
+Enter several assignments to review their current and proposed values before applying them. This preview proposes changes to the Compact variant; no values have been applied:
 
-![Paramood 2.0 variant table in Fusion showing Compact and its dimensions](assets/screenshots/v2-review/fusion-table.jpg)
+<p align="center"><img src="assets/screenshots/v2-review/palette-preview.jpg" alt="Paramood 2.0 preview of two parameter changes before applying" width="360"></p>
 
-The palette screenshots above show an earlier development interface; variant controls have since changed in 2.0. The table screenshot shows the current review build. See the capability list below for input, previews and IntelliSense.
+Switch saved variants from the header, or open the table to compare and edit configured parameter expressions and supported feature states. **Compact** has a tray width of 120 mm; scroll horizontally to reach further columns:
+
+<p align="center">
+  <img src="assets/screenshots/v2-review/palette-variants.jpg" alt="Paramood 2.0 variant selector" width="360">
+  <img src="assets/screenshots/v2-review/palette-variant-table.jpg" alt="Paramood 2.0 variant table showing Compact dimensions" width="360">
+</p>
+
+The Compact configuration of the Cedar & Sage review model:
+
+![Cedar & Sage Compact model in Fusion](assets/screenshots/v2-review/compact.png)
+
+Screenshots show the 2.0 review build running in Fusion on macOS.
 
 ## Paramood 2.0 capabilities — review draft
 
