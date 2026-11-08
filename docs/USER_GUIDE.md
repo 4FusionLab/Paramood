@@ -16,15 +16,15 @@ IntelliSense offers model dimensions such as `d1` only when the current token is
 
 In an inline numeric edit, use `+=5`, `-=5`, `*=2`, or `/=2` to update the existing expression. Addition and subtraction use the parameter's unit for a bare number; multiplication and division use a dimensionless number. Existing formula dependencies are preserved.
 
-The unit selector beside the design name changes the design's display units to `mm`, `cm`, `m`, `in`, or `ft`. It preserves physical sizes. In an inline numeric edit or a variant search assignment, a bare number uses that parameter's unit; explicit units make examples easier to share.
+The unit selector beside the design name changes the design's display units to `mm`, `cm`, `m`, `in`, or `ft`. It preserves physical sizes. In an inline numeric edit or a variant table cell, a bare number uses that parameter's unit; explicit units make examples easier to share.
 
 Use the copy icon beside a calculator result to copy its value with units. **Copy expression** copies the input expression. A success notification disappears after 3.5 seconds; errors remain until dismissed.
 
 ## Variant table 2.0
 
-Open the common table through Create variant or the pencil. Configure selects one model-wide set
+Open the common table through **Create variant** or **Edit variants** in the variant menu header. Configure selects one model-wide set
 of parameters and supported features. Click a cell to edit that variant's expression; a checked
-feature is enabled, and an unchecked feature is suppressed. Drag either axis to save its order.
+feature is enabled, and an unchecked feature is suppressed. Drag handles reorder either axis. Mouse gestures and saved-order round-trip were checked in Fusion on macOS.
 Variants are always rows; parameters/features are always columns, at every width. Names wrap at word boundaries;
 scrolling begins only when readable value columns no longer fit.
 

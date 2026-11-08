@@ -1217,6 +1217,7 @@ The main chat should remain the orchestrator throughout the project.
 
 - Do not use Autodesk's Configuration API; implement the agreed workflows independently.
 - Choose one model-wide set of parameters and supported timeline features, never per-row sets.
+- The switcher menu header has shared counts and one Edit variants action; individual rows have no edit action or counts.
 - At every width: variants are rows and parameters/features are columns. Do not transpose.
 - Drag-and-drop reorders both axes; their stored orders are independent of orientation.
 - Headings remain horizontal with word wrapping; horizontal scrolling starts only when the
