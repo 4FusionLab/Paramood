@@ -32,17 +32,21 @@ The default **Hybrid** view keeps the parameter list visible and the shared inpu
 
 The header shows the current design, its length units, and the active variant. Synchronization with Fusion is automatic.
 
-## In Autodesk Fusion
+## The palette in Fusion
 
-Paramood 2.0 in Fusion on macOS, with the Cedar & Sage review model and **Compact** selected:
+The palette brings the parameter tree, text values and calculator together. This Fusion screenshot shows the Hybrid view evaluating an expression using a model parameter:
 
-![Cedar & Sage Compact model with the Paramood palette in Fusion](assets/screenshots/v2-review/fusion-palette.jpg)
+<p align="center"><img src="assets/screenshots/fusion-hybrid.jpg" alt="Paramood palette with grouped parameters and a calculator result" width="360"></p>
 
-The variant menu provides the model-wide controls. The table shows variants as rows and configured parameters and features as columns; scroll horizontally to reach further columns.
+Expand groups to inspect related parameters, their values and units. Text parameters can appear alongside numeric dimensions:
 
-![Fusion with the Paramood variant menu open](assets/screenshots/v2-review/fusion-menu.jpg)
+<p align="center"><img src="assets/screenshots/fusion-groups-text.jpg" alt="Expanded numeric and text parameter groups in the Paramood palette" width="360"></p>
 
-![Fusion with the Paramood variant table open](assets/screenshots/v2-review/fusion-table.jpg)
+The 2.0 variant table stores parameter expressions and supported feature states in the design. Here **Compact** is selected and its tray width is 120 mm; further columns are accessible by scrolling horizontally:
+
+![Paramood 2.0 variant table in Fusion showing Compact and its dimensions](assets/screenshots/v2-review/fusion-table.jpg)
+
+The palette screenshots above show an earlier development interface; variant controls have since changed in 2.0. The table screenshot shows the current review build. See the capability list below for input, previews and IntelliSense.
 
 ## Paramood 2.0 capabilities — review draft
 
