@@ -1,62 +1,36 @@
-# Строковые параметры — реализация и проверка
+# Text parameters — implementation and validation
 
-Дата: 7 ноября 2026. Рабочая ветка: `codex/variants`.
+English | [Русский](TEXT_PARAMETERS.ru.md)
 
-## Контракт
+Date: 7 November 2026. Working branch: `codex/variants`.
 
-- Литерал в одинарных или двойных кавычках задаёт строковый параметр без ручного выбора типа:
-  `caption='Корпус'` и `caption="Корпус"`. Некавыченный неизвестный идентификатор не становится текстом.
-- В список передаётся вычисленное `textValue`, в редактор — исходное `expression`. Применение меняет
-  только `expression`; `textValue` нигде не записывается, поскольку его setter уничтожает формулу.
-- Поддерживаются ссылки на текстовые параметры, конкатенация `+` и `if(condition; text; text)`
-  с одиночным сравнением совместимых значений. Тип существующего параметра менять нельзя.
-- Разделители `;`, переводы строк, `=`, виртуальные dotted-имена, `this` внутри литералов — содержимое.
-  Разделение пакета и подстановка идентификаторов учитывают кавычки и скобки.
-- Кавычки нормализуются в синтаксис Fusion: одинарные с экранированием `\'`, `\\`, `\n`, `\r`, `\t`.
-  Неизвестные escape-последовательности отвергаются явно. SQL-подобное `'a''b'` не принимается;
-  для конкатенации нужен `+`. Содержимое после записи проверяется точным сравнением `textValue`.
-- Значение строки ограничено 65 536 символами, совокупный объём вычисленных строк пакета — 262 144.
-  Сумма длин проверяется до конкатенации, чтобы короткая цепочка удвоений не исчерпала память Fusion.
+## Contract
 
-## Смешанные модели и варианты
+- A single- or double-quoted literal creates a text parameter without manually selecting its type: `caption='Корпус'` or `caption="Корпус"`. An unknown unquoted identifier does not become text.
+- The list receives the computed `textValue`; the editor receives the original `expression`. Applying an edit changes only `expression`: `textValue` is never written because its setter destroys the formula.
+- References to text parameters, `+` concatenation and `if(condition; text; text)` with a single comparison of compatible values are supported. An existing parameter's type cannot be changed.
+- Inside literals, `;`, line breaks, `=`, virtual dotted names and `this` are content. Batch splitting and identifier substitution respect quotes and parentheses.
+- Quotes are normalized to Fusion syntax: single quotes with `\'`, `\\`, `\n`, `\r`, and `\t` escapes. Unknown escape sequences are rejected. SQL-style `'a''b'` is not accepted; concatenation requires `+`. After writing, the result is checked by exact `textValue` comparison.
+- A string is limited to 65,536 characters, and the combined computed strings in a batch to 262,144. Combined lengths are checked before concatenation so that a short doubling chain cannot exhaust Fusion memory.
 
-Адаптер читает типы и обе стороны API-графа для всех параметров. Строки не исключаются из проверки
-согласованности зависимостей. Перед числовым планированием проверяются полнота и циклы полного графа;
-из вычисляемого подграфа исключаются лишь строковые узлы, не требующиеся запрошенным операциям и
-числовым параметрам. Поэтому наличие неиспользуемой строковой формулы, даже вне поддерживаемой
-грамматики Paramood, не блокирует изменение чисел. Неизвестные зависимости и несогласованный граф
-по-прежнему вызывают отказ. Неподдерживаемые выражения в реально требуемом подграфе отклоняются.
+## Mixed models and variants
 
-Варианты хранят строковые значения с unit `Text`, исходные выражения и entityToken. При открытии
-строки сравниваются точно, включая пустоту и пробелы. Сохранение, применение, автоматическое
-включение изменённых строк и повторное открытие F3D проверены в реальном Fusion. При переименовании
-заменяются только идентификаторы выражений; одноимённые слова в строковом содержимом не меняются.
+The adapter reads types and both sides of the API dependency graph for all parameters. Text is not excluded from dependency consistency checks. Completeness and cycles in the entire graph are checked before numeric planning; only text nodes unnecessary for the requested operations and numeric parameters are excluded from the evaluated subgraph. Thus an unused text formula, even outside Paramood's supported grammar, does not block numeric edits. Unknown dependencies and an inconsistent graph still cause rejection. Unsupported expressions in the subgraph actually required are rejected.
 
-## Источники и нативные наблюдения
+Variants store text values with the `Text` unit, original expressions and entityTokens. On opening, strings are compared exactly, including empty strings and spaces. Saving, applying, automatically adding changed text to an active variant, and reopening F3D were checked in real Fusion. Renaming replaces only identifiers in expressions; matching words inside text content remain unchanged.
 
-- [UserParameters.add](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/fusion_UserParameters_add.htm): unit `Text`.
+## Sources and native observations
+
+- [UserParameters.add](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/fusion_UserParameters_add.htm): the `Text` unit.
 - [Parameter.valueType](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/fusion_Parameter_valueType.htm).
-- [Parameter.expression](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/fusion_Parameter_expression.htm): ссылки, конкатенация и условные строки.
-- [UserParameter.textValue](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/fusion_UserParameter_textValue.htm): setter перезаписывает expression.
+- [Parameter.expression](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/fusion_Parameter_expression.htm): references, concatenation and conditional strings.
+- [UserParameter.textValue](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/fusion_UserParameter_textValue.htm): its setter overwrites expression.
 - [ParameterValueTypes](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/fusion_ParameterValueTypes.htm).
 
-Context7 использован; его копия справочника UserParameters.add не описывает современные Text-параметры,
-поэтому окончательные решения сверены с официальными страницами Autodesk и установленным Fusion.
-Fusion 2706.1.17 на macOS отклоняет double-quoted выражения и SQL-кавычки, принимает `\'`, `\\`,
-переводы строк и пустой литерал. `fusionUnitsManager.isValidExpression(expr, 'Text')` возвращает false
-даже для корректного `'Корпус'`, принятого UserParameters.add. Поэтому для текста применяется чистый
-типизированный планировщик с повторной проверкой фактического результата после записи, а числовая
-проверка через isValidExpression сохранена.
+Context7 was used; its copy of the UserParameters.add reference does not describe modern Text parameters, so final decisions were checked against official Autodesk pages and the installed Fusion. Fusion 2706.1.17 on macOS rejects double-quoted expressions and SQL-style quotes, but accepts `\'`, `\\`, line breaks and an empty literal. `fusionUnitsManager.isValidExpression(expr, 'Text')` returns false even for a valid `'Корпус'` accepted by UserParameters.add. Text therefore uses the pure typed planner with a subsequent check of the actual written result; numeric validation via isValidExpression remains in place.
 
-## Проверка
+## Validation
 
-Изолированный документ: оба вида ввода кавычек, пустые строки, апостроф и двойная кавычка, слеш,
-переводы строк и tab, `a=b;c` как содержимое, формула `quote+' / '+note`, условный текст по width,
-обновление чисел в смешанной модели, отказ numeric↔text, автодобавление строки в активный вариант,
-применение строкового варианта и восстановление после экспорта/импорта F3D. Исходные документы
-не менялись; их имена и isModified проверены до и после. Временные документы закрыты.
+An isolated document covered both input quoting styles, empty strings, apostrophes and double quotes, backslashes, line breaks and tabs, `a=b;c` as content, the formula `quote+' / '+note`, conditional text based on width, numeric updates in a mixed model, rejection of numeric↔text changes, automatically adding a string to the active variant, applying a text variant, and recovery after F3D export/import. Original documents were unchanged; their names and isModified states were checked before and after. Temporary documents were closed.
 
-Независимое read-only ревью выявило и подтвердило исправления четырёх дефектов: соседние литералы,
-распознавание сравнений как присваивания, маркер `__CURRENT__` внутри текста и экспоненциальная
-конкатенация. Регрессионные тесты добавлены. Полная проверка установленного UI на пользовательской
-тестовой модели и подготовка публичной документации передаются следующему чату.
+An independent read-only review found and confirmed fixes for four defects: adjacent literals, interpreting comparisons as assignments, the `__CURRENT__` marker inside text, and exponential concatenation. Regression tests were added. Full validation of the installed UI on a user test model and preparation of public documentation were handed off for follow-up.
