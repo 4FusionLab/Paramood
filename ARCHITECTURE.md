@@ -1,29 +1,33 @@
-# Архитектура Paramood
+# Paramood architecture
 
-## Слои
+[Русская версия](ARCHITECTURE.ru.md)
 
-Интерфейс Preact работает в Fusion Palette и использует единый мост JSON. Мост передаёт идентификатор запроса, действие, данные и идентификатор активного документа; ответы содержат тот же идентификатор, результат либо структурированную ошибку. Событие смены документа заставляет интерфейс получить состояние повторно. Значения документа нельзя кэшировать между моделями.
+> **Historical design note.** Some statements below describe intended architecture and unresolved behavior. For the current implementation and limitations, see the [README](README.md).
 
-Fusion Adapter читает активный Design заново и обращается к Fusion API на главном потоке. Код изменения параметров должен выполняться в контексте команды, повторно проверяя активный документ и текущее состояние. Fusion остаётся источником истины. Степень реализованности операций и их ограничения приведены в `docs/PROJECT_STATUS.md`.
+## Layers
 
-Чистое ядро разбирает ограниченное подмножество выражений без `eval`, строит зависимости, вычисляет размерности и готовит порядок операций. Значения ядра представлены в миллиметрах, радианах и безразмерных единицах; они не являются единицами внутреннего хранения Fusion. Перед записью необходима дополнительная проверка Fusion. Незнакомые единицы и размерности отклоняются, а не угадываются.
+The Preact interface runs in a Fusion Palette and uses a single JSON bridge. The bridge carries a request ID, action, data, and active document ID; responses contain the same ID and either a result or a structured error. A document-change event prompts the interface to fetch state again. Document values must not be cached between models.
 
-Анализ очистки должен учитывать использованные параметры, избранное, сохранённые пользователем параметры и транзитивные зависимости. Отсутствие доказательства полноты зависимостей не является доказательством безопасности удаления. См. `docs/FUSION_API_RESEARCH.md`.
+The Fusion Adapter rereads the active Design and calls the Fusion API on the main thread. Parameter mutation code must run in a command context, rechecking the active document and current state. Fusion remains the source of truth. For current operation status and limitations, see the [README](README.md).
 
-## Восстановление и транзакции
+The pure core parses a limited subset of expressions without `eval`, constructs dependencies, evaluates dimensions, and prepares operation order. Core values are represented in millimeters, radians, and dimensionless units; these are not Fusion's internal storage units. An additional Fusion check is required before writing. Unknown units and dimensions are rejected rather than guessed.
 
-Операции команды Fusion могут объединяться в Undo. Это само по себе не доказывает атомарности при любых ошибках. Ядро содержит механизм компенсации, но обратная запись выражения не гарантирует восстановления всех метаданных и связей. Окончательная семантика зависит от реальных проверок внутри Fusion; не заявлять её до проверки.
+Cleanup analysis must account for used parameters, favorites, user-saved parameters, and transitive dependencies. Absence of proof that dependencies are complete is not proof that deletion is safe.
 
-## События и жизненный цикл
+## Recovery and transactions
 
-Подписки и обработчики удерживаются до остановки аддона. После переключения документа интерфейс получает уведомление и запрашивает состояние заново. Fusion может удалить palette при смене workspace; код должен проверять её валидность перед повторным отображением. Документация API и нерешённые вопросы приведены в `docs/FUSION_API_RESEARCH.md`.
+Fusion command operations may be grouped in Undo. This alone does not prove atomicity for every failure. The core contains a compensation mechanism, but writing an expression back does not guarantee restoration of all metadata and relationships. Final semantics depend on real checks inside Fusion; do not claim them before verification.
 
-## Строки, варианты и отображение
+## Events and lifecycle
 
-Ядро различает числовые Quantity и TextValue. Литералы разбираются с учётом кавычек, поэтому разделители и идентификаторы внутри строк не становятся командами или ссылками. Ограничения длины проверяются до конкатенации и записи. Адаптер читает вычисленное textValue для списка, но записывает исходное expression, сохраняя формулы.
+Subscriptions and handlers are retained until the add-in stops. After a document switch, the interface receives a notification and requests state again. Fusion can remove a palette when changing workspaces; code must check its validity before showing it again. See the [active-command investigation](docs/ACTIVE_COMMAND_APPLY_INVESTIGATION.md) for recorded checks and open questions.
 
-Версионированное хранилище вариантов расположено в атрибутах Design. Оно содержит стабильные IDs вариантов, entityToken участников, выражения, единицы и значения. Запись проверяет documentId, snapshotToken и версию хранилища; неизвестные и повреждённые форматы не затираются. Полное совпадение значений определяет активный вариант при открытии. Успешные правки Paramood обновляют активный набор; внешнее несовпадение переводит в Free.
+## Text, variants, and display
 
-Параметры и варианты используют общий алгоритм группировки на фронтенде. Самостоятельный параметр может сосуществовать с одноимённой группой; dotted path преобразуется общим ParameterIndex в реальное имя Fusion. Hybrid, Calculator и Parameter list используют общее состояние ввода.
+The core distinguishes numeric Quantity from TextValue. It parses literals with awareness of quotation, so separators and identifiers inside strings do not become commands or references. Length limits are checked before concatenation and writes. The adapter reads computed textValue for the list, but writes the original expression to preserve formulas.
 
-Изменение единиц длины передаётся отдельным проверяемым запросом к FusionUnitsManager.distanceDisplayUnits и сохраняет физические размеры. Буфер обмена принадлежит фронтенду: в Fusion/Qt применяется синхронное копирование во время пользовательского клика через временное поле с проверкой успеха и восстановлением фокуса. В обычном браузере сначала используется Clipboard API, при отказе — тот же ограниченный fallback. Нативная приёмка буфера фиксируется отдельно от автоматических тестов.
+Versioned variant storage resides in Design attributes. It contains stable variant IDs, participant entityTokens, expressions, units, and values. Writes check documentId, snapshotToken, and storage version; unknown or corrupt formats are not overwritten. A full value match determines the active variant on opening. Successful Paramood edits update the active set; an external mismatch switches to Free.
+
+Parameters and variants share the frontend grouping algorithm. An independent parameter can coexist with a group of the same name; the shared ParameterIndex converts a dotted path to its actual Fusion name. Hybrid, Calculator, and Parameter list share input state.
+
+Length-unit changes are sent as a separate validated request to FusionUnitsManager.distanceDisplayUnits and preserve physical sizes. Clipboard operations belong to the frontend: Fusion/Qt uses synchronous copying on the user click through a temporary field, checking success and restoring focus. In an ordinary browser, the Clipboard API is tried first, with the same limited fallback on failure. Native clipboard acceptance is recorded separately from automated tests.

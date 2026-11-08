@@ -1,20 +1,24 @@
-# Paramood — Master Prompt для Codex
+# Paramood — Master Prompt for Codex
 
-> Актуальное решение пользователя от 5 ноября: Quick Parameters и Quick Calculator объединены в одну палитру Paramood с общим полем. Выражение без `=` вычисляется, ввод с присваиванием направляется в предпросмотр параметров; применение изменений остаётся явным. Упоминания отдельных палитр ниже описывают прежнюю редакцию требований. Cleanup остаётся отдельной палитрой.
+English | [Русский](REQUIREMENTS.ru.md)
 
-> Уточнение пользователя от 5 ноября об области изменений: Paramood работает с параметрами текущей модели и должен позволять изменять пользовательские параметры, управляющие её геометрией; перестроение геометрии текущей модели — ожидаемый результат. Параметры добавленных внешне связанных деталей Paramood не редактирует. Это требование к целевой функциональности, а не подтверждение текущей реализации: действующие ограничения и результаты проверок описаны в `docs/PROJECT_STATUS.md`. До включения изменений необходимы проверка корректного перестроения и отката в Fusion; при неопределённости сохраняется безопасный отказ.
+> This document preserves the original master prompt and subsequent clarifications. Historical instructions and planned features are not proof of current behavior; where they conflict with later clarifications or current project rules, those take precedence. See the [README](../README.md) and [user guide](USER_GUIDE.md) for current behavior and limitations.
 
-> Уточнение пользователя от 5 ноября о результате перестроения: если изменение параметра приводит к ошибке операции в истории Fusion, это допустимый результат, как при ручном изменении параметра. Само по себе предупреждение или ошибка операции не должно отменять изменение. Ошибки применения, неполное выполнение пакета и устаревший документ или preview по-прежнему требуют безопасного отказа или отката транзакции.
+> Current user decision from November 5: Quick Parameters and Quick Calculator are combined into one Paramood palette with a common field. The expression without `=` is evaluated, the input with assignment is sent to the parameter preview; the application of the changes remains explicit. The references to individual palettes below describe the previous edition of the requirements. Cleanup remains a separate palette.
 
-## 0. Твоя роль: Lead Architect & Multi-Agent Orchestrator
+> User clarification from November 5 about the scope of changes: Paramood works with the parameters of the current model and should allow changing user parameters that control its geometry; rebuilding the geometry of the current model is the expected result. Paramood does not edit the parameters of added externally related parts. This is a requirement for target functionality and not an endorsement of the current implementation: the current limitations and test results are described in [README](../README.md). Before you enable changes, you must ensure that rebuilds and rollbacks are performed correctly in Fusion; When there is uncertainty, safe failure is maintained.
 
-Ты — главный агент-оркестратор проекта **Paramood**.
+> User clarification from November 5th about the result of the rebuild: If changing a parameter results in an operation error in the Fusion history, this is a valid result, as if changing the parameter manually. A warning or operation error in itself should not undo the change. Application errors, incomplete batch execution, and an outdated document or preview still require a safe failure or rollback of the transaction.
 
-Paramood — расширение (Add-In) для Autodesk Fusion, предназначенное для быстрого управления параметрами модели, вычисления выражений и безопасной очистки неиспользуемых параметров.
+## 0. Your role: Lead Architect & Multi-Agent Orchestrator
 
-Твоя задача — не только спроектировать и реализовать продукт, но и **организовать разработку через несколько специализированных дочерних агентов**.
+You are the main agent-orchestrator of the **Paramood** project.
 
-Ты выступаешь одновременно как:
+Paramood is an Add-In for Autodesk Fusion designed to quickly manage model parameters, evaluate expressions, and safely clear unused parameters.
+
+Your task is not only to design and implement the product, but also to **organize the development through several specialized subsidiary agents**.
+
+You act simultaneously as:
 
 - Technical Lead.
 - Solution Architect.
@@ -23,76 +27,76 @@ Paramood — расширение (Add-In) для Autodesk Fusion, предна�
 - Code Reviewer.
 - Integration Owner.
 
-**Ты отвечаешь за конечный результат, архитектурную целостность и работоспособность продукта.**
+**You are responsible for the final result, architectural integrity and performance of the product.**
 
-Не ограничивайся составлением плана. Организуй выполнение задач, делегируй их, интегрируй результаты и доводи проект до рабочего состояния.
+Don't limit yourself to making a plan. Organize tasks, delegate them, integrate results and bring the project to working condition.
 
 ---
 
 # 1. Multi-Agent Orchestration
 
-## 1.1. Принцип работы
+## 1.1. Operating principle
 
-Главный чат выполняет роль оркестратора.
+The main chat acts as an orchestrator.
 
-Он не должен самостоятельно выполнять всю разработку последовательно, если доступна возможность делегирования.
+He does not have to do all the development sequentially himself if delegation is available.
 
-Используй доступные в текущей среде механизмы:
+Use the mechanisms available in the current environment:
 
 - Subagents.
-- Дочерние агентные сессии.
-- Параллельные рабочие процессы.
+- Child agent sessions.
+- Parallel work processes.
 - Git worktrees.
-- Другие поддерживаемые механизмы делегирования.
+- Other supported delegation mechanisms.
 
-Если платформа поддерживает создание отдельных чатов или дочерних сессий — используй их.
+If the platform supports the creation of separate chats or child sessions, use them.
 
-Если создание самостоятельных чатов не поддерживается, используй доступные агентные инструменты. Не имитируй создание агентов текстовыми сообщениями и не утверждай, что работа делегирована, если соответствующий процесс фактически не запущен.
+If creating self-hosted chats is not supported, use available agent tools. Do not simulate agent creation via text messages or claim that work has been delegated unless the corresponding process is actually running.
 
-## 1.2. Создай следующие роли
+## 1.2. Create the following roles
 
 ### Agent 1 — Fusion API Researcher
 
-Зона ответственности:
+Area of ​​responsibility:
 
-- Изучение актуальной Autodesk Fusion API.
-- Проверка всех планируемых методов.
-- Исследование Palette API.
-- Исследование Command API.
-- Изучение UserParameters и ModelParameters.
-- Исследование UnitsManager.
-- Исследование событий Fusion.
-- Проверка Undo и транзакционных возможностей.
-- Проверка алгоритмов определения неиспользуемых параметров.
-- Изучение ограничений API на macOS.
+- Studying the current Autodesk Fusion API.
+- Checking all planned methods.
+- Study of the Palette API.
+- Command API research.
+- Studying UserParameters and ModelParameters.
+- UnitsManager research.
+- Fusion event research.
+- Checking Undo and transactional capabilities.
+- Checking algorithms for determining unused parameters.
+- Exploring API limitations on macOS.
 
-Результат:
+Result:
 
 `docs/FUSION_API_RESEARCH.md`
 
-Документ должен содержать подтверждённые API, ссылки на официальную документацию, ограничения и рекомендации для реализации.
+The document should contain confirmed APIs, links to official documentation, restrictions and recommendations for implementation.
 
-Не допускать вымышленных методов API.
+Don't allow fictitious API methods.
 
 ### Agent 2 — Python Core Engineer
 
-Зона ответственности:
+Area of ​​responsibility:
 
 - Parameter Service.
 - Expression Parser.
 - Expression Engine.
 - Units Service.
 - Dependency Analyzer.
-- Валидация.
-- Пакетное создание и обновление параметров.
-- Безопасная очистка параметров.
-- Unit-тесты.
+- Validation.
+- Batch creation and updating of parameters.
+- Safely clear parameters.
+- Unit tests.
 
-Предметная логика должна максимально отделяться от `adsk`, чтобы её можно было тестировать без запущенного Fusion.
+Domain logic should be separated from `adsk` as much as possible so that it can be tested without Fusion running.
 
 ### Agent 3 — Frontend & UX Engineer
 
-Зона ответственности:
+Area of ​​responsibility:
 
 - Preact / TypeScript.
 - UI Kit.
@@ -100,115 +104,117 @@ Paramood — расширение (Add-In) для Autodesk Fusion, предна�
 - Quick Calculator.
 - IntelliSense.
 - CodeMirror 6.
-- Подсветка синтаксиса.
-- Автодополнение.
+- Syntax highlighting.
+- Auto completion.
 - Preview.
-- Интерфейс Parameter Cleanup.
-- Адаптивная компоновка.
-- Светлая и тёмная темы.
+- Parameter Cleanup interface.
+- Adaptive layout.
+- Light and dark themes.
 - Keyboard-first UX.
 
-Интерфейс должен быть качественным, компактным и визуально совместимым с Autodesk Fusion.
+The interface must be high-quality, compact and visually compatible with Autodesk Fusion.
 
 ### Agent 4 — Fusion Integration Engineer
 
-Зона ответственности:
+Area of ​​responsibility:
 
-- Структура Fusion Add-In.
+- Fusion Add-In structure.
 - Manifest.
-- Регистрация команд.
-- Создание Palette.
+- Command registration.
+- Creation of Palette.
 - HTML ↔ Python Bridge.
-- Синхронизация активного документа.
-- Работа с событиями Fusion.
-- Жизненный цикл Add-In.
-- Установка и запуск на macOS.
-- Интеграционные сценарии.
+- Synchronization of the active document.
+- Working with Fusion events.
+- Add-In life cycle.
+- Installation and launch on macOS.
+- Integration scenarios.
 
 ### Agent 5 — QA & Code Reviewer
 
-Зона ответственности:
+Area of ​​responsibility:
 
-- Анализ требований.
-- Проверка архитектуры.
-- Unit-тесты.
-- Контрактные тесты.
-- Интеграционные сценарии.
+- Requirements analysis.
+- Architecture verification.
+- Unit tests.
+- Contract tests.
+- Integration scenarios.
 - Edge cases.
-- Проверка безопасности удаления.
-- Проверка вычислений и размерностей.
+- Security check for deletion.
+- Checking calculations and dimensions.
 - Code Review.
-- Проверка полноты реализации.
-- Поиск расхождений между ТЗ и реализацией.
+- Checking the completeness of the implementation.
+- Search for discrepancies between technical specifications and implementation.
 
-Этот агент должен выступать независимым критиком решений остальных агентов.
+This agent must act as an independent critic of the decisions of other agents.
 
-## 1.3. Правила оркестрации
+## 1.3. Orchestration Rules
 
-1. Сначала сформируй общую архитектуру и список задач.
-2. Запусти исследование API как можно раньше.
-3. Определи контракты между Backend, Frontend и Integration.
-4. Делегируй независимые задачи параллельно.
-5. Каждому агенту назначай конкретный результат и критерии готовности.
-6. Минимизируй параллельное редактирование одних и тех же файлов.
-7. Используй отдельные ветки или worktrees, если они доступны и целесообразны.
-8. Регулярно собирай результаты и проверяй совместимость.
-9. После каждого значимого этапа запускай тесты и ревью.
-10. Если агент обнаружил критический блокер, перераспредели задачи.
-11. Не принимай код без проверки.
-12. Не допускай архитектурного расхождения между агентами.
+1. First, create a general architecture and a list of tasks.
+2. Start API research as early as possible.
+3. Define contracts between Backend, Frontend and Integration.
+4. Delegate independent tasks in parallel.
+5. Assign each agent a specific result and readiness criteria.
+6. Minimize parallel editing of the same files.
+7. Use separate branches or worktrees if they are available and appropriate.
+8. Regularly collect results and check compatibility.
+9. After each significant stage, run tests and reviews.
+10. If the agent has detected a critical blocker, redistribute tasks.
+11. Do not accept code without verification.
+12. Avoid architectural divergence between agents.
 
-Оркестратор должен оставаться активным руководителем процесса, а не просто распределить задачи и прекратить участие.
+The orchestrator must remain an active leader of the process, rather than simply assign tasks and stop participating.
 
-## 1.4. Формат отчётности оркестратора
+## 1.4. Orchestrator reporting format
 
-Поддерживай актуальный файл:
+Keep the following historical status file up to date:
 
 `docs/PROJECT_STATUS.md`
 
-В нём должны отражаться:
+This file is not present in the current repository; consult the [README](../README.md) for current status.
 
-- Текущий этап.
-- Активные задачи.
-- Ответственные агенты.
-- Завершённые задачи.
-- Блокеры.
-- Архитектурные решения.
-- Результаты тестирования.
-- Следующие действия.
+It should reflect:
 
-В чате показывай компактные отчёты по завершённым этапам. Не засоряй основной чат промежуточными подробностями работы агентов.
+- Current stage.
+- Active tasks.
+- Responsible agents.
+- Completed tasks.
+- Blockers.
+- Architectural solutions.
+- Test results.
+- Next steps.
 
-Не выдавай запланированные, но ещё не выполненные задачи за готовые.
+In the chat, show compact reports on completed stages. Don't clutter the main chat with intermediate details of agents' work.
 
----
-
-# 2. Описание продукта
-
-**Название: Paramood**
-
-Категория: Autodesk Fusion Add-In.
-
-Целевая платформа: Autodesk Fusion на macOS.
-
-Основная задача — упростить и ускорить повседневную работу с параметрическими моделями.
-
-## Функциональные модули
-
-1. Quick Parameters — быстрое создание и изменение параметров.
-2. Quick Calculator — вычисление выражений с поддержкой параметров модели.
-3. IntelliSense — интеллектуальное автодополнение параметров, функций и единиц.
-4. Parameter Cleanup — безопасная очистка неиспользуемых пользовательских параметров.
-
-Quick Parameters и Quick Calculator располагаются в постоянно доступной панели.
-
-Parameter Cleanup запускается отдельной командой.
-
-В списке именованных параметров доступны сортировка по имени или значению, переключение направления и массовое раскрытие и сворачивание групп. Группы изначально свёрнуты. Избранные параметры отображаются отдельно и синхронизируются со штатным избранным Fusion.
+Do not pass off planned but not yet completed tasks as completed.
 
 ---
 
-# 3. Технологический стек
+# 2. Product description
+
+**Name: Paramood**
+
+Category: Autodesk Fusion Add-In.
+
+Target platform: Autodesk Fusion on macOS.
+
+The main goal is to simplify and speed up everyday work with parametric models.
+
+## Function modules
+
+1. Quick Parameters - quickly create and change parameters.
+2. Quick Calculator - calculation of expressions with support for model parameters.
+3. IntelliSense - intelligent auto-completion of parameters, functions and units.
+4. Parameter Cleanup - securely clear unused user parameters.
+
+Quick Parameters and Quick Calculator are located in a constantly accessible panel.
+
+Parameter Cleanup is launched as a separate command.
+
+In the list of named parameters, you can sort by name or value, switch direction, and bulk expand and collapse groups. The groups are initially collapsed. Favorites are displayed separately and are synchronized with the standard Fusion favorites.
+
+---
+
+# 3. Technology stack
 
 ## Backend
 
@@ -224,9 +230,9 @@ Parameter Cleanup запускается отдельной командой.
 - Vite.
 - CodeMirror 6.
 - Lucide Icons.
-- CSS с поддержкой тем Fusion.
+- CSS with support for Fusion themes.
 
-## Качество
+## Quality
 
 - Python type hints.
 - TypeScript strict mode.
@@ -236,136 +242,136 @@ Parameter Cleanup запускается отдельной командой.
 - ESLint.
 - Prettier.
 
-Не подключай тяжёлые зависимости без обоснования.
+Do not include heavy dependencies without justification.
 
-Сохраняй совместимость Python-кода с версией Python, реально поставляемой с поддерживаемой версией Fusion.
+Keep your Python code compatible with the version of Python actually shipped with the supported version of Fusion.
 
-Весь пользовательский интерфейс должен быть на английском языке с архитектурной возможностью последующей локализации.
+The entire user interface must be in English with the architectural possibility of subsequent localization.
 
-Документацию проекта и рабочие отчёты веди на русском языке.
+Historical instruction: maintain project documentation and work reports in Russian. This is superseded by the current project rule: documentation is maintained in English with a separate Russian version; plans and discussion are in Russian.
 
 ---
 
-# 4. Архитектура
+# 4. Architecture
 
-Раздели проект на следующие слои:
+Divide the project into the following layers:
 
 ### Fusion Adapter
 
-Изолирует прямое взаимодействие с Autodesk Fusion API.
+Isolates direct interaction with the Autodesk Fusion API.
 
 ### Parameter Service
 
-Управляет получением, созданием, обновлением и удалением параметров.
+Controls the retrieval, creation, updating, and deletion of parameters.
 
 ### Expression Engine
 
-Выполняет разбор выражений, построение зависимостей, проверку синтаксиса и размерностей.
+Parses expressions, builds dependencies, checks syntax and dimensions.
 
 ### Units Service
 
-Управляет единицами измерения и преобразованиями.
+Controls units of measurement and conversions.
 
 ### Dependency Analyzer
 
-Строит граф зависимостей параметров и определяет кандидатов на удаление.
+Builds a graph of parameter dependencies and identifies candidates for deletion.
 
 ### Bridge
 
-Обеспечивает асинхронное взаимодействие между Python и HTML UI.
+Provides asynchronous interaction between Python and HTML UI.
 
 ### Frontend
 
-Отображает состояние, обрабатывает пользовательский ввод и взаимодействует с Backend через Bridge.
+Displays state, processes user input, and interacts with Backend via Bridge.
 
-## Обязательные архитектурные требования
+## Mandatory architectural requirements
 
-- Fusion API — единственный источник истины о параметрах модели.
-- Предметная логика не зависит от UI.
-- UI не содержит прямой реализации Fusion API.
-- Обмен данными через типизированный JSON-протокол.
-- Каждое асинхронное сообщение имеет request ID.
-- Все ошибки имеют структурированный формат.
-- Предусмотрена защита от устаревших ответов.
-- Операции изменения модели выполняются в корректном контексте Fusion.
-- Запрещены вызовы API из неподходящих потоков.
-- Состояние активного документа должно синхронизироваться.
+- Fusion API is the only source of truth about model parameters.
+- Domain logic does not depend on the UI.
+- The UI does not contain a direct implementation of the Fusion API.
+- Data exchange via a typed JSON protocol.
+- Each asynchronous message has a request ID.
+- All errors have a structured format.
+- Protection against outdated answers is provided.
+- Model modification operations are performed in the correct Fusion context.
+- API calls from inappropriate threads are prohibited.
+- The state of the active document must be synchronized.
 
 ---
 
-# 5. Постоянная панель Paramood
+# 5. Permanent Paramood palette
 
-Создай HTML Palette, доступную во время моделирования.
+Create an HTML Palette available during modeling.
 
-## Расположение
+## Location
 
-Желательное расположение — нижняя левая часть интерфейса Fusion, возле стандартной области Comments.
+The desired location is the lower left side of the Fusion interface, near the standard Comments area.
 
-Используй только официально поддерживаемые механизмы Fusion.
+Use only officially supported Fusion mechanisms.
 
-Проверь варианты docking и размещения Palette.
+Check the docking and placement options for the Palette.
 
-Если встроиться в нужную область нельзя, реализуй наиболее близкое поддерживаемое расположение. Не пытайся изменять внутренний UI Autodesk.
+If it is not possible to fit into the desired region, implement the closest supported location. Don't try to change Autodesk's internal UI.
 
-## Поведение
+## Behavior
 
-- Автоматическое открытие при запуске аддона.
-- Возможность закрытия и повторного открытия.
-- Компактный режим.
-- Сворачивание блоков.
-- Сохранение размеров и положения, если доступно.
-- Обновление при переключении документов.
-- Корректное состояние при отсутствии активной модели.
-- Поддержка светлой и тёмной тем.
-- Отсутствие лишних модальных окон.
+- Automatic opening when the addon is launched.
+- Possibility of closing and reopening.
+- Compact mode.
+- Collapse of blocks.
+- Saving dimensions and position, if available.
+- Update when switching documents.
+- Correct state when there is no active model.
+- Support for light and dark themes.
+- No unnecessary modal windows.
 
-Ориентировочная ширина панели: 340–380 px.
+Approximate panel width: 340–380 px.
 
-Она должна оставаться удобной при небольшом размере.
+It should remain comfortable while being small.
 
-## Компоновка
+## Layout
 
-Верхняя часть:
+Top:
 
-`Paramood` + компактные элементы управления панелью.
+`Paramood` + compact panel controls.
 
-Первый блок:
+First block:
 
 `Quick Parameters`
 
-Второй блок:
+Second block:
 
 `Quick Calculator`
 
-Не превращай панель в многостраничное приложение.
+Don't turn your dashboard into a multi-page application.
 
-Основные действия должны быть доступны сразу.
+Basic actions should be available immediately.
 
 ---
 
 # 6. Quick Parameters
 
-## Назначение
+## Purpose
 
-Быстрое создание или изменение нескольких пользовательских параметров одним выражением.
+Quickly create or change multiple custom parameters with a single expression.
 
-### Основной пример
+### Basic example
 
-Пользователь вводит:
+The user enters:
 
 `w=15;h=10;l=h/2`
 
-В модели создаются:
+The model creates:
 
 - `w = 15 mm`
 - `h = 10 mm`
 - `l = h/2`
 
-При условии, что единица длины проекта — миллиметры.
+Provided that the unit of project length is millimeters.
 
-Результат `l` равен `5 mm`, однако в Fusion должна сохраняться именно формула `h/2`.
+The result of `l` is equal to `5 mm`, but the formula `h/2` must be saved in Fusion.
 
-## Поддерживаемые выражения
+## Supported expressions
 
 ```text
 w=15
@@ -378,173 +384,173 @@ inner=w-2*wall
 ratio=w/h
 ```
 
-Можно передать несколько определений через `;`.
+It is possible to pass multiple definitions via `;`.
 
-Поддерживай пробелы и переносы строк.
+Support spaces and line breaks.
 
-## Правила единиц измерения
+## Unit rules
 
-1. Независимое числовое значение без единицы, например `w=15`, получает единицу длины активного проекта.
-2. Суффикс `n` означает безразмерное значение, например `count=5n`.
-3. Явные единицы имеют приоритет.
-4. В выражениях сохраняются ссылки на параметры.
-5. Числовые коэффициенты внутри формул остаются безразмерными, например `h/2`.
-6. Результат деления двух длин может быть безразмерным.
-7. Явное угловое значение должно сохранять угловую размерность.
-8. Некорректные операции с размерностями запрещаются.
-9. Суффикс `n` является синтаксисом Paramood, а не Fusion.
+1. An independent numeric value without a unit, such as `w=15`, gets the length unit of the active project.
+2. The suffix `n` means a dimensionless value, for example `count=5n`.
+3. Explicit units take precedence.
+4. Expressions store references to parameters.
+5. Numerical coefficients inside formulas remain dimensionless, for example `h/2`.
+6. The result of dividing two lengths can be dimensionless.
+7. An explicit angular value must preserve angular dimension.
+8. Incorrect operations with dimensions are prohibited.
+9. The `n` suffix is ​​Paramood syntax, not Fusion.
 
-Введи строгие и документированные правила определения размерности выражений.
+Introduce strict and documented rules for determining the dimensionality of expressions.
 
-Если размерность нельзя определить надёжно, покажи ошибку вместо небезопасного предположения.
+If the dimension cannot be determined reliably, show an error instead of an unsafe assumption.
 
-## Создание параметров
+## Creating parameters
 
-Используй `UserParameters.add()` и соответствующие API.
+Use `UserParameters.add()` and the corresponding APIs.
 
-Не подставляй вычисленное число вместо параметрической формулы.
+Do not substitute the calculated number in place of the parametric formula.
 
-## Изменение существующих параметров
+## Changing existing settings
 
-Если параметр существует, обновляй его выражение.
+If the parameter exists, update its expression.
 
-Например, ввод:
+For example, input:
 
 `w=20`
 
-Должен показывать в Preview:
+Should show in Preview:
 
 `w: 15 mm → 20 mm`
 
-Пользователь должен понимать, что выполняется изменение.
+The user must understand that a change is being made.
 
-Не допускай незаметного изменения размерности существующего параметра.
+Don't allow the dimension of an existing parameter to change unnoticed.
 
 ## Preview
 
-Показывай под редактором список будущих изменений.
+Show a list of future changes under the editor.
 
-Для каждого элемента:
+For each element:
 
-- Имя.
-- Выражение.
-- Вычисленное значение.
-- Единица измерения.
-- Статус.
+- Name.
+- Expression.
+- Calculated value.
+- Unit of measurement.
+- Status.
 
-Статусы:
+Statuses:
 
 - New.
 - Update.
 - Error.
 - Warning.
 
-Preview пересчитывается во время редактирования, но не должен постоянно изменять реальную модель.
+Preview is recalculated during editing, but should not permanently change the actual model.
 
-## Пакетная обработка
+## Batch processing
 
-Перед сохранением:
+Before saving:
 
-1. Разбери весь пользовательский ввод.
-2. Построй AST.
-3. Определи зависимости.
-4. Проверь циклические ссылки.
-5. Выполни топологическую сортировку операций создания.
-6. Проверь корректность выражений и единиц.
-7. Проверь конфликты с существующими параметрами.
-8. Подготовь план изменений.
-9. Выполни изменения через Fusion API.
-10. Обработай ошибки и обеспечь максимально возможную атомарность.
+1. Parse all user input.
+2. Build AST.
+3. Identify dependencies.
+4. Check circular links.
+5. Perform topological sorting of creation operations.
+6. Check the correctness of expressions and units.
+7. Check for conflicts with existing parameters.
+8. Prepare a change plan.
+9. Make changes via Fusion API.
+10. Handle errors and ensure the highest possible atomicity.
 
-Исследуй официальные возможности Fusion Undo и командных транзакций.
+Explore the official features of Fusion Undo and command transactions.
 
-Не создавай ложную гарантию атомарности. Если полноценный откат невозможен, обеспечь безопасную компенсацию изменений и явно задокументируй ограничения.
+Don't create a false guarantee of atomicity. If a full rollback is not possible, provide safe compensation for changes and explicitly document the restrictions.
 
-## Управление
+## Management
 
-- `Enter` — применить изменения.
-- `Shift+Enter` — перенос строки.
-- `Tab` — принять подсказку IntelliSense.
-- `Esc` — закрыть подсказки.
-- `Ctrl+Space` — открыть IntelliSense.
+- `Enter` — apply changes.
+- `Shift+Enter` — line break.
+- `Tab` - accept IntelliSense prompt.
+- `Esc` — close hints.
+- `Ctrl+Space` - open IntelliSense.
 
-Когда IntelliSense открыт, Enter принимает выбранную подсказку и не применяет весь пакет.
+When IntelliSense is open, Enter accepts the selected prompt and does not apply the entire batch.
 
-После успешной операции показывай ненавязчивое подтверждение.
+After a successful operation, show unobtrusive confirmation.
 
 ---
 
 # 7. IntelliSense
 
-**Полноценный IntelliSense обязателен и должен работать в обоих редакторах Paramood.**
+**Full IntelliSense is required and must work in both Paramood editors.**
 
-Используй общую реализацию на CodeMirror 6.
+Use the generic implementation on CodeMirror 6.
 
-Не создавай два независимых механизма автодополнения.
+Don't create two independent autocompletion mechanisms.
 
-## Автодополнение параметров
+## Autocompletion of parameters
 
-При вводе:
+When entering:
 
 `l=hei`
 
-Предлагай существующие параметры, например:
+Offer existing parameters, for example:
 
 - `height`
 - `heightInner`
 
-Для каждой подсказки показывай:
+For each clue, show:
 
-- Имя.
-- Текущее значение.
-- Единицу измерения.
-- Исходную формулу.
-- Описание, если доступно.
+- Name.
+- Current value.
+- Unit of measurement.
+- The original formula.
+- Description, if available.
 
-При выборе подставляй имя параметра, а не вычисленное значение.
+When selecting, substitute the name of the parameter, not the calculated value.
 
-### Виртуальная иерархия параметров
+### Virtual hierarchy of parameters
 
-Имя `box_inner_size` доступно как `box.inner.size` как в выражениях, так и слева от `=` при создании или изменении параметра; в Fusion передаётся `box_inner_size`. На каждом уровне сначала предлагаются объекты, а обычные плоские имена по-прежнему доступны. Виртуальные пути поддерживаются для параметров модели и объявлений текущего пакета; имена с пустыми сегментами доступны только в обычной записи. Значения и формулы остаются привязаны к реальным параметрам.
+The name `box_inner_size` is available as `box.inner.size` both in expressions and to the left of `=` when creating or changing a parameter; `box_inner_size` is transferred to Fusion. At each level, objects are suggested first, and the usual flat names are still available. Virtual paths are supported for model parameters and declarations of the current batch; names with empty segments are only available in regular notation. Values ​​and formulas remain tied to real parameters.
 
-### Относительное обновление и самоссылка
+### Relative update and self-referencing
 
-В первом объявлении нового параметра IntelliSense не предлагает его собственное имя. При обновлении существующего или объявленного ранее в пакете параметра его имя и `this` обозначают предыдущую формулу: перед проверкой зависимостей она подставляется в скобках, чтобы в Fusion сохранялась формула без самоссылки и не терялись зависимости. Операторы `+=`, `-=`, `*=`, `/=` доступны для параметров модели и для параметров, объявленных ранее в текущем пакете. Последовательные изменения преобразуются в одну формулу из предыдущего выражения и правого операнда. Для `+=` и `-=` число без единицы трактуется в единице обновляемого параметра; для `*=` и `/=` — как безразмерное. Деление на ноль и несовместимые размерности отклоняются. Снимок параметров повторно проверяется перед записью.
+When first declaring a new parameter, IntelliSense does not provide its own name. When updating an existing or previously declared parameter in a batch, its name and `this` indicate the previous formula: before checking dependencies, it is substituted in parentheses so that Fusion saves the formula without self-referencing and does not lose dependencies. Operators `+=`, `-=`, `*=`, `/=` are available for model parameters and for parameters declared earlier in the current batch. Successive changes are converted to a single formula from the previous expression and the right-hand operand. For `+=` and `-=`, a number without a unit is interpreted in the unit of the updated parameter; for `*=` and `/=` - as dimensionless. Division by zero and incompatible dimensions are rejected. The parameter snapshot is rechecked before being written.
 
-### Поиск
+### Search
 
-Поддерживай:
+Support:
 
 - Prefix matching.
 - Case-insensitive matching.
 - Fuzzy matching.
-- Ранжирование результатов.
-- Подсветку совпадений.
+- Ranking of results.
+- Highlighting matches.
 
-Приоритет отдавай точным и префиксным совпадениям.
+Give priority to exact and prefix matches.
 
-## Контекстное поведение
+## Contextual behavior
 
-IntelliSense должен понимать, в какой части выражения находится курсор.
+IntelliSense needs to understand where the cursor is in the expression.
 
-В Quick Parameters:
+In Quick Parameters:
 
-- Слева от `=` пользователь вводит имя нового параметра.
-- Справа от `=` пользователь вводит формулу.
+- To the left of `=` the user enters the name of the new parameter.
+- To the right of `=` the user enters the formula.
 
-Предлагай параметры и виртуальные объекты в формулах и при вводе имени слева от `=`. Слева не предлагай функции и единицы.
+Suggest parameters and virtual objects in formulas and when entering a name to the left of `=`. On the left, don't offer functions and units.
 
-Также предлагай параметры, которые объявлены в текущем вводе, но ещё не созданы в Fusion.
+Also suggest parameters that are declared in the current input but not yet created in Fusion.
 
-Например:
+For example:
 
 `w=15;h=w/2`
 
-При вводе формулы `h` параметр `w` уже должен быть доступен в IntelliSense.
+When you enter the formula `h`, the parameter `w` should already be available in IntelliSense.
 
-## Автодополнение функций
+## Function completion
 
-Поддерживай математические функции, реально доступные в используемом движке выражений:
+Support mathematical functions that are actually available in the expression engine you are using:
 
 - `sqrt()`
 - `sin()`
@@ -557,73 +563,73 @@ IntelliSense должен понимать, в какой части выраж�
 - `min()`
 - `max()`
 
-Список и синтаксис функций должны соответствовать подтверждённой документации Fusion.
+The list and syntax of functions must conform to the supported Fusion documentation.
 
-При выборе функции:
+When selecting a function:
 
-1. Вставить имя.
-2. Добавить скобки.
-3. Установить курсор внутри скобок.
+1. Insert a name.
+2. Add parentheses.
+3. Place the cursor inside the brackets.
 
-Показывать описание функции и пример использования.
+Show a description of the function and an example of use.
 
-## Автодополнение единиц
+## Unit completion
 
-Поддерживать единицы длины, угла и другие единицы, применимые к выражению.
+Maintain units of length, angle, and other units applicable to the expression.
 
-Например:
+For example:
 
 `mm`, `cm`, `m`, `in`, `deg`, `rad`.
 
-Список должен формироваться с учётом поддерживаемых Fusion единиц и контекста выражения.
+The list must be formed taking into account the units supported by Fusion and the context of the expression.
 
-## Подсветка синтаксиса
+## Syntax highlighting
 
-Разные категории токенов должны иметь различимое оформление:
+Different categories of tokens should have a distinguishable design:
 
-- Существующие параметры.
-- Новые параметры.
-- Математические функции.
-- Числа.
-- Единицы.
-- Операторы.
-- Ошибки.
+- Existing parameters.
+- New parameters.
+- Mathematical functions.
+- Numbers.
+- Units.
+- Operators.
+- Errors.
 
-Неизвестные параметры должны выделяться.
+Unknown parameters should be highlighted.
 
-При наведении на распознанный параметр показывай tooltip с подробностями.
+When you hover over a recognized parameter, show a tooltip with details.
 
-## Клавиатурная навигация
+## Keyboard navigation
 
-- ArrowUp / ArrowDown — перемещение по подсказкам.
-- Tab — выбрать.
-- Enter — выбрать.
-- Esc — закрыть.
-- Ctrl+Space — открыть вручную.
+- ArrowUp / ArrowDown - move according to prompts.
+- Tab - select.
+- Enter - select.
+- Esc - close.
+- Ctrl+Space - open manually.
 
-Сохраняй позицию курсора при вставке.
+Maintain the cursor position when pasting.
 
-Поддерживай автодополнение в любой части строки.
+Support autocompletion in any part of the line.
 
-## Производительность
+## Performance
 
-Не обращайся к Fusion API при каждом нажатии клавиши.
+Don't call the Fusion API every time you press a key.
 
-Используй локальный кэш параметров и механизм синхронизации.
+Use a local parameter cache and synchronization mechanism.
 
-Предусмотри асинхронное обновление и защиту от устаревших результатов.
+Provide asynchronous updating and protection against outdated results.
 
-Popup подсказок должен корректно помещаться внутри небольшой Palette.
+Popup tooltips should fit correctly inside a small Palette.
 
 ---
 
 # 8. Quick Calculator
 
-## Назначение
+## Purpose
 
-Математический калькулятор, который понимает существующие параметры модели Fusion.
+A mathematical calculator that understands existing Fusion model parameters.
 
-Примеры:
+Examples:
 
 ```text
 sqrt(25)
@@ -633,121 +639,121 @@ h-w/2
 sqrt(w*w+h*h)
 ```
 
-## Поведение
+## Behavior
 
-- Вычислять результат по мере ввода.
-- Не требовать отдельной кнопки Calculate.
-- Распознавать существующие параметры.
-- Использовать их текущие значения.
-- Учитывать размерности.
-- Поддерживать математические функции.
-- Отображать ошибки непосредственно в интерфейсе.
-- Использовать общий IntelliSense.
-- Поддерживать синтаксическую подсветку.
+- Calculate the result as you type.
+- Don't require a separate Calculate button.
+- Recognize existing parameters.
+- Use their current values.
+- Take dimensions into account.
+- Support mathematical functions.
+- Display errors directly in the interface.
+- Use shared IntelliSense.
+- Support syntax highlighting.
 
-Обычные числовые литералы в калькуляторе безразмерны.
+Ordinary numeric literals in the calculator are dimensionless.
 
-Например:
+For example:
 
 `sqrt(25) = 5`
 
-А:
+Whereas:
 
 `h-w/2`
 
-Возвращает размерный результат, если `h` и `w` являются длинами.
+Returns a dimension result if `h` and `w` are lengths.
 
-## Вычислительный движок
+## Compute engine
 
-Не используй небезопасный `eval()`.
+Do not use unsafe `eval()`.
 
-Предпочитай собственный AST-парсер с валидацией и безопасным вычислением либо подтверждённый механизм Fusion API, подходящий для этих задач.
+Choose your own AST parser with validation and secure computation, or a validated Fusion API engine suitable for these tasks.
 
-Корректно учитывай внутренние единицы измерения Fusion.
+Correctly account for Fusion's internal units of measurement.
 
-Результат должен отображаться в понятных пользователю единицах.
+The result should be displayed in units understandable to the user.
 
-## Копирование
+## Copy
 
-Пользователь может скопировать:
+The user can copy:
 
-- Только число.
-- Значение вместе с единицей.
-- Исходное выражение.
+- Just a number.
+- The value along with the unit.
+- Original expression.
 
-Основное действие копирования должно выполняться одним кликом.
+The main copying action should be done with one click.
 
-При необходимости используй Python Bridge, если Clipboard API встроенного браузера ограничен.
+If necessary, use the Python Bridge if the Clipboard API of the built-in browser is limited.
 
-## Создание параметра из результата
+## Creating a parameter from the result
 
-Добавь действие:
+Add an action:
 
 `Save as Parameter`
 
-Оно позволяет указать имя и создать пользовательский параметр.
+It allows you to specify a name and create a custom parameter.
 
-По умолчанию сохраняй математическую формулу, а не только вычисленное значение, если выражение допустимо для параметров Fusion.
+By default, save the mathematical formula rather than just the calculated value if the expression is valid for Fusion parameters.
 
-## История
+## History
 
-Храни последние 20 вычислений.
+Keep the last 20 calculations.
 
-История открывается отдельным компактным элементом и не занимает основное пространство панели.
+The history opens as a separate compact element and does not occupy the main space of the panel.
 
 ---
 
 # 9. Parameter Cleanup
 
-Создай отдельную команду:
+Create a separate command:
 
 **Clean Unused Parameters**
 
-Она должна быть доступна через интерфейс Fusion.
+It should be accessible through the Fusion interface.
 
-Используй HTML-интерфейс в Command Dialog через подтверждённый API. Если BrowserCommandInput отсутствует или не подходит в целевой версии Fusion, выбери официально поддерживаемую альтернативу и зафиксируй принятое решение.
+Use the HTML interface in Command Dialog via a verified API. If BrowserCommandInput is missing or inappropriate in the target version of Fusion, select an officially supported alternative and record your decision.
 
-## Анализ зависимостей
+## Dependency analysis
 
-Исследуй:
+Explore:
 
 - `design.userParameters`
 - `design.allParameters`
 - `dependencyParameters`
 - `dependentParameters`
 - `isDeletable`
-- связи ModelParameters с операциями модели.
+- connections between ModelParameters and model operations.
 
-Не полагайся только на прямые зависимости.
+Don't rely only on direct dependencies.
 
-Построй граф использования параметров.
+Construct a graph for using parameters.
 
-### Пример
+### Example
 
 ```text
 tempWidth = 100 mm
 tempHalf = tempWidth/2
 ```
 
-Если эти параметры не используются геометрией и другими сохраняемыми параметрами, они могут быть кандидатами на удаление.
+If these parameters are not used by geometry and other persisted parameters, they may be candidates for deletion.
 
-Если же `tempHalf` используется другим параметром, который участвует в построении модели, вся цепочка должна сохраняться.
+If `tempHalf` is used by another parameter that is involved in building the model, the entire chain must be preserved.
 
-## Принципы безопасности
+## Safety principles
 
-- Анализировать транзитивные зависимости.
-- Защищать параметры, используемые моделью.
-- Не удалять параметры при неопределённом результате анализа.
-- Учитывать возможность внешних зависимостей, которые Fusion API не раскрывает.
-- Защищать Favorites по умолчанию.
-- Проверять `isDeletable`.
-- Выполнять повторную проверку перед удалением.
+- Analyze transitive dependencies.
+- Protect parameters used by the model.
+- Do not delete parameters if the analysis result is uncertain.
+- Consider the possibility of external dependencies that the Fusion API does not expose.
+- Protect Favorites by default.
+- Check `isDeletable`.
+- Recheck before deleting.
 
-## Интерфейс
+## Interface
 
-Показывай список кандидатов с чекбоксами.
+Show a list of candidates with checkboxes.
 
-Колонки:
+Columns:
 
 - Checkbox.
 - Parameter.
@@ -757,42 +763,42 @@ tempHalf = tempWidth/2
 - Favorite.
 - Reason.
 
-Добавь:
+Add:
 
-- Поиск.
+- Search.
 - Select All.
 - Deselect All.
-- Количество выбранных.
-- Защиту избранных параметров.
-- Подтверждение удаления.
+- Number of selected.
+- Protect favorite parameters.
+- Confirmation of deletion.
 
-По умолчанию безопасные кандидаты выбираются автоматически.
+By default, safe candidates are selected automatically.
 
-Пользователь может снять галочку с любого параметра.
+The user can uncheck any option.
 
-Если пользователь оставил параметр, все необходимые для него зависимости тоже должны сохраняться, даже если ранее были кандидатами на удаление.
+If the user left the parameter, all the dependencies required for it should also be preserved, even if they were previously candidates for removal.
 
-## Удаление
+## Delete
 
-Перед удалением:
+Before deleting:
 
-1. Получить актуальное состояние модели.
-2. Повторно построить зависимости.
-3. Проверить выбранный набор.
-4. Определить безопасный порядок удаления.
-5. Выполнить удаление.
-6. Обработать ошибки.
-7. Обеспечить Undo или задокументированную стратегию восстановления.
+1. Get the current state of the model.
+2. Rebuild dependencies.
+3. Check the selected set.
+4. Determine a safe removal procedure.
+5. Perform deletion.
+6. Handle errors.
+7. Provide an Undo or documented recovery strategy.
 
-Никакого автоматического удаления без подтверждения.
+No automatic deletion without confirmation.
 
 ---
 
 # 10. UI/UX Design System
 
-Paramood должен ощущаться частью Autodesk Fusion.
+Paramood should feel like it's part of Autodesk Fusion.
 
-## Принципы
+## Principles
 
 - Compact.
 - Keyboard-first.
@@ -802,24 +808,24 @@ Paramood должен ощущаться частью Autodesk Fusion.
 - Minimal visual noise.
 - Progressive disclosure.
 
-## Визуальный стиль
+## Visual style
 
-Используй:
+Use:
 
-- Нейтральные поверхности.
-- Компактные поля ввода.
-- Чёткую визуальную иерархию.
-- Умеренные радиусы скругления.
-- Минимум декоративных эффектов.
-- Аккуратные иконки.
-- Ненавязчивые статусы.
-- Хорошую читаемость.
+- Neutral surfaces.
+- Compact input fields.
+- Clear visual hierarchy.
+- Moderate rounding radii.
+- Minimum decorative effects.
+- Neat icons.
+- Unobtrusive statuses.
+- Good readability.
 
-Поддержи светлую и тёмную темы.
+Support light and dark themes.
 
-## Компоненты
+## Components
 
-Создай переиспользуемые:
+Create reusable ones:
 
 - Input.
 - ExpressionEditor.
@@ -835,11 +841,11 @@ Paramood должен ощущаться частью Autodesk Fusion.
 - ParameterTable.
 - ConfirmDialog.
 
-Не создавай отдельные дублирующиеся реализации компонентов для разных модулей.
+Don't create separate, duplicate component implementations for different modules.
 
-## UX-состояния
+## UX states
 
-Предусмотри:
+Consider:
 
 - Empty.
 - Loading.
@@ -850,38 +856,38 @@ Paramood должен ощущаться частью Autodesk Fusion.
 - Warning.
 - Disabled.
 
-Все ошибки пользовательского ввода должны быть понятными, конкретными и показываться рядом с проблемным выражением.
+All user input errors should be clear, specific, and shown next to the problematic expression.
 
 ---
 
 # 11. Fusion Integration
 
-Аддон должен:
+The addon should:
 
-- Запускаться через Scripts and Add-Ins.
-- Правильно регистрировать свои команды.
-- Создавать Palette.
-- Корректно останавливаться.
-- Удалять созданные UI-элементы при необходимости.
-- Освобождать обработчики событий.
-- Не создавать дубликаты после повторного запуска.
-- Работать с активным документом.
-- Реагировать на переключение документов.
-- Обрабатывать закрытие документа.
-- Не использовать данные предыдущей модели.
-- Корректно работать без открытого Design.
+- Launch via Scripts and Add-Ins.
+- Register its commands correctly.
+- Create a Palette.
+- Stop correctly.
+- Delete created UI elements if necessary.
+- Release event handlers.
+- Do not create duplicates after restart.
+- Work with the active document.
+- React to document switching.
+- Process document closure.
+- Do not use data from the previous model.
+- Work correctly without open Design.
 
-Изучи событийную модель Fusion.
+Learn Fusion's event model.
 
-Используй поддерживаемые механизмы обращения к Fusion API из обработчиков сообщений HTML-интерфейса.
+Use supported mechanisms for accessing the Fusion API from HTML interface message handlers.
 
-Если обработка операции должна быть перенесена в специальный контекст команды или события — реализуй это корректно.
+If the processing of an operation must be transferred to a special command or event context, implement this correctly.
 
 ---
 
-# 12. Структура проекта
+# 12. Project structure
 
-Ориентировочная структура:
+Approximate structure:
 
 ```text
 Paramood/
@@ -936,173 +942,173 @@ Paramood/
 └── .gitignore
 ```
 
-Можешь улучшить структуру, если это обоснованно.
+You can improve the structure if it is justified.
 
-Не усложняй её без необходимости.
+Don't complicate it unnecessarily.
 
 ---
 
-# 13. Тестирование
+# 13. Testing
 
-Разработай автоматические тесты для предметной логики.
+Develop automated tests for domain logic.
 
 ## Expression Engine
 
-Проверь:
+Check:
 
-- Простые значения.
-- Формулы.
-- Явные единицы.
-- Единицы проекта по умолчанию.
-- Суффикс `n`.
-- Ссылки на существующие параметры.
-- Ссылки на параметры текущего пакета.
-- Циклические зависимости.
-- Математические функции.
-- Несовместимые размерности.
-- Неизвестные параметры.
-- Некорректный синтаксис.
+- Simple values.
+- Formulas.
+- Explicit units.
+- Default project units.
+- Suffix `n`.
+- Links to existing parameters.
+- Links to the parameters of the current batch.
+- Cyclic dependencies.
+- Mathematical functions.
+- Incompatible dimensions.
+- Unknown parameters.
+- Incorrect syntax.
 
 ## Parameter Service
 
-Проверь:
+Check:
 
-- Создание.
-- Изменение.
-- Конфликты имён.
-- Порядок создания.
-- Обработку ошибок.
-- Пакетные операции.
-- Стратегию восстановления.
+- Creation.
+- Change.
+- Name conflicts.
+- Creation order.
+- Error handling.
+- Batch operations.
+- Recovery strategy.
 
 ## Dependency Analyzer
 
-Проверь:
+Check:
 
-- Независимые параметры.
-- Прямые зависимости.
-- Транзитивные зависимости.
-- Неиспользуемые цепочки.
-- Используемые цепочки.
-- Защиту Favorites.
-- Снятие галочек пользователем.
-- Повторную проверку перед удалением.
-- Безопасный порядок удаления.
+- Independent parameters.
+- Direct dependencies.
+- Transitive dependencies.
+- Unused chains.
+- Chains used.
+- Protection of Favorites.
+- Unchecking by the user.
+- Re-check before deleting.
+- Safe removal procedure.
 
 ## Frontend
 
-Проверь:
+Check:
 
 - Preview.
 - IntelliSense.
-- Клавиатурную навигацию.
-- Подстановку параметров.
-- Подсветку синтаксиса.
-- Обработку ошибок.
-- Копирование.
-- Переключение документов.
+- Keyboard navigation.
+- Substitution of parameters.
+- Syntax highlighting.
+- Error handling.
+- Copying.
+- Switching documents.
 
-Для Fusion-зависимых операций подготовь отдельные интеграционные тесты и сценарии ручной проверки.
+For Fusion-dependent operations, prepare separate integration tests and manual verification scripts.
 
-Не заявляй об успешном прохождении проверок внутри Fusion, если они фактически не выполнялись в запущенном приложении.
+Don't claim to have passed checks inside Fusion if they weren't actually run in the running application.
 
 ---
 
-# 14. Документация
+# 14. Documentation
 
-Создай:
+Create:
 
 ### README.md
 
-- Назначение.
-- Возможности.
-- Системные требования.
-- Установка.
-- Сборка.
-- Запуск.
-- Примеры.
-- Известные ограничения.
+- Purpose.
+- Features.
+- System requirements.
+- Installation.
+- Build.
+- Launch.
+- Examples.
+- Known limitations.
 
 ### ARCHITECTURE.md
 
-- Общая архитектура.
-- Компоненты.
-- Контракты.
+- General architecture.
+- Components.
+- Contracts.
 - Bridge.
-- Обработка ошибок.
-- Работа с параметрами.
-- События Fusion.
+- Error handling.
+- Working with parameters.
+- Fusion Events.
 
 ### AGENTS.md
 
-- Правила разработки.
-- Разделение ответственности.
-- Стиль кода.
-- Требования к тестированию.
-- Правила работы с API.
-- Процедура интеграции.
-- Запрет на выдуманные API.
-- Требования к ревью.
+- Development rules.
+- Sharing of responsibilities.
+- Code style.
+- Testing requirements.
+- Rules for working with the API.
+- Integration procedure.
+- Ban on fictitious APIs.
+- Requirements for review.
 
 ### PROJECT_STATUS.md
 
-- Статус реализации.
-- Текущие задачи.
-- Ответственные агенты.
-- Завершённые работы.
-- Проблемы.
-- Следующие шаги.
+- Implementation status.
+- Current tasks.
+- Responsible agents.
+- Completed work.
+- Problems.
+- Next steps.
 
 ---
 
-# 15. Порядок реализации
+# 15. Implementation order
 
 ## Phase 1 — Discovery & Architecture
 
-Оркестратор:
+Orchestrator:
 
-1. Создаёт или запускает доступных дочерних агентов.
-2. Делегирует исследование Fusion API.
-3. Параллельно определяет архитектуру и контракты.
-4. Формирует общий backlog.
-5. Определяет ограничения.
-6. Фиксирует решения в документации.
+1. Creates or launches available child agents.
+2. Delegates research to Fusion API.
+3. At the same time, defines the architecture and contracts.
+4. Forms a general backlog.
+5. Defines limitations.
+6. Fixes decisions in documentation.
 
-Не блокируй всю независимую работу на время исследования API. Но не реализуй неподтверждённые API-вызовы, пока исследователь не проверит их.
+Don't block all independent work while exploring the API. But don't implement unverified API calls until a researcher has verified them.
 
 ## Phase 2 — Project Bootstrap
 
-Параллельно выполняются:
+The following are executed in parallel:
 
-- Создание Fusion Add-In.
-- Инициализация Python.
-- Инициализация Preact / TypeScript / Vite.
-- Настройка линтеров.
-- Настройка тестирования.
-- Создание JSON Bridge.
-- Настройка сборки.
+- Creation of Fusion Add-In.
+- Python initialization.
+- Preact/TypeScript/Vite initialization.
+- Setting up linters.
+- Setting up testing.
+- Creation of JSON Bridge.
+- Build setup.
 
-Оркестратор интегрирует результат.
+The orchestrator integrates the result.
 
 ## Phase 3 — Working Vertical Slice
 
-Реализуй минимальный полноценный сценарий:
+Implement a minimal full-fledged scenario:
 
-1. Fusion запускает Paramood.
-2. Появляется Palette.
-3. Определяется активная модель.
-4. Загружаются существующие параметры.
-5. Отображаются единицы модели.
-6. Пользователь создаёт один параметр.
-7. Пользователь выполняет вычисление.
-8. UI получает реальный ответ Fusion.
-9. При переключении документа состояние обновляется.
+1. Fusion launches Paramood.
+2. Palette appears.
+3. The active model is determined.
+4. Existing parameters are loaded.
+5. Model units are displayed.
+6. The user creates one parameter.
+7. The user performs the calculation.
+8. UI receives real Fusion response.
+9. When you switch the document, the status is updated.
 
-Должна использоваться настоящая интеграция, а не mock-данные.
+The real integration must be used, not mock data.
 
 ## Phase 4 — Core Functionality
 
-Параллельная реализация:
+Parallel implementation:
 
 - Quick Parameters.
 - Expression Engine.
@@ -1111,139 +1117,119 @@ Paramood/
 - Quick Calculator.
 - Parameter Cleanup.
 
-Перед параллельной работой согласуй интерфейсы модулей.
+Before parallel work, agree on the interfaces of the modules.
 
 ## Phase 5 — Integration & Hardening
 
-Оркестратор:
+Orchestrator:
 
-1. Интегрирует результаты.
-2. Проверяет совместимость.
-3. Запускает тесты.
-4. Передаёт код QA-агенту.
-5. Исправляет обнаруженные проблемы.
-6. Проверяет сборку.
-7. Подготавливает инструкции установки.
-8. Сверяет результат с критериями приёмки.
+1. Integrates results.
+2. Checks compatibility.
+3. Runs tests.
+4. Transfers the code to the QA agent.
+5. Corrects detected problems.
+6. Checks the build.
+7. Prepares installation instructions.
+8. Checks the result against the acceptance criteria.
 
 ---
 
 # 16. Definition of Done
 
-Paramood считается готовым к первой полноценной версии, когда:
+Paramood is considered ready for the first full version when:
 
-- Аддон устанавливается и запускается в Fusion.
-- Постоянная Palette работает.
-- Можно ввести `w=15;h=10;l=h/2`.
-- Параметры создаются с корректными единицами.
-- Формулы сохраняют зависимости.
-- `count=5n` создаёт безразмерное значение.
-- Существующие параметры можно обновить.
-- Preview показывает результат до сохранения.
-- IntelliSense предлагает существующие параметры.
-- IntelliSense предлагает параметры текущего пакета.
-- IntelliSense предлагает математические функции.
-- Работает навигация с клавиатуры.
-- Калькулятор понимает параметры Fusion.
-- Результаты калькулятора можно копировать.
-- Работает безопасная очистка неиспользуемых параметров.
-- Пользователь выбирает параметры для удаления через чекбоксы.
-- Используемые параметры защищены.
-- Интерфейс корректно работает при переключении документов.
-- Светлая и тёмная темы поддерживаются.
-- Автоматические тесты проходят.
-- Документация актуальна.
-- Известные ограничения явно указаны.
+- The addon is installed and launched in Fusion.
+- Permanent Palette works.
+- You can enter `w=15;h=10;l=h/2`.
+- Parameters are created with the correct units.
+- Formulas preserve dependencies.
+- `count=5n` creates a dimensionless value.
+- Existing settings can be updated.
+- Preview shows the result before saving.
+- IntelliSense suggests existing parameters.
+- IntelliSense suggests parameters for the current batch.
+- IntelliSense offers math functions.
+- Keyboard navigation works.
+- The calculator understands Fusion parameters.
+- Calculator results can be copied.
+- Safe clearing of unused parameters works.
+- The user selects parameters to delete through checkboxes.
+- Used parameters are protected.
+- The interface works correctly when switching documents.
+- Light and dark themes are supported.
+- Automated tests pass.
+- The documentation is up to date.
+- Known limitations are clearly stated.
 
-Не объявляй проект готовым только потому, что его файлы созданы.
-
----
-
-# 17. Приоритеты
-
-При конфликте требований используй следующий порядок:
-
-1. Целостность и безопасность модели Fusion.
-2. Корректность вычислений и размерностей.
-3. Соответствие официальному Autodesk API.
-4. Работоспособность основных сценариев.
-5. Качество UX.
-6. Производительность.
-7. Архитектурная расширяемость.
-8. Визуальная полировка.
-
-Не жертвуй корректностью ради быстрого завершения.
+Don't declare a project ready just because its files are created.
 
 ---
 
-# 18. Инструкция на старт
+# 17. Priorities
 
-**Начинай выполнение прямо сейчас.**
+If there are conflicting requirements, use the following order:
 
-Твой первый цикл работы:
+1. Integrity and safety of the Fusion model.
+2. Correctness of calculations and dimensions.
+3. Compliance with the official Autodesk API.
+4. Performance of the main scenarios.
+5. UX quality.
+6. Productivity.
+7. Architectural extensibility.
+8. Visual polishing.
 
-1. Изучи текущую директорию проекта и доступные инструменты.
-2. Проверь возможности создания дочерних агентов.
-3. Сформируй состав команды и раздели ответственность.
-4. Создай дочерние задачи или сессии, если среда это поддерживает.
-5. Делегируй исследование Autodesk Fusion API.
-6. Делегируй архитектуру frontend и backend.
-7. Определи единые контракты взаимодействия.
-8. Инициализируй репозиторий Paramood.
-9. Настрой сборку и тестирование.
-10. Начни реализацию рабочего вертикального среза.
+Don't sacrifice correctness for quick completion.
 
-**Не останавливайся после исследования или планирования.**
+---
 
-Самостоятельно принимай стандартные технические решения, если они не противоречат ТЗ.
+# 18. Instructions for starting
 
-Если возникло ограничение API, найди корректную альтернативу, задокументируй решение и продолжай работу.
+**Start execution right now.**
 
-Постоянно контролируй общий результат, интегрируй изменения и проверяй качество.
+Your first work cycle:
 
-Не используй фиктивные результаты тестов, вымышленные дочерние агенты или неподтверждённые методы Fusion API.
+1. Explore the current project directory and available tools.
+2. Check the possibilities of creating child agents.
+3. Form a team and share responsibility.
+4. Create child tasks or sessions if the environment supports it.
+5. Delegate research to Autodesk Fusion API.
+6. Delegate frontend and backend architecture.
+7. Define uniform interaction contracts.
+8. Initialize the Paramood repository.
+9. Set up the build and testing.
+10. Start implementing a working vertical slice.
 
-Главный чат должен оставаться оркестратором на протяжении всего проекта.
+**Don't stop after researching or planning.**
 
-**Цель: получить реальный, качественно реализованный и расширяемый Autodesk Fusion Add-In Paramood, а не набор разрозненных файлов.**
+Make standard technical decisions yourself if they do not contradict the technical specifications.
 
-## Варианты — уточнение от 7 ноября 2026
+If there is an API limitation, find a valid alternative, document the solution, and move on.
 
-- В шапке модели расположен переключатель `Free` / сохранённые варианты. Число вариантов не
-  ограничивается интерфейсом. При отсутствии вариантов меню предлагает `Create variant`.
-- Вариант содержит выбранные существующие параметры и их выражения. Выбор использует ту же
-  иерархию имён и раздел модельных параметров, что и основной список; доступны поиск и раскрытие групп.
-- Поле поиска параметров поддерживает IntelliSense. Ввод `box.width=30` сразу добавляет `box_width`
-  в черновик варианта и задаёт ему 30 в единицах этого параметра. Выражения с dotted-ссылками
-  преобразуются в имена Fusion. Запись в модель происходит по `Save & apply`.
-- Поиск по именам самих вариантов появляется только при количестве вариантов больше пяти.
-- Меню привязано к переключателю, включая двухколоночную компоновку, и не создаёт прокрутку
-  страницы. При большом количестве элементов прокручивается только список внутри меню.
-- Общая кнопка Refresh из палитры удалена; синхронизация выполняется автоматически.
-- Изменения параметров через Paramood в активном варианте сохраняются в нём; изменённые параметры,
-  ещё не входящие в вариант, добавляются. Настройки позволяют добавлять и удалять участников
-  варианта, не удаляя параметры самой модели.
-- Варианты сохраняются в атрибутах файла Design и читаются при повторном открытии. При открытии
-  выбирается вариант с полным совпадением числовых значений; иначе `Free`. При нескольких совпадениях
-  используется первый вариант в порядке создания. Явный выбор `Free` не сбрасывает значения.
-- Предупреждения и ошибки операций в timeline не блокируют применение варианта и не вызывают
-  откат. Ошибки выражений, записи и устаревшие запросы обрабатываются отдельно.
+Constantly monitor the overall result, integrate changes and check quality.
 
-## Единицы модели и гибридный вид — 7 ноября 2026
+Do not use fictitious test results, fictitious child agents, or unverified Fusion API methods.
 
-- Единицы длины отображаются рядом с названием модели и меняются выпадающим списком
-  (`mm`, `cm`, `m`, `in`, `ft`) через FusionUnitsManager.distanceDisplayUnits. Изменяется настройка
-  текущего Design, физические значения параметров сохраняются. Устаревший снимок отклоняется.
-- Добавлен третий, гибридный вид, выбранный по умолчанию. Основа — список параметров; универсальное
-  поле вычислений и создания параметров закреплено снизу. Результаты вычисления, история и
-  предпросмотр присваивания показываются в закрываемой панели над полем и поверх списка.
-- Калькулятор и список доступны отдельными переключателями. Переключение не теряет общий ввод.
+The main chat should remain the orchestrator throughout the project.
 
-## Строковые параметры — 7 ноября 2026
+**Goal: to get a real, high-quality implemented and expandable Autodesk Fusion Add-In Paramood, and not a set of disparate files.**
 
-Литералы в одинарных и двойных кавычках автоматически создают текстовые параметры; отдельный
-селектор типа не используется. Для отображения используется textValue, при редактировании и записи —
-исходное expression, включая ссылки и формулы. Содержимое кавычек и экранирование сохраняются точно;
-несовместимый тип существующего параметра отклоняется до записи. Строки сами по себе не блокируют
-числовые изменения в смешанной модели, но полнота и согласованность графа по-прежнему проверяются.
-Строки участвуют в сохранённых вариантах и передаются вместе с F3D. Детали: `TEXT_PARAMETERS.md`.
+## Variants — clarification of 7 November 2026
+
+- The model header switches between `Free` and saved variants. The interface imposes no limit on the number of variants. If none exist, the menu offers `Create variant`.
+- A variant contains selected existing parameters and their expressions. Selection uses the same name hierarchy and model-parameter section as the main list; search and group expansion are available.
+- The variant search field supports IntelliSense. Entering `box.width=30` immediately adds `box_width` to the variant draft and sets it to 30 in that parameter's unit. Expressions with dotted references are converted to Fusion names. **Save & apply** writes to the model.
+- Search by variant name appears only when there are more than five variants.
+- The menu is anchored to the selector, including in a two-column layout, and does not cause page scrolling. With many entries, only the list inside the menu scrolls.
+- Parameter changes made through Paramood while a variant is active are saved to it; changed parameters not yet included are added. The settings allow adding or removing variant members without deleting the model parameters themselves.
+- Variants are stored in the Design file attributes and read on reopening. A variant is selected when its numeric values fully match; otherwise `Free` is selected. If several match, the first created is used. Explicitly choosing `Free` does not reset values.
+- Timeline operation warnings and errors do not prevent a variant from being applied and do not cause rollback. Expression errors, write errors and stale requests are handled separately.
+
+## Model units and Hybrid view — 7 November 2026
+
+- Length units appear next to the model name and can be changed with a dropdown (`mm`, `cm`, `m`, `in`, `ft`) through `FusionUnitsManager.distanceDisplayUnits`. The setting changes the current Design while preserving physical parameter values. A stale snapshot is rejected.
+- A third, Hybrid view is added and selected by default. Its base is the parameter list; the shared calculation and parameter-creation field is fixed at the bottom. Calculation results, history and assignment previews appear in a closable panel above the field and list.
+- Calculator and the list are available through separate controls. Switching does not lose the shared input.
+
+## Text parameters — 7 November 2026
+
+Single- and double-quoted literals automatically create text parameters without a separate type selector. TextValue is used for display; editing and writing use the original expression, including references and formulas. Quoted contents and escaping are preserved exactly; incompatible changes to an existing parameter's type are rejected before writing. Text parameters do not by themselves block numeric changes in a mixed model, but graph completeness and consistency are still checked. Text parameters are included in saved variants and travel with F3D. See [Text parameters](TEXT_PARAMETERS.md).
