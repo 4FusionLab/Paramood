@@ -24,8 +24,18 @@ import {
 import type { Parameter } from './bridge';
 import { inString } from './expression-syntax';
 
-const functions = ['sqrt', 'sin', 'cos', 'tan', 'abs', 'floor', 'ceil', 'round', 'min', 'max'];
-const units = ['mm', 'cm', 'm', 'in', 'ft', 'deg', 'rad', 'n'];
+import {
+  functionByName,
+  constantByName,
+  fusionUnits,
+  fusionOperators,
+} from '../../src/expression-catalog';
+import { builtinCompletions, expressionSignatureHelp } from './expression-codemirror';
+import {
+  expressionTokens,
+  expressionDiagnostics,
+  statementStart,
+} from '../../src/expression-language';
 function declaredNames(text: string): string[] {
   return Array.from(
     text.matchAll(
@@ -57,7 +67,7 @@ export function completions(
   if (word.from === word.to && !context.explicit && !path) return null;
   if (!path && /^\d/.test(word.text)) return null;
   const showModelDimensions = !path && /^d$/i.test(word.text);
-  const left = text.slice(0, context.pos).split(/[;\n]/).pop() ?? '';
+  const left = text.slice(statementStart(text, context.pos), context.pos);
   const nameContext = batch && !left.includes('=');
   const target =
     batch && !nameContext ? assignmentTarget(left) : !batch ? currentTarget : undefined;
@@ -139,19 +149,9 @@ export function completions(
       options.push({ label: name, type: 'variable', detail: 'In this batch' });
   if (nameContext) return { from: word.from, options: [...objectOptions, ...options] };
   if (targetExists) options.push({ label: 'this', type: 'variable', detail: 'Current value' });
-  for (const name of functions)
-    options.push({
-      label: name,
-      type: 'function',
-      detail: 'Function',
-      apply(view, _completion, from, to) {
-        view.dispatch({
-          changes: { from, to, insert: `${name}()` },
-          selection: { anchor: from + name.length + 1 },
-        });
-      },
-    });
-  for (const unit of units) options.push({ label: unit, type: 'keyword', detail: 'Unit' });
+  options.push(
+    ...builtinCompletions().filter((item) => !parameters.some((p) => p.name === item.label)),
+  );
   return { from: word.from, options: [...objectOptions, ...options] };
 }
 interface Props {
@@ -180,32 +180,45 @@ function highlighting(
     const text = view.state.doc.toString();
     const declared = new Set(declaredNames(text));
     const known = new Set(parameters().map((p) => p.name));
-    const token =
-      /'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*(?:\.[A-Za-zА-Яа-яЁё0-9]+)*|(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?|[+*/^=;()-]/g;
-    for (const match of text.matchAll(token)) {
-      const value = match[0],
-        from = match.index!,
-        rest = text.slice(from + value.length);
+    const diagnostics = expressionDiagnostics(
+      text,
+      new Map(parameters().map((p) => [p.name, p.unit])),
+      batch(),
+    );
+    for (const token of expressionTokens(text)) {
+      const value = token.value,
+        from = token.from,
+        rest = text.slice(token.to);
       let kind = 'operator';
       if (value.startsWith("'") || value.startsWith('"')) kind = 'string';
       else if (/^\d|^\./.test(value)) kind = 'number';
       else if (/^[A-Za-zА-Яа-яЁё_]/.test(value)) {
-        const left = text.slice(0, from).split(/[;\n]/).pop() ?? '';
+        const left = text.slice(statementStart(text, from), from);
         const current = batch() ? assignmentTarget(left) : currentTarget();
-        if (functions.includes(value) && /^\s*\(/.test(rest)) kind = 'function';
-        else if (units.includes(value)) kind = 'unit';
+        if (known.has(value.replace(/\./g, '_'))) kind = 'parameter';
+        else if (functionByName.has(value) && /^\s*\(/.test(rest)) kind = 'function';
+        else if (constantByName.has(value)) kind = 'constant';
+        else if (fusionOperators.includes(value)) kind = 'operator';
+        else if (fusionUnits.includes(value)) kind = 'unit';
         else if (
           value === 'this' &&
           current &&
           (known.has(current) || declaredNames(text.slice(0, from - left.length)).includes(current))
         )
           kind = 'parameter';
-        else if (known.has(value.replace(/\./g, '_'))) kind = 'parameter';
         else if (declared.has(value.replace(/\./g, '_')) || (batch() && /^\s*=/.test(rest)))
           kind = 'new';
         else kind = 'unknown';
       }
-      ranges.push(Decoration.mark({ class: `token-${kind}` }).range(from, from + value.length));
+      const diagnostic = diagnostics.find((d) => d.from === from);
+      ranges.push(
+        Decoration.mark({
+          class: `token-${kind}${diagnostic ? ' token-error' : ''}`,
+          attributes: diagnostic
+            ? { title: diagnostic.message, 'aria-label': diagnostic.message }
+            : {},
+        }).range(from, from + value.length),
+      );
     }
     return Decoration.set(ranges);
   }
@@ -244,6 +257,7 @@ export function ExpressionEditor(props: Props) {
               ]
             : []),
           history(),
+          expressionSignatureHelp,
           highlighting(
             () => latest.current.parameters,
             () => !!latest.current.batch,

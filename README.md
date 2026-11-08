@@ -50,7 +50,7 @@ This overview describes the v1.5.0 source. The [Releases page](https://github.co
 | --- | --- |
 | **Quick input** | One field for calculations and parameter assignments. Expressions without `=` are evaluated; assignments open a preview and require an explicit **Apply parameters** action. |
 | **Batch parameters** | Create and update parameters from semicolon-separated definitions, preserving formula references. |
-| **IntelliSense** | CodeMirror completion for parameter names, nested virtual paths, and keyboard navigation. |
+| **IntelliSense** | CodeMirror completion for parameters, virtual paths, all 26 Fusion functions and four constants; nested Signature Help, active arguments, and conservative diagnostics. [Expression reference](docs/EXPRESSION_REFERENCE.md). |
 | **Parameter browser** | A collapsible, hierarchical list of named parameters and Fusion-generated model parameters, with displayed values and units. |
 | **Inline editing** | Click a value to edit with IntelliSense. Press **Enter** to validate and apply or **Escape** to cancel. |
 | **Naming and dependencies** | Click an editable parameter name to rename it. A model value such as `20 (d_min)` shows its expression; driven sketch dimensions are displayed in parentheses and are read-only. |

@@ -379,7 +379,7 @@ kbd {
   color: var(--muted);
 }
 .token-unknown {
-  text-decoration: underline wavy var(--error);
+  text-decoration: underline dotted var(--muted);
   text-underline-offset: 2px;
 }
 @media (prefers-color-scheme: dark) {
@@ -1168,4 +1168,37 @@ kbd {
 }
 .token-string {
   color: #b07828;
+}
+
+.token-constant {
+  color: #8b5ac7;
+  font-weight: 600;
+}
+.token-error {
+  text-decoration: underline wavy #d54b4b;
+  text-underline-offset: 3px;
+}
+.cm-tooltip.expression-signature {
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  max-width: min(340px, calc(100vw - 24px));
+  max-height: 230px;
+  overflow: auto;
+  padding: 7px 9px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.expression-signature-label {
+  font-family: monospace;
+  margin-bottom: 4px;
+}
+.expression-active-argument {
+  font-weight: 700;
+  color: #2d83c4;
+}
+.expression-signature > div + div {
+  margin-top: 4px;
 }

@@ -51,7 +51,7 @@ class Units:
 
     def isValidExpression(self, expression, unit):
         self.params.log.append(('validate', expression, unit))
-        return expression != 'min(1,2)'
+        return expression != 'min(1;2)'
 
     def formatUnits(self, unit):
         raise RuntimeError('not a unit')
@@ -96,7 +96,7 @@ def test_batch_created_in_dependency_order_and_validated_immediately(adapter_mod
 
 def test_later_fusion_rejection_propagates_as_error_for_command_abort(adapter_module):
     adapter, params = make_adapter(adapter_module)
-    text = 'a=15;b=min(1,2)'
+    text = 'a=15;b=min(1;2)'
     design = adapter._design()
     ops = adapter_module.plan_batch(text, {}, 'mm')
     with pytest.raises(adapter_module.BridgeError) as error:
@@ -187,7 +187,7 @@ def test_direct_batch_reports_confirmed_changes_after_later_failure(adapter_modu
     adapter, params = make_adapter(adapter_module)
     adapter.in_command = False
     adapter.in_direct_apply = True
-    text = 'width=15;height=min(1,2)'
+    text = 'width=15;height=min(1;2)'
     preview = adapter.request('parameters.preview', {'text': text})
     with pytest.raises(adapter_module.BridgeError) as error:
         adapter.request(

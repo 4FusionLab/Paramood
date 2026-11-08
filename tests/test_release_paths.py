@@ -32,6 +32,9 @@ class ReleasePathsTests(unittest.TestCase):
             'frontend/package-lock.json',
             'frontend/vite.config.ts',
             'src/intellisense.ts',
+            'src/expression-catalog.ts',
+            'src/expression-language.ts',
+            'Paramood/core/expression_catalog.json',
             'scripts/build_release.py',
         ):
             with self.subTest(path=path):

@@ -846,3 +846,26 @@ it('automatically dismisses a success toast after 3.5 seconds', async () => {
     else Reflect.deleteProperty(navigator, 'clipboard');
   }
 });
+
+it('waits for complete function calls before native Preview or Calculate requests', async () => {
+  const calls = mount('#parameters');
+  await vi.waitFor(() => expect(host.textContent).toContain('Design'));
+  const editor = EditorView.findFromDOM(host.querySelector<HTMLElement>('.cm-content')!)!;
+  for (const text of ['probe=po', 'probe=pow()', 'pow(2;']) {
+    act(() => editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: text } }));
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    expect(
+      calls.some(
+        (call) => call.action === 'parameters.preview' || call.action === 'calculator.evaluate',
+      ),
+    ).toBe(false);
+  }
+  act(() =>
+    editor.dispatch({
+      changes: { from: 0, to: editor.state.doc.length, insert: 'probe=pow(2;3)' },
+    }),
+  );
+  await vi.waitFor(() =>
+    expect(calls.some((call) => call.action === 'parameters.preview')).toBe(true),
+  );
+});

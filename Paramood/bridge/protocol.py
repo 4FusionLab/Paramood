@@ -1,5 +1,11 @@
 """Small transport-independent request validation layer."""
 
+from ..core.expressions import (
+    ExpressionError,
+    LocalEvaluationUnsupported,
+    NondeterministicExpression,
+)
+
 
 class BridgeError(Exception):
     def __init__(self, code, message):
@@ -56,6 +62,20 @@ def dispatch(adapter, message):
             'requestId': request_id,
             'ok': False,
             'error': {'code': exc.code, 'message': str(exc)},
+            'documentId': adapter.document_id,
+        }
+    except ExpressionError as exc:
+        code = (
+            'NONDETERMINISTIC_EXPRESSION'
+            if isinstance(exc, NondeterministicExpression)
+            else 'LOCAL_EVALUATION_UNSUPPORTED'
+            if isinstance(exc, LocalEvaluationUnsupported)
+            else 'INVALID_EXPRESSION'
+        )
+        return {
+            'requestId': request_id,
+            'ok': False,
+            'error': {'code': code, 'message': str(exc)},
             'documentId': adapter.document_id,
         }
     except Exception as exc:

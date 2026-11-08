@@ -1,28 +1,16 @@
+import { fusionFunctions, fusionConstants, fusionUnits } from '../../src/expression-catalog';
 import type { Parameter } from './bridge';
 import { hasAssignment, hasDefinitionSeparator } from './expression-syntax';
 
 const numeric = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
-const reserved = new Set([
-  'this',
-  'mm',
-  'cm',
-  'm',
-  'in',
-  'ft',
-  'deg',
-  'rad',
-  'n',
-  'sqrt',
-  'sin',
-  'cos',
-  'tan',
-  'abs',
-  'floor',
-  'ceil',
-  'round',
-  'min',
-  'max',
-]);
+const reserved = new Set(
+  [
+    'this',
+    ...fusionFunctions.map((f) => f.name),
+    ...fusionConstants.map((c) => c.name),
+    ...fusionUnits,
+  ].map((name) => name.toLowerCase()),
+);
 
 export function prepareInlineEdit(parameter: Parameter, input: string, parameters: Parameter[]) {
   const expression = input.trim();

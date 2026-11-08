@@ -33,3 +33,7 @@ The variant search accepts one existing-parameter assignment such as `box.width=
 Run root `npm test` for the standalone index and `npm test --prefix frontend` for palette integration tests. These automated checks do not establish native Fusion or Windows behavior.
 
 [Russian details](INTELLISENSE.ru.md)
+
+## Fusion builtins and Signature Help
+
+All 26 documented Fusion functions and four mathematical/physical constants have shared metadata, descriptions, examples, argument signatures, completion, and dedicated highlighting. Signature Help tracks nested calls and the active argument without querying Fusion while typing. Confirmed syntax and simple dimension errors are underlined; unfinished input stays editable. See the [full expression reference](EXPRESSION_REFERENCE.md) for functions, constants, units, shortcuts, and planner restrictions.

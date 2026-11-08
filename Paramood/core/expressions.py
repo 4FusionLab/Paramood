@@ -11,10 +11,13 @@ import math
 import re
 from dataclasses import dataclass
 from typing import ClassVar, Mapping, Tuple
+from itertools import zip_longest
+
+from .builtins import FUNCTIONS, CONSTANT_NAMES, UNIT_NAMES
 
 from .text import decode_literal, map_code, normalize_literals, segments, split_definitions
 
-Dimension = Tuple[int, int]  # powers of length and angle
+Dimension = Tuple[int, ...]  # powers of length, angle, and optional time
 SCALAR = (0, 0)
 LENGTH = (1, 0)
 ANGLE = (0, 1)
@@ -30,14 +33,25 @@ UNITS = {
     'deg': (math.pi / 180, ANGLE),
     'rad': (1.0, ANGLE),
     'n': (1.0, SCALAR),
+    'hm': (100000.0, LENGTH),
+    'micron': (0.001, LENGTH),
+    'yd': (914.4, LENGTH),
+    'mi': (1609344.0, LENGTH),
+    'nauticalMile': (1852000.0, LENGTH),
+    'mil': (0.0254, LENGTH),
+    'grad': (math.pi / 200, ANGLE),
+    's': (1.0, (0, 0, 1)),
+    'min': (60.0, (0, 0, 1)),
+    'hr': (3600.0, (0, 0, 1)),
 }
+_UNIT_PATTERN = '|'.join(re.escape(u) for u in sorted(UNIT_NAMES | {'n'}, key=len, reverse=True))
 _LITERAL = re.compile(
-    r'(?<![\w.])((?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*(mm|cm|deg|rad|in|ft|m|n)\b'
+    r'(?<![\w.])((?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*(' + _UNIT_PATTERN + r')\b(?!\s*\()'
 )
 _NAME = re.compile(r'^[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*$')
 _NUMERIC = re.compile(r'^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$')
 _NUMERIC_WITH_UNIT = re.compile(
-    r'^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?\s*(mm|cm|deg|rad|in|ft|m|n)$'
+    r'^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?\s*(' + '|'.join(UNITS) + r')$'
 )
 
 
@@ -48,7 +62,7 @@ def _literal_unit(expression, dimension, fallback):
     return fallback
 
 
-_FUNCTIONS = {'sqrt', 'sin', 'cos', 'tan', 'abs', 'floor', 'ceil', 'round', 'min', 'max', '__if__'}
+_FUNCTIONS = set(FUNCTIONS) | {'__if__'}
 _DOTTED = re.compile(
     r'(?<![\w.])[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9]*(?:\.[A-Za-zА-Яа-яЁё0-9]+)+(?![\w.])'
 )
@@ -56,6 +70,35 @@ _DOTTED = re.compile(
 
 class ExpressionError(ValueError):
     """An expression cannot be evaluated safely."""
+
+
+class LocalEvaluationUnsupported(ExpressionError):
+    """Valid Fusion syntax whose result cannot be established by the local evaluator."""
+
+
+class NondeterministicExpression(LocalEvaluationUnsupported):
+    """A stable preview cannot be promised for an expression containing random()."""
+
+
+def _dimension(values):
+    result = list(values)
+    while len(result) > 2 and result[-1] == 0:
+        result.pop()
+    return tuple(result)
+
+
+def dimension_unit(dimension, length_unit='mm'):
+    """Serialize length/angle/time dimensions without inferring physical types."""
+    if len(dimension) > 3:
+        raise LocalEvaluationUnsupported('Unsupported physical dimension')
+    numerator, denominator = [], []
+    for unit, power in zip((length_unit, 'rad', 's'), dimension):
+        if power:
+            magnitude = abs(power)
+            part = unit if magnitude == 1 else unit + '^' + str(magnitude)
+            (numerator if power > 0 else denominator).append(part)
+    top = '*'.join(numerator)
+    return (top or '1') + '/' + '/'.join(denominator) if denominator else top
 
 
 def _assignment(item: str) -> tuple[str, str, str]:
@@ -119,8 +162,26 @@ def _tree(expression: str) -> ast.Expression:
         raise ExpressionError('Reserved internal identifier')
 
     def code(raw):
+        if ',' in raw:
+            raise ExpressionError('Separate function arguments with a semicolon (;)')
+        if '!=' in raw or '**' in raw:
+            raise ExpressionError('Use Fusion operators <> and ^')
         raw = re.sub(r'\bif\s*\(', '__if__(', raw).replace(';', ',')
-        return _LITERAL.sub(lambda m: '__unit__(' + m.group(1) + ',"' + m.group(2) + '")', raw)
+        raw = raw.replace('<>', '!=').replace('^', '**')
+        # A postfix unit power applies to the unit, not the coefficient: 4 mm^2.
+        raw = re.sub(
+            _LITERAL.pattern + r'\s*\*\*\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)',
+            lambda m: '(' + m.group(1) + '*__unit__(1,"' + m.group(2) + '")**(' + m.group(3) + '))',
+            raw,
+        )
+        if re.search(r'\b(' + _UNIT_PATTERN + r')\s*\*\*\s*[A-Za-z_(]', raw):
+            raise LocalEvaluationUnsupported('Use pow() for nonliteral unit exponents')
+        raw = _LITERAL.sub(lambda m: '__unit__(' + m.group(1) + ',"' + m.group(2) + '")', raw)
+        return re.sub(
+            r'(?<=[\w)])\s+(' + _UNIT_PATTERN + r')\b(?!\s*\()',
+            lambda m: '*__unit__(1,"' + m.group(1) + '")',
+            raw,
+        )
 
     source = ''.join(
         repr(decode_literal(raw)) if literal else code(raw) for literal, raw in segments(expression)
@@ -133,14 +194,80 @@ def _tree(expression: str) -> ast.Expression:
 
 def _dependencies(tree: ast.Expression) -> set[str]:
     names = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
-    return names - _FUNCTIONS - {'__unit__'}
+    calls = {
+        n.func.id
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+    }
+    return names - calls - CONSTANT_NAMES - set(UNITS) - {'n'}
 
 
 def evaluate(
-    expression: str, parameters: Mapping[str, Quantity | TextValue]
+    expression: str,
+    parameters: Mapping[str, Quantity | TextValue],
+    native_function=None,
+    allow_nondeterministic=False,
 ) -> Quantity | TextValue:
     """Evaluate supported operations, rejecting unknown units/functions and dimensions."""
+    if len(expression) > 10000:
+        raise ExpressionError('Expression is too long')
     tree = _tree(normalize_expression(expression, parameters))
+    if sum(1 for _ in ast.walk(tree)) > 2000:
+        raise ExpressionError('Expression is too complex')
+    for call in ast.walk(tree):
+        if (
+            isinstance(call, ast.Call)
+            and isinstance(call.func, ast.Name)
+            and call.func.id in FUNCTIONS
+        ):
+            if len(call.args) != FUNCTIONS[call.func.id]['arity'] or call.keywords:
+                raise ExpressionError('Invalid function arguments')
+    # Reject random even in an unselected conditional branch: recompute is unstable.
+    if not allow_nondeterministic and any(
+        isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == 'random'
+        for n in ast.walk(tree)
+    ):
+        raise NondeterministicExpression(
+            'random() has no stable preview. Use Quick Calculator for a native sample.'
+        )
+
+    def logical(node):
+        if isinstance(node, ast.BoolOp) and isinstance(node.op, (ast.And, ast.Or)):
+            values = [logical(value) for value in node.values]
+            return all(values) if isinstance(node.op, ast.And) else any(values)
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+            return not logical(node.operand)
+        if isinstance(node, ast.Compare) and len(node.ops) == 1:
+            a, b = calc(node.left), calc(node.comparators[0])
+            if a.dimension != b.dimension:
+                raise ExpressionError('Incompatible conditional types')
+            comparisons = {
+                ast.Lt: lambda: a.value < b.value,
+                ast.LtE: lambda: a.value <= b.value,
+                ast.Gt: lambda: a.value > b.value,
+                ast.GtE: lambda: a.value >= b.value,
+                ast.Eq: lambda: a.value == b.value,
+                ast.NotEq: lambda: a.value != b.value,
+            }
+            compare = comparisons.get(type(node.ops[0]))
+            if compare:
+                return compare()
+        raise ExpressionError('Unsupported conditional expression')
+
+    def power(a, b):
+        if b.dimension != SCALAR:
+            raise ExpressionError('Exponent must be dimensionless')
+        exponent = b.value
+        if abs(exponent) > 10000:
+            raise ExpressionError('Exponent is too large')
+        dim = [round(d * exponent, 8) for d in a.dimension]
+        if any(not math.isclose(d, round(d), abs_tol=1e-8) for d in dim):
+            raise LocalEvaluationUnsupported(
+                'Fractional resulting dimensions require native Fusion evaluation'
+            )
+        if a.value < 0 and exponent != int(exponent):
+            raise ExpressionError('Power must have a real result')
+        return Quantity(math.pow(a.value, exponent), _dimension(round(d) for d in dim))
 
     def calc(node: ast.AST) -> Quantity | TextValue:
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
@@ -149,6 +276,21 @@ def evaluate(
             return Quantity(float(node.value))
         if isinstance(node, ast.Name):
             if node.id not in parameters:
+                constants = {
+                    'PI': Quantity(math.pi),
+                    'E': Quantity(math.e),
+                    'Gravity': Quantity(9806.65, (1, 0, -2)),
+                    'SpeedOfLight': Quantity(299792458000.0, (1, 0, -1)),
+                }
+                if node.id in constants:
+                    return constants[node.id]
+                if node.id in UNITS:
+                    factor, dimension = UNITS[node.id]
+                    return Quantity(factor, dimension)
+                if node.id in UNIT_NAMES:
+                    raise LocalEvaluationUnsupported(
+                        'Unit requires native Fusion evaluation: ' + node.id
+                    )
                 raise ExpressionError('Unknown parameter: ' + node.id)
             value = parameters[node.id]
             if isinstance(value, TextValue) and len(value.value) > MAX_TEXT_LENGTH:
@@ -160,7 +302,7 @@ def evaluate(
                 raise ExpressionError('Text cannot be used in numeric operations')
             return Quantity(q.value if isinstance(node.op, ast.UAdd) else -q.value, q.dimension)
         if isinstance(node, ast.BinOp) and isinstance(
-            node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div)
+            node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.Mod)
         ):
             a, b = calc(node.left), calc(node.right)
             if isinstance(a, TextValue) or isinstance(b, TextValue):
@@ -173,6 +315,14 @@ def evaluate(
                         raise ExpressionError('Text result exceeds 65536 characters')
                     return TextValue(a.value + b.value)
                 raise ExpressionError('Cannot mix text and numeric values')
+            if isinstance(node.op, ast.Pow):
+                return power(a, b)
+            if isinstance(node.op, ast.Mod):
+                if a.dimension != b.dimension:
+                    raise ExpressionError('Incompatible dimensions')
+                if b.value == 0:
+                    raise ExpressionError('Division by zero')
+                return Quantity(math.fmod(a.value, b.value), a.dimension)
             if isinstance(node.op, (ast.Add, ast.Sub)):
                 if a.dimension != b.dimension:
                     raise ExpressionError('Incompatible dimensions')
@@ -181,34 +331,20 @@ def evaluate(
                     a.dimension,
                 )
             sign = 1 if isinstance(node.op, ast.Mult) else -1
-            dim = tuple(x + sign * y for x, y in zip(a.dimension, b.dimension))
+            dim = _dimension(
+                x + sign * y for x, y in zip_longest(a.dimension, b.dimension, fillvalue=0)
+            )
             if sign == -1 and b.value == 0:
                 raise ExpressionError('Division by zero')
             return Quantity(a.value * b.value if sign == 1 else a.value / b.value, dim)
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and not node.keywords:
             name = node.func.id
             if name == '__if__' and len(node.args) == 3:
-                condition = node.args[0]
-                if not isinstance(condition, ast.Compare) or len(condition.ops) != 1:
-                    raise ExpressionError('Unsupported conditional expression')
-                left, right = calc(condition.left), calc(condition.comparators[0])
-                if left.dimension != right.dimension:
-                    raise ExpressionError('Incompatible conditional types')
-                comparisons = {
-                    ast.Lt: lambda a, b: a < b,
-                    ast.LtE: lambda a, b: a <= b,
-                    ast.Gt: lambda a, b: a > b,
-                    ast.GtE: lambda a, b: a >= b,
-                    ast.Eq: lambda a, b: a == b,
-                    ast.NotEq: lambda a, b: a != b,
-                }
-                compare = comparisons.get(type(condition.ops[0]))
-                if compare is None:
-                    raise ExpressionError('Unsupported comparison')
+                condition = logical(node.args[0])
                 yes, no = calc(node.args[1]), calc(node.args[2])
                 if yes.dimension != no.dimension:
                     raise ExpressionError('Conditional branches must have the same type')
-                return yes if compare(left.value, right.value) else no
+                return yes if condition else no
             if (
                 name == '__unit__'
                 and len(node.args) == 2
@@ -216,20 +352,28 @@ def evaluate(
             ):
                 unit = node.args[1].value
                 if unit not in UNITS:
-                    raise ExpressionError('Unsupported unit')
+                    raise LocalEvaluationUnsupported(
+                        'Unit requires native Fusion evaluation: ' + str(unit)
+                    )
                 q = calc(node.args[0])
                 if q.dimension != SCALAR:
                     raise ExpressionError('Unit requires a dimensionless number')
                 factor, dim = UNITS[unit]
                 return Quantity(q.value * factor, dim)
             if name not in _FUNCTIONS:
-                raise ExpressionError('Unsupported function: ' + name)
+                raise ExpressionError('Unknown function: ' + name)
             args = [calc(arg) for arg in node.args]
             if any(isinstance(arg, TextValue) for arg in args):
                 raise ExpressionError('Numeric functions cannot use text')
-            if not args or (name not in {'min', 'max'} and len(args) != 1):
+            if len(args) != FUNCTIONS.get(name, {}).get('arity'):
                 raise ExpressionError('Invalid function arguments')
+            if name == 'random':
+                if native_function and allow_nondeterministic:
+                    return native_function(name, args, SCALAR)
+                raise NondeterministicExpression('random() requires native Fusion evaluation')
             q = args[0]
+            if name == 'pow':
+                return power(q, args[1])
             if name in {'min', 'max'}:
                 if any(a.dimension != q.dimension for a in args):
                     raise ExpressionError('Incompatible dimensions')
@@ -237,24 +381,34 @@ def evaluate(
             if name == 'sqrt':
                 if any(d % 2 for d in q.dimension) or q.value < 0:
                     raise ExpressionError('Invalid sqrt dimension or value')
-                return Quantity(math.sqrt(q.value), tuple(d // 2 for d in q.dimension))
-            if name in {'sin', 'cos', 'tan'}:
+                return Quantity(math.sqrt(q.value), _dimension(d // 2 for d in q.dimension))
+            if name in {'sin', 'cos', 'tan', 'sinh', 'cosh', 'tanh'}:
+                if q.dimension == SCALAR:
+                    if native_function:
+                        return native_function(name, args, SCALAR)
+                    raise LocalEvaluationUnsupported(
+                        'Bare trigonometric arguments require Fusion angle preferences'
+                    )
                 if q.dimension != ANGLE:
                     raise ExpressionError('Trigonometric functions require an angle')
                 return Quantity(getattr(math, name)(q.value))
-            if name in {'floor', 'ceil', 'round'} and q.dimension != SCALAR:
+            if name == 'abs':
+                return Quantity(abs(q.value), q.dimension)
+            if q.dimension != SCALAR:
                 raise ExpressionError('Function requires a dimensionless value')
-            return Quantity(
-                getattr(math, name)(q.value)
-                if name in {'floor', 'ceil'}
-                else (round(q.value) if name == 'round' else abs(q.value)),
-                q.dimension,
-            )
+            if name in {'asin', 'acos', 'atan', 'asinh', 'acosh', 'atanh'}:
+                return Quantity(getattr(math, name)(q.value), ANGLE)
+            if name == 'round':
+                return Quantity(math.copysign(math.floor(abs(q.value) + 0.5), q.value))
+            if name == 'sign':
+                return Quantity(float(q.value > 0))
+            method = {'ln': 'log', 'log': 'log10'}.get(name, name)
+            return Quantity(getattr(math, method)(q.value))
         raise ExpressionError('Unsupported expression')
 
     try:
         result = calc(tree.body)
-    except (OverflowError, ValueError) as exc:
+    except (OverflowError, ValueError, ZeroDivisionError, RecursionError) as exc:
         if isinstance(exc, ExpressionError):
             raise
         raise ExpressionError('Invalid numerical result') from exc
@@ -266,7 +420,11 @@ def evaluate(
 
 
 def _increment_unit(
-    expression: str, raw: Mapping[str, str], existing: Mapping[str, Quantity], default_unit: str
+    expression: str,
+    raw: Mapping[str, str],
+    existing: Mapping[str, Quantity],
+    default_unit: str,
+    native_function=None,
 ) -> str:
     """Infer the unit of a previously declared parameter for a bare increment."""
     values = {name: value for name, value in existing.items() if name not in raw}
@@ -282,12 +440,12 @@ def _increment_unit(
         active.add(name)
         for dep in _dependencies(_tree(raw[name])):
             resolve(dep)
-        values[name] = evaluate(raw[name], values)
+        values[name] = evaluate(raw[name], values, native_function)
         active.remove(name)
 
     for dependency in _dependencies(_tree(expression)):
         resolve(dependency)
-    dimension = evaluate(expression, values).dimension
+    dimension = evaluate(expression, values, native_function).dimension
     if dimension == SCALAR:
         return ''
     if dimension == LENGTH:
@@ -303,6 +461,7 @@ def _fold_assignments(
     original_exprs: Mapping[str, str],
     units: Mapping[str, str],
     default_unit: str,
+    native_function=None,
 ) -> dict[str, str]:
     """Fold sequential updates into one expression per parameter, without self references."""
     entries = [_assignment(item) for item in split_definitions(text)]
@@ -324,7 +483,7 @@ def _fold_assignments(
             initial[name] = numeric_literal(name, expression)
     raw: dict[str, str] = {}
     for name, operator, expression in entries:
-        if name in _FUNCTIONS or name in {'__unit__', 'this'}:
+        if name in _FUNCTIONS or name in CONSTANT_NAMES or name in {'__unit__', 'this'}:
             raise ExpressionError('Duplicate or reserved parameter: ' + name)
         expression = normalize_expression(expression, known)
         dependencies = _dependencies(_tree(expression))
@@ -356,11 +515,13 @@ def _fold_assignments(
     return raw
 
 
-def plan_batch(text: str, existing: Mapping[str, Quantity], default_unit: str) -> list[Operation]:
+def plan_batch(
+    text: str, existing: Mapping[str, Quantity], default_unit: str, native_function=None
+) -> list[Operation]:
     """Validate the complete batch before returning dependency-ordered operations."""
     if default_unit not in UNITS or UNITS[default_unit][1] != LENGTH:
         raise ExpressionError('Unsupported project length unit')
-    raw = _fold_assignments(text, existing, {}, {}, default_unit)
+    raw = _fold_assignments(text, existing, {}, {}, default_unit, native_function)
     trees = {name: _tree(expr) for name, expr in raw.items()}
     deps = {name: _dependencies(tree) for name, tree in trees.items()}
     ordered: list[str] = []
@@ -391,7 +552,7 @@ def plan_batch(text: str, existing: Mapping[str, Quantity], default_unit: str) -
         expr = raw[name]
         if _NUMERIC.fullmatch(expr):
             expr += ' ' + default_unit
-        value = evaluate(expr, values)
+        value = evaluate(expr, values, native_function)
         if isinstance(value, TextValue):
             text_size += len(value.value)
             if text_size > MAX_BATCH_TEXT_LENGTH:
@@ -503,7 +664,7 @@ class ParameterSnapshot:
 
 
 def plan_batch_snapshot(
-    text: str, snapshot: Mapping[str, ParameterSnapshot], default_unit: str
+    text: str, snapshot: Mapping[str, ParameterSnapshot], default_unit: str, native_function=None
 ) -> list[Operation]:
     """Conservatively project a batch through a complete dependency snapshot.
 
@@ -573,7 +734,7 @@ def plan_batch_snapshot(
         if not original_graph[name] <= item.dependencies <= closure[name]:
             raise ExpressionError('Mismatched snapshot dependencies: ' + name)
     for name, expr in original_exprs.items():
-        actual = evaluate(expr, original_values)
+        actual = evaluate(expr, original_values, native_function)
         expected = snapshot[name].quantity
         same_value = (
             actual.value == expected.value
@@ -589,6 +750,7 @@ def plan_batch_snapshot(
         original_exprs,
         {name: item.unit for name, item in snapshot.items()},
         default_unit,
+        native_function,
     )
     graph = dict(original_graph)
     graph.update({name: _dependencies(_tree(expr)) for name, expr in raw.items()})
@@ -618,7 +780,7 @@ def plan_batch_snapshot(
     for name in ordered:
         if name in raw:
             expr = raw[name]
-            value = evaluate(expr, values)
+            value = evaluate(expr, values, native_function)
             if value.dimension not in (SCALAR, LENGTH, ANGLE, TEXT):
                 raise ExpressionError('Unsupported resulting dimension')
             if name in snapshot and snapshot[name].quantity.dimension != value.dimension:
@@ -646,7 +808,7 @@ def plan_batch_snapshot(
                 )
             )
         else:
-            value = evaluate(original_exprs[name], values)
+            value = evaluate(original_exprs[name], values, native_function)
             if value.dimension != snapshot[name].quantity.dimension:
                 raise ExpressionError('Dependent parameter dimension changed: ' + name)
         values[name] = value
