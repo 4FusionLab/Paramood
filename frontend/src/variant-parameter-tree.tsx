@@ -10,6 +10,7 @@ type Props = {
   disabled: boolean;
   filtered: boolean;
   onChange: (parameters: VariantParameter[]) => void;
+  selectionOnly?: boolean;
 };
 
 export function VariantParameterTree({
@@ -18,6 +19,7 @@ export function VariantParameterTree({
   disabled,
   filtered,
   onChange,
+  selectionOnly = false,
 }: Props) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [allOpen, setAllOpen] = useState<boolean | undefined>(undefined);
@@ -83,7 +85,7 @@ export function VariantParameterTree({
           {parameter &&
             (parameter.missing ? (
               <span class="error">Missing from model</span>
-            ) : entry ? (
+            ) : entry && !selectionOnly ? (
               <input
                 class="variant-expression"
                 aria-label={`Value for ${parameter.name}`}

@@ -1213,16 +1213,25 @@ The main chat should remain the orchestrator throughout the project.
 
 **Goal: to get a real, high-quality implemented and expandable Autodesk Fusion Add-In Paramood, and not a set of disparate files.**
 
-## Variants — clarification of 7 November 2026
+## Variants 2.0 — clarification of 8 November 2026
 
-- The model header switches between `Free` and saved variants. The interface imposes no limit on the number of variants. If none exist, the menu offers `Create variant`.
-- A variant contains selected existing parameters and their expressions. Selection uses the same name hierarchy and model-parameter section as the main list; search and group expansion are available.
-- The variant search field supports IntelliSense. Entering `box.width=30` immediately adds `box_width` to the variant draft and sets it to 30 in that parameter's unit. Expressions with dotted references are converted to Fusion names. **Save & apply** writes to the model.
-- Search by variant name appears only when there are more than five variants.
-- The menu is anchored to the selector, including in a two-column layout, and does not cause page scrolling. With many entries, only the list inside the menu scrolls.
-- Parameter changes made through Paramood while a variant is active are saved to it; changed parameters not yet included are added. The settings allow adding or removing variant members without deleting the model parameters themselves.
-- Variants are stored in the Design file attributes and read on reopening. A variant is selected when its numeric values fully match; otherwise `Free` is selected. If several match, the first created is used. Explicitly choosing `Free` does not reset values.
-- Timeline operation warnings and errors do not prevent a variant from being applied and do not cause rollback. Expression errors, write errors and stale requests are handled separately.
+- Do not use Autodesk's Configuration API; implement the agreed workflows independently.
+- Choose one model-wide set of parameters and supported timeline features, never per-row sets.
+- The switcher menu header has shared counts and one Edit variants action; individual rows have no edit action or counts.
+- At every width: variants are rows and parameters/features are columns. Do not transpose.
+- Drag-and-drop reorders both axes; their stored orders are independent of orientation.
+- Headings remain horizontal with word wrapping; horizontal scrolling starts only when the
+  value columns cannot fit readably. Do not include a Go to control.
+- Click a value to edit its expression. Feature checked means Enabled; unchecked means Suppressed.
+- All table edits are a draft until Save. Cancellation never changes the model; confirm discarding.
+- Save validates the whole table, applies only the changed active variant and stores all rows.
+  Free applies none. Preserve the header's existing switching interaction.
+- Editing an outside-set parameter is global and never enrolls it. Mark controlled parameters in
+  the common list with a table icon and the tooltip Controlled by variants.
+- Use only variants.v2. Older records are neither read nor migrated nor deleted.
+- Release 2.0.0 only after the owner's personal review and explicit authorization. A review build
+  is not a release.
+- Contracts, API sources, evidence and limits: [Variants 2.0](VARIANTS_V2.md).
 
 ## Model units and Hybrid view — 7 November 2026
 

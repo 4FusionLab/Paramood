@@ -12,6 +12,7 @@ import {
   Star,
   ChevronsDownUp,
   ChevronsUpDown,
+  Table2,
 } from 'lucide-preact';
 import type { Parameter } from './bridge';
 
@@ -130,6 +131,15 @@ function Branch({
         ) : (
           <span class="tree-name" title={parameter?.name || path}>
             {name}
+          </span>
+        )}
+        {parameter?.configured && (
+          <span
+            class="configured-parameter"
+            aria-label={`${parameter.name}: controlled by variants`}
+            title="Controlled by variants"
+          >
+            <Table2 size={13} />
           </span>
         )}
         {parameter?.linked && (

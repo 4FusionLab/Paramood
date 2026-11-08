@@ -2,35 +2,31 @@
 
 import copy
 import re
-import uuid
 
 import adsk.core
 
 from ..bridge.protocol import BridgeError
 from ..core.text import map_code, normalize_literals
-from ..core.variants import decode_variants, encode_variants, values_match, variants_token
+from ..core.variants import encode_variants, values_match
+from .variant_table import VariantTableMixin
 
 GROUP = '4FusionLab.Paramood'
-ATTRIBUTE = 'variants.v1'
+ATTRIBUTE = 'variants.v2'
 
 
-class VariantsMixin:
+class VariantsMixin(VariantTableMixin):
     def _read_variants(self, design):
-        # Older offline adapter fixtures have no attribute collection.
-        attributes = getattr(design, 'attributes', None)
-        attribute = attributes.itemByName(GROUP, ATTRIBUTE) if attributes else None
-        raw = attribute.value if attribute else ''
-        try:
-            return decode_variants(raw), variants_token(raw)
-        except (ValueError, TypeError, KeyError) as exc:
-            raise BridgeError(
-                'VARIANTS_UNREADABLE',
-                'Cannot read saved variants. Existing data has been preserved. ' + str(exc),
-            ) from exc
+        table, token = self._read_variant_table(design)
+        return table['variants'], token
 
     def _write_variants(self, design, variants):
+        table, _ = self._read_variant_table(design)
+        columns = table['columns']
+        self._store_variant_raw(design, encode_variants(variants, columns))
+
+    @staticmethod
+    def _store_variant_raw(design, raw):
         try:
-            raw = encode_variants(variants)
             attribute = design.attributes.add(GROUP, ATTRIBUTE, raw)
             if not attribute or attribute.value != raw:
                 raise ValueError('Fusion did not retain variant data.')
@@ -77,6 +73,10 @@ class VariantsMixin:
                 parameter.textValue if parameter.unit == 'Text' else parameter.value, entry['value']
             ):
                 return False
+        for entry in variant.get('features', []):
+            feature = self._resolve_variant_feature(design, entry)
+            if not feature or (not feature.isSuppressed) != entry['enabled']:
+                return False
         return True
 
     def _active_variant(self, design, variants):
@@ -98,17 +98,38 @@ class VariantsMixin:
             variants, token = self._read_variants(design)
             active = self._active_variant(design, variants)
             public = copy.deepcopy(variants)
+            table, _ = self._read_variant_table(design)
+            columns = copy.deepcopy(table['columns'])
+            for column in columns:
+                entity = (
+                    self._resolve_variant_parameter(design, column)
+                    if column['kind'] == 'parameter'
+                    else self._resolve_variant_feature(design, column)
+                )
+                column['missing'] = entity is None
+                if entity:
+                    column['name'] = entity.name
             for variant in public:
                 for entry in variant['parameters']:
                     parameter = self._resolve_variant_parameter(design, entry)
                     entry['missing'] = parameter is None
                     if parameter:
                         entry['name'] = parameter.name
+                for entry in variant.get('features', []):
+                    feature = self._resolve_variant_feature(design, entry)
+                    entry['missing'] = feature is None
+                    if feature:
+                        entry['name'] = feature.name
             return {
                 'variants': public,
                 'activeVariantId': active['id'] if active else None,
                 'variantsToken': token,
                 'variantSnapshotToken': self._snapshot_token(design, 'variants'),
+                'variantColumns': columns,
+                'variantTableVersion': table['version'],
+                'timelineFeatures': [
+                    self._feature_entry(f) for f in self._timeline_features(design)
+                ],
             }
         except Exception as exc:
             return {'variants': [], 'activeVariantId': None, 'variantsError': str(exc)}
@@ -177,11 +198,12 @@ class VariantsMixin:
             if not parameter:
                 raise BridgeError('CONFLICT', 'A variant parameter is no longer available.')
             parameters.append(parameter)
-        for name in names:
-            parameter = self._editable_parameter(design, name)
-            if parameter and not any(parameter == existing for existing in parameters):
-                parameters.append(parameter)
-        active['parameters'] = [self._variant_entry(p) for p in parameters]
+        if not set(names).intersection(parameter.name for parameter in parameters):
+            return
+        active['parameters'] = [
+            {**self._variant_entry(p), 'entityToken': entry['entityToken']}
+            for p, entry in zip(parameters, active['parameters'])
+        ]
         self._write_variants(design, variants)
 
     @staticmethod
@@ -208,59 +230,18 @@ class VariantsMixin:
         if action == 'variants.free':
             self._variant_sessions[self._draft_id] = None
             return {'activeVariantId': None}
-        if action != 'variants.save' and not variant:
+        if action == 'variants.table.save':
+            return self._save_variant_table(design, payload)
+        if not variant:
             raise BridgeError('CONFLICT', 'This variant no longer exists.')
         if action == 'variants.delete':
             self._write_variants(design, [v for v in variants if v['id'] != identity])
             if self._variant_sessions.get(self._draft_id) == identity:
                 self._variant_sessions[self._draft_id] = None
             return {'deleted': identity}
-        if action == 'variants.save':
-            name, entries = payload.get('name'), payload.get('parameters')
-            if not isinstance(name, str) or not name.strip() or len(name.strip()) > 120:
-                raise BridgeError('BAD_REQUEST', 'Enter a variant name (up to 120 characters).')
-            name = name.strip()
-            if any(
-                v['id'] != identity and v['name'].casefold() == name.casefold() for v in variants
-            ):
-                raise BridgeError('CONFLICT', 'A variant with this name already exists.')
-            if identity is not None and not variant:
-                raise BridgeError('CONFLICT', 'This variant no longer exists.')
-            if not isinstance(entries, list) or not entries:
-                raise BridgeError('BAD_REQUEST', 'Select at least one parameter.')
-            prepared, seen = [], []
-            for entry in entries:
-                if (
-                    not isinstance(entry, dict)
-                    or any(
-                        not isinstance(entry.get(k), str)
-                        for k in ('name', 'entityToken', 'expression', 'unit')
-                    )
-                    or not entry['expression'].strip()
-                    or len(entry['expression']) > 10000
-                ):
-                    raise BridgeError(
-                        'BAD_REQUEST', 'A parameter expression or identity is missing.'
-                    )
-                parameter = self._resolve_variant_parameter(design, entry)
-                if (
-                    not parameter
-                    or parameter.name != entry['name']
-                    or any(parameter == p for p in seen)
-                ):
-                    raise BridgeError(
-                        'CONFLICT', 'A selected parameter changed. Refresh and try again.'
-                    )
-                seen.append(parameter)
-                prepared.append(self._variant_entry(parameter, entry['expression'].strip()))
-            replacement = {'id': identity or uuid.uuid4().hex, 'name': name, 'parameters': prepared}
-            if variant:
-                variants[variants.index(variant)] = replacement
-            else:
-                variants.append(replacement)
-            variant = replacement
-            # Validate storage capacity before making any CAD changes.
-            encode_variants(variants)
+        return self._apply_variant(design, variant)
+
+    def _apply_variant(self, design, variant, after_apply=None):
         parameters, expressions = [], []
         renames = {}
         for entry in variant['parameters']:
@@ -291,26 +272,41 @@ class VariantsMixin:
             )
             planned = {op.name: op for op in operations}
             expressions = [planned[p.name].expression for p in parameters]
+        feature_states = []
+        for entry in variant.get('features', []):
+            feature = self._resolve_variant_feature(design, entry)
+            if not feature:
+                raise BridgeError('MISSING_FEATURE', 'Feature unavailable: ' + entry['name'])
+            feature_states.append((feature, entry['enabled']))
+        old_states = [(feature, not feature.isSuppressed) for feature, _ in feature_states]
         old_expressions = [p.expression for p in parameters]
         values = [adsk.core.ValueInput.createByString(e) for e in expressions]
-        if not design.modifyParameters(parameters, values):
-            raise BridgeError('UPDATE_FAILED', 'Fusion could not apply the variant parameters.')
         try:
+            # Unsuppress first so parameters belonging to enabled features become writable.
+            self._set_feature_states([(f, True) for f, enabled in feature_states if enabled])
+            if parameters and not design.modifyParameters(parameters, values):
+                raise BridgeError('UPDATE_FAILED', 'Fusion could not apply the variant parameters.')
+            self._set_feature_states(feature_states)
             if any(p.unit == 'Text' for p in parameters):
                 for p in parameters:
                     self._verify_value(p, planned[p.name])
-            if action == 'variants.save':
-                variant['parameters'] = [self._variant_entry(p) for p in parameters]
-                self._write_variants(design, variants)
+            if after_apply:
+                after_apply()
         except Exception as exc:
             # Direct callbacks have no command transaction to abort. Restore only
             # these expressions; never undo unrelated user work.
-            if self.in_direct_apply and not design.modifyParameters(
-                parameters, [adsk.core.ValueInput.createByString(e) for e in old_expressions]
-            ):
+            try:
+                self._set_feature_states([(f, True) for f, enabled in old_states if enabled])
+                restored = not parameters or design.modifyParameters(
+                    parameters, [adsk.core.ValueInput.createByString(e) for e in old_expressions]
+                )
+                self._set_feature_states(old_states)
+            except Exception:
+                restored = False
+            if not restored:
                 raise BridgeError(
                     'VARIANT_PARTIAL',
-                    'Variant storage failed and parameters could not be restored.',
+                    'Variant apply failed and the original state could not be restored. Review the model.',
                 ) from exc
             raise
         self._variant_sessions[self._draft_id] = variant['id']

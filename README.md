@@ -24,7 +24,7 @@ Paramood is an add-in for **Autodesk Fusion**, formerly Fusion 360, that puts a 
 
 The idea is simple: **use the precision of parametric CAD with the speed of an IDE**. Paramood is an interface over real Fusion parameters, not a separate parameter storage system.
 
-**Before editing:** Paramood changes update the active variant automatically, including newly changed parameters. Choose **Free** to leave saved variants unchanged. Applied values are kept even if a downstream Fusion feature fails; inspect geometry and the timeline before saving or sharing a configuration.
+**Before editing:** Paramood changes to configured parameters update the active variant automatically; parameters outside the configured set remain global. Choose **Free** to leave saved variants unchanged. Applied values are kept even if a downstream Fusion feature fails; inspect geometry and the timeline before saving or sharing a configuration.
 
 ## One palette for the parameter list and input
 
@@ -32,19 +32,36 @@ The default **Hybrid** view keeps the parameter list visible and the shared inpu
 
 The header shows the current design, its length units, and the active variant. Synchronization with Fusion is automatic.
 
-## In Autodesk Fusion
+## The palette in Fusion
 
-The supplied Cedar & Sage F3D opened in the installed add-in, with **Classic** selected. These are real Fusion screenshots on macOS.
+The Hybrid palette keeps the parameter tree and expression input together. IntelliSense suggests model parameters as you type, while the calculator evaluates expressions using their current values:
 
-![Cedar & Sage feeder in Autodesk Fusion with the installed Paramood palette and Classic variant](assets/screenshots/fusion-classic.jpg)
+<p align="center"><img src="assets/screenshots/v2-review/palette-intellisense.jpg" alt="Paramood 2.0 palette with a parameter completion and calculator result" width="360"></p>
 
-The palette keeps input below the list and opens results above it. The variant menu switches between the three configurations stored in the example.
+In a wide palette, the calculator view places the input and result next to the parameter tree:
 
-<img src="assets/screenshots/fusion-hybrid.jpg" alt="Paramood Hybrid view showing grouped parameters and a 90 mm calculator result" width="360"> <img src="assets/screenshots/fusion-variants.jpg" alt="Paramood menu showing Free and the saved Classic, Compact, and Garden variants" width="360">
+![Paramood 2.0 wide palette with calculator and parameter tree side by side](assets/screenshots/v2-review/palette-wide.jpg)
 
-## Paramood 1.5.0 capabilities
+Enter several assignments to review their current and proposed values before applying them. This preview proposes changes to the Compact variant; no values have been applied:
 
-This overview describes the v1.5.0 source. The [Releases page](https://github.com/4FusionLab/Paramood/releases) lists published builds; check the installed version’s release notes when comparing features.
+<p align="center"><img src="assets/screenshots/v2-review/palette-preview.jpg" alt="Paramood 2.0 preview of two parameter changes before applying" width="360"></p>
+
+Switch saved variants from the header, or open the table to compare and edit configured parameter expressions and supported feature states. **Compact** has a tray width of 120 mm; scroll horizontally to reach further columns:
+
+<p align="center">
+  <img src="assets/screenshots/v2-review/palette-variants.jpg" alt="Paramood 2.0 variant selector" width="360">
+  <img src="assets/screenshots/v2-review/palette-variant-table.jpg" alt="Paramood 2.0 variant table showing Compact dimensions" width="360">
+</p>
+
+The Compact configuration of the Cedar & Sage review model:
+
+![Cedar & Sage Compact model in Fusion](assets/screenshots/v2-review/compact.png)
+
+Screenshots show the 2.0 review build running in Fusion on macOS.
+
+## Paramood 2.0 capabilities — review draft
+
+This page describes the unreleased 2.0 development branch. The [Releases page](https://github.com/4FusionLab/Paramood/releases) lists published builds; features and screenshots may differ from the installed release.
 
 | Area | Capability |
 | --- | --- |
@@ -59,7 +76,7 @@ This overview describes the v1.5.0 source. The [Releases page](https://github.co
 | **Model awareness** | Refresh on document changes; show indicators for known sketch, feature, or other parameter links. |
 | **Native expressions** | Physical and compound units, lazy conditionals, native unit aliases, and `random()` in Preview/Apply. Sampled previews are marked `≈`. |
 | **Calculator** | Evaluate expressions against the current design, see formatted results, reuse recent calculations, and copy results or expressions. |
-| **Saved variants** | Named sets of existing parameter expressions, stored in the design and carried with an F3D export. Switch sizes or configurations from the header. |
+| **Saved variants** | A model-wide table of parameter expressions and supported feature states, stored in the design. Switch variants from the header. |
 | **Text parameters** | Quoted text, references, concatenation, and supported conditional expressions; the list shows the computed text while editing preserves the formula. |
 | **Model units** | Select `mm`, `cm`, `m`, `in`, or `ft` beside the design name without changing physical sizes. |
 
@@ -108,16 +125,23 @@ Creation and linking are validated together. Equation solving supports one new n
 
 ## Save and switch variants
 
-Download the [Cedar & Sage F3D](examples/cedar-sage/Cedar-Sage-Paramood.f3d) and follow the [walkthrough](docs/DEMO.md). It includes Classic, Compact, and Garden, with geometry controls and text parameters. See its [model information and SHA-256](examples/cedar-sage/model-info.json). Use Paramood 1.5.0 for the variants and text workflows described here.
+The 2.0 variant editor is awaiting the owner's personal review; release is not yet authorized.
 
-1. Open **Free → Create variant** in the header.
-2. Name the variant and select at least one existing editable parameter. The editor uses the same name hierarchy as the parameter list, with `dN` dimensions under **Model parameters**.
-3. Change the selected expressions, or enter an assignment in the parameter search, such as `box.width=30`. This edits the draft; **Save & apply** writes it to the model.
-4. Create another variant and select either name from the header to apply it.
+1. Open the variant menu and choose **Create variant** or the shared **Edit variants** button in the menu header.
+2. Use **Configure** to choose the model-wide set of parameters and timeline features.
+3. Variants are always rows; parameters and features are always columns. Click a value to
+   edit that variant's expression. A checked feature is **Enabled**; unchecked is **Suppressed**.
+   Drag handles reorder parameters and variants. Mouse gestures and saved-order round-trip were checked in Fusion on macOS.
+4. **Save** stores the complete table and applies the edited active variant. Other variants are
+   saved without switching. **Cancel** lets you discard the draft without changing the model.
 
-While a variant is active, successful edits through Paramood update it and add any changed parameters to it. Choose **Free** before experimenting without updating a saved variant; choosing Free keeps the current model values. Removing a member or deleting a variant keeps the CAD parameters.
+Controlled parameters have a small table icon in the common list. Parameters outside the set
+remain global and are never enrolled automatically. **Free** keeps the current geometry and lets
+parameter edits leave saved variants unchanged. The switcher keeps its existing interaction.
 
-Save the design or export it as F3D to carry the variants with it. On reopening, Paramood selects the first created variant whose saved values all match the model; otherwise it shows Free. External changes that no longer match the active variant switch to Free without overwriting it. Variants are partial parameter sets: switching changes their members, leaving other parameters as they are.
+Format 2 is stored separately in the model: old 1.x variants are not read or migrated.
+The original Cedar & Sage 1.x example retains the old format; use the separate 2.0 review file or recreate its variants.
+See [Variants 2.0](docs/VARIANTS_V2.md) for workflow, verification and limitations.
 
 ## Create text parameters
 
@@ -170,7 +194,7 @@ The package declares support for both platforms, and automated checks run on bot
 
 - [User guide](docs/USER_GUIDE.md): input, units, variants, text, and boundaries.
 - [Cedar & Sage walkthrough](docs/DEMO.md): a feeder model and parameter-group examples.
-- [Published releases](https://github.com/4FusionLab/Paramood/releases) and [1.5.0 release notes](docs/releases/1.5.0.md): published builds and the source version described here.
+- [Published releases](https://github.com/4FusionLab/Paramood/releases) and [2.0 review notes](docs/releases/2.0.0-draft.md): published builds and the draft for this branch.
 - [Product concept](docs/PRODUCT_CONCEPT.md) and [IntelliSense details](docs/INTELLISENSE.md).
 
 ## Build from source

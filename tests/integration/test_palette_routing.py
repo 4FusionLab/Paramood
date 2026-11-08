@@ -13,6 +13,7 @@ def entry(monkeypatch):
     core, fusion = types.ModuleType('adsk.core'), types.ModuleType('adsk.fusion')
     for name in (
         'HTMLEventHandler',
+        'ActiveSelectionEventHandler',
         'CommandEventHandler',
         'CommandCreatedEventHandler',
         'DocumentEventHandler',

@@ -2,6 +2,8 @@
 
 [Русский](README.ru.md) · [Step-by-step walkthrough](../../docs/DEMO.md)
 
+> **Legacy 1.x example:** Paramood 2.0 does not read or migrate the variants in this file. A separate 2.0 demo export is pending.
+
 Download [Cedar-Sage-Paramood.f3d](Cedar-Sage-Paramood.f3d) to try saved model variants in Autodesk Fusion. The file contains the feeder geometry and all three Paramood variants; no separate variant settings file is required. Use Paramood 1.5.0 for the variants and text workflows described in the repository’s main README.
 
 1. Save the actual F3D file from GitHub to your computer.

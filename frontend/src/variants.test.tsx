@@ -1,16 +1,19 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'preact';
-import { act } from 'preact/test-utils';
 import { EditorView } from '@codemirror/view';
 import { currentCompletions, startCompletion } from '@codemirror/autocomplete';
+import { act } from 'preact/test-utils';
 import { VariantsControl } from './variants';
 import type { ModelState } from './bridge';
+import { ParameterList } from './parameter-list';
 
 let host: HTMLDivElement;
 afterEach(() => {
   if (host) act(() => render(null, host));
   document.body.innerHTML = '';
+  vi.restoreAllMocks();
+  delete window.adsk;
 });
 const parameter = {
   name: 'width',
@@ -18,369 +21,522 @@ const parameter = {
   unit: 'mm',
   value: '10 mm',
   entityToken: 'width-token',
+  configured: true,
+};
+const saved = {
+  id: 'compact',
+  name: 'Compact',
+  parameters: [{ ...parameter, value: 1 }],
+  features: [{ name: 'Cut', entityToken: 'cut', enabled: true }],
 };
 const model: ModelState = {
   documentId: 'model',
   parameters: [
     parameter,
-    { ...parameter, name: 'height', entityToken: 'height-token' },
+    { ...parameter, name: 'height', entityToken: 'height-token', configured: false },
     { ...parameter, name: 'driven', driven: true },
   ],
-  variants: [],
+  variants: [saved],
+  variantColumns: [
+    { kind: 'parameter', name: 'width', entityToken: 'width-token', unit: 'mm' },
+    { kind: 'feature', name: 'Cut', entityToken: 'cut' },
+  ],
+  timelineFeatures: [{ name: 'Cut', entityToken: 'cut', enabled: true }],
   variantsToken: 'storage',
   variantSnapshotToken: 'snapshot',
   activeVariantId: null,
 };
-function mount(state = model, onAction = vi.fn().mockResolvedValue(true), disabled = false) {
+function mount(state = model, onAction = vi.fn().mockResolvedValue(true)) {
+  // jsdom has no pointer event properties; Preact otherwise preserves an unsupported event's case.
+  if (!('onpointerdown' in HTMLElement.prototype))
+    Object.defineProperty(HTMLElement.prototype, 'onpointerdown', {
+      configurable: true,
+      value: null,
+    });
   if (!Range.prototype.getClientRects)
     Range.prototype.getClientRects = () => [] as unknown as DOMRectList;
   if (!Range.prototype.getBoundingClientRect)
     Range.prototype.getBoundingClientRect = () => new DOMRect();
+  if (!window.adsk)
+    window.adsk = {
+      fusionSendData: (_action, raw) => {
+        const message = JSON.parse(raw),
+          text = message.payload.text as string;
+        window.fusionJavaScriptHandler!.handle(
+          'response',
+          JSON.stringify({
+            requestId: message.requestId,
+            ok: true,
+            documentId: state.documentId,
+            data: { expression: text?.slice(text.indexOf('=') + 1).trim(), newParameters: [] },
+          }),
+        );
+      },
+    };
   host = document.createElement('div');
   document.body.appendChild(host);
-  act(() =>
-    render(<VariantsControl model={state} disabled={disabled} onAction={onAction} />, host),
-  );
+  act(() => render(<VariantsControl model={state} disabled={false} onAction={onAction} />, host));
   return onAction;
 }
 function click(label: string) {
-  const button = Array.from(host.querySelectorAll('button')).find(
-    (item) => item.getAttribute('aria-label') === label || item.textContent?.trim() === label,
+  const b = Array.from(host.querySelectorAll('button')).find(
+    (b) => b.getAttribute('aria-label') === label || b.textContent?.trim() === label,
   );
-  expect(button, label).toBeTruthy();
-  act(() => button!.click());
+  expect(b, label).toBeTruthy();
+  act(() => b!.click());
 }
 function input(label: string, value: string) {
-  const element = host.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
+  let e = host.querySelector<HTMLElement>(`[aria-label="${label}"]`)!;
+  expect(e, label).toBeTruthy();
+  if (e.matches('button.variant-cell-value')) {
+    act(() => e.click());
+    e = host.querySelector<HTMLElement>(`[aria-label="${label}"]`)!;
+  }
   act(() => {
-    if (element.matches('.cm-content')) {
-      const editor = EditorView.findFromDOM(element)!;
-      editor.dispatch({
-        changes: { from: 0, to: editor.state.doc.length, insert: value },
+    if (e.matches('.cm-content')) {
+      const view = EditorView.findFromDOM(e)!;
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: value },
         selection: { anchor: value.length },
       });
     } else {
-      element.value = value;
-      element.dispatchEvent(new Event('input', { bubbles: true }));
+      const field = e as HTMLInputElement;
+      field.value = value;
+      field.dispatchEvent(new Event('input', { bubbles: true }));
     }
   });
 }
-function name(value: string) {
-  const element = host.querySelector<HTMLInputElement>('#variant-name')!;
-  act(() => {
-    element.value = value;
-    element.dispatchEvent(new Event('input', { bubbles: true }));
-  });
+function cellValue(label: string) {
+  const e = host.querySelector<HTMLElement>(`[aria-label="${label}"]`)!;
+  return e.matches('.cm-content') ? EditorView.findFromDOM(e)!.state.doc.toString() : e.textContent;
 }
-function create() {
-  click('Variants: Free');
-  click('Create variant');
-}
-const saved = {
-  id: 'compact',
-  name: 'Compact',
-  parameters: [
-    { name: 'width', entityToken: 'width-token', expression: '10 mm', unit: 'mm', value: 1 },
-  ],
-};
 
-describe('variants workflow', () => {
-  it('starts in Free and exposes a useful empty state', () => {
+function open() {
+  click('Variants: Free');
+  click('Edit variants');
+}
+function checkbox(label: string) {
+  const e = host.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
+  expect(e, label).toBeTruthy();
+  act(() => e.click());
+}
+async function save() {
+  click('Save');
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
+
+describe('global variant table', () => {
+  it('shows shared counts and one table editor entry in the switcher header', () => {
     mount();
     click('Variants: Free');
-    expect(host.textContent).toContain('Save parameter values');
-    expect(host.textContent).toContain('Create variant');
-  });
-  it('creates a variant from selected parameters and values with captured document tokens', async () => {
-    const action = mount();
-    create();
-    name('Compact');
-    expect(host.querySelector('[aria-label="Include driven"]')).toBeNull();
-    click('Save & apply');
-    expect(action).not.toHaveBeenCalled();
-    act(() => host.querySelector<HTMLInputElement>('[aria-label="Include width"]')!.click());
-    input('Value for width', '25 mm');
-    click('Save & apply');
-    await vi.waitFor(() =>
-      expect(action).toHaveBeenCalledWith(
-        'variants.save',
-        expect.objectContaining({
-          name: 'Compact',
-          variantsToken: 'storage',
-          snapshotToken: 'snapshot',
-          parameters: [
-            expect.objectContaining({
-              name: 'width',
-              expression: '25 mm',
-              entityToken: 'width-token',
-            }),
-          ],
-        }),
-      ),
-    );
-    await vi.waitFor(() => expect(host.querySelector('[role="dialog"]')).toBeNull());
-  });
-  it('removes membership without sending a model deletion', async () => {
-    const action = mount({ ...model, variants: [saved] });
-    click('Variants: Free');
-    click('Edit Compact');
-    act(() => host.querySelector<HTMLInputElement>('[aria-label="Include width"]')!.click());
-    act(() => host.querySelector<HTMLInputElement>('[aria-label="Include height"]')!.click());
-    click('Save & apply');
-    await vi.waitFor(() =>
-      expect(action).toHaveBeenCalledWith(
-        'variants.save',
-        expect.objectContaining({ parameters: [expect.objectContaining({ name: 'height' })] }),
-      ),
-    );
-  });
-  it('filters parameters while preserving selected values', () => {
-    mount();
-    create();
-    act(() => host.querySelector<HTMLInputElement>('[aria-label="Include width"]')!.click());
-    input('Value for width', '30 mm');
-    input('Find parameters for variant', 'height');
-    expect(host.querySelector('[aria-label="Include width"]')).toBeNull();
-    input('Find parameters for variant', '');
-    expect(host.querySelector<HTMLInputElement>('[aria-label="Value for width"]')!.value).toBe(
-      '30 mm',
-    );
-  });
-  it('switches and returns to Free without resetting parameter values', async () => {
-    const action = mount({ ...model, variants: [saved], activeVariantId: saved.id });
-    click('Variants: Compact');
-    click('FreeEdit without updating a variant');
-    await vi.waitFor(() =>
-      expect(action).toHaveBeenCalledWith(
-        'variants.free',
-        expect.objectContaining({ snapshotToken: 'snapshot' }),
-      ),
-    );
-  });
-  it('disables duplicate names and missing parameters but lets users repair membership', () => {
-    mount({
-      ...model,
-      variants: [
-        saved,
-        {
-          ...saved,
-          id: 'missing',
-          name: 'Missing',
-          parameters: [{ ...saved.parameters[0], missing: true }],
-        },
-      ],
-    });
-    create();
-    name('compact');
-    expect(host.textContent).toContain('already exists');
-    click('Cancel');
-    click('Variants: Free');
-    click('Edit Missing');
-    expect(host.textContent).toContain('Missing from model');
-    act(() => host.querySelector<HTMLInputElement>('[aria-label="Include width"]')!.click());
-    expect(host.textContent).not.toContain('Missing from model');
-  });
-  it('retains draft when the backend rejects a save', async () => {
-    const action = mount(model, vi.fn().mockResolvedValue(false));
-    create();
-    name('Compact');
-    act(() => host.querySelector<HTMLInputElement>('[aria-label="Include width"]')!.click());
-    input('Value for width', 'bad expression');
-    click('Save & apply');
-    await vi.waitFor(() => expect(action).toHaveBeenCalled());
-    expect(host.querySelector<HTMLInputElement>('[aria-label="Value for width"]')!.value).toBe(
-      'bad expression',
-    );
+    const heading = host.querySelector('.variant-menu-heading')!;
+    expect(heading.textContent).toContain('1 parameter · 1 feature');
+    expect(heading.querySelector('[aria-label="Edit variants"]')).toBeTruthy();
+    const options = host.querySelector('.variant-options')!;
+    expect(options.querySelector('.icon')).toBeNull();
+    expect(options.textContent).not.toContain('parameter');
+    click('Edit variants');
     expect(host.querySelector('[role="dialog"]')).toBeTruthy();
   });
-  it('confirms deleting a variant while preserving the model', async () => {
-    const action = mount({ ...model, variants: [saved] });
-    click('Variants: Free');
-    click('Edit Compact');
+  it('uses shared IntelliSense, this and function completions inside a table cell', async () => {
+    mount();
+    open();
+    input('Compact / width', '');
+    const view = EditorView.findFromDOM(host.querySelector<HTMLElement>('.cm-content')!)!;
+    act(() => {
+      startCompletion(view);
+    });
+    await vi.waitFor(() =>
+      expect(currentCompletions(view.state).map((c) => c.label)).toContain('this'),
+    );
+    expect(currentCompletions(view.state).map((c) => c.label)).toContain('random');
+    input('Compact / width', 'sin(30 deg)');
+    expect(host.querySelector('.token-function')?.textContent).toBe('sin');
+    expect(host.querySelector('.variant-table-scroll .cm-tooltip')).toBeNull();
+  });
+  it('keeps newly linked global parameters in the draft and sends them only on Save', async () => {
+    window.adsk = {
+      fusionSendData: (_action, raw) => {
+        const message = JSON.parse(raw);
+        window.fusionJavaScriptHandler!.handle(
+          'response',
+          JSON.stringify({
+            requestId: message.requestId,
+            ok: true,
+            documentId: 'model',
+            data: {
+              expression: 'beam',
+              newParameters: [{ name: 'beam', expression: '25 mm', unit: 'mm', value: 25 }],
+            },
+          }),
+        );
+      },
+    };
+    const action = mount();
+    open();
+    input('Compact / width', 'beam=25');
+    await save();
+    expect(action.mock.calls[0][1].newParameters).toEqual([
+      { name: 'beam', expression: '25 mm', unit: 'mm' },
+    ]);
+    expect(action.mock.calls[0][1].columns.map((c: { name: string }) => c.name)).toEqual([
+      'width',
+      'Cut',
+    ]);
+    expect(action.mock.calls[0][1].variants[0].parameters[0].expression).toBe('beam');
+  });
+  it('duplicates the committed cell draft without losing the action during editor blur', async () => {
+    mount();
+    open();
+    input('Compact / width', '35 mm');
+    click('Duplicate Compact');
+    await vi.waitFor(() => expect(host.querySelector('[aria-label="Variant name"]')).toBeTruthy());
+    expect(cellValue('Compact / width')).toBe('35 mm');
+    expect(cellValue('Compact copy / width')).toBe('35 mm');
+  });
+  it('keeps variants as rows at any width and appends Add variant as the last row', () => {
+    mount();
+    open();
+    expect(host.querySelector('thead th')?.textContent).toBe('Variant');
+    expect(host.querySelector('tbody tr:last-child')?.textContent).toContain('Add variant');
+    click('Add variant');
+    input('Variant name', 'Garden');
+    expect(
+      host.querySelector('[aria-label="Garden / width"]')?.closest('tr')?.querySelector('th'),
+    ).toBeTruthy();
+    expect(host.querySelector('tbody tr:last-child')?.textContent).toContain('Add variant');
+  });
+  it('renames in place and confirms deletion next to the row without writing before Save', async () => {
+    const action = mount();
+    open();
+    click('Rename Compact');
+    input('Variant name', 'Garden');
+    click('Delete Garden');
+    expect(host.textContent).toContain('Model parameters and features will stay');
+    click('Keep variant');
+    expect(host.querySelector('[aria-label="Garden / width"]')).toBeTruthy();
+    click('Delete Garden');
     click('Delete variant');
     expect(action).not.toHaveBeenCalled();
-    expect(host.textContent).toContain('Model parameters will stay');
-    click('Delete variant');
-    await vi.waitFor(() =>
-      expect(action).toHaveBeenCalledWith(
-        'variants.delete',
-        expect.objectContaining({ id: saved.id }),
-      ),
+    expect(host.querySelector('[aria-label="Garden / width"]')).toBeNull();
+    await save();
+    expect(action.mock.calls[0][1].variants).toEqual([]);
+  });
+  it('adds picked timeline features to every draft row only while picking the same document', async () => {
+    window.adsk = {
+      fusionSendData: (_action, raw) => {
+        const request = JSON.parse(raw);
+        window.fusionJavaScriptHandler!.handle(
+          'response',
+          JSON.stringify({
+            requestId: request.requestId,
+            ok: true,
+            documentId: 'model',
+            data: { documentId: 'model', features: [] },
+          }),
+        );
+      },
+    };
+    const action = mount();
+    open();
+    click('Configure · 2');
+    click('Pick from timeline');
+    await vi.waitFor(() => expect(host.textContent).toContain('Done picking'));
+    const emit = (documentId: string, name = 'Fillet') =>
+      act(() => {
+        window.fusionJavaScriptHandler!.handle(
+          'variants.selection',
+          JSON.stringify({ documentId, features: [{ name, entityToken: name, enabled: false }] }),
+        );
+      });
+    emit('other');
+    expect(host.querySelector('[aria-label="Compact / Fillet enabled"]')).toBeNull();
+    emit('model');
+    emit('model');
+    expect(host.querySelectorAll('[aria-label="Compact / Fillet enabled"]')).toHaveLength(1);
+    expect(
+      host.querySelector<HTMLInputElement>('[aria-label="Compact / Fillet enabled"]')!.checked,
+    ).toBe(false);
+    click('Done picking');
+    emit('model', 'Extrude');
+    expect(host.querySelector('[aria-label="Compact / Extrude enabled"]')).toBeNull();
+    expect(action).not.toHaveBeenCalled();
+    await save();
+    expect(action.mock.calls[0][1].columns).toHaveLength(3);
+  });
+  it('saves all rows without applying or changing the switcher contract', async () => {
+    const action = mount();
+    open();
+    input('Compact / width', '25 mm');
+    await save();
+    expect(action).toHaveBeenCalledWith(
+      'variants.table.save',
+      expect.objectContaining({
+        variantsToken: 'storage',
+        snapshotToken: 'snapshot',
+        columns: model.variantColumns,
+        variants: [
+          expect.objectContaining({
+            id: 'compact',
+            parameters: [expect.objectContaining({ expression: '25 mm' })],
+          }),
+        ],
+      }),
     );
+    expect(action).not.toHaveBeenCalledWith('variants.apply', expect.anything());
   });
-  it('supports Escape, focus restoration and a trapped dialog tab order', async () => {
-    mount();
-    create();
-    await vi.waitFor(() => expect(document.activeElement?.id).toBe('variant-name'));
-    const dialog = host.querySelector<HTMLElement>('[role="dialog"]')!;
-    const close = dialog.querySelector<HTMLButtonElement>('[aria-label="Close variant editor"]')!;
-    act(() => {
-      close.focus();
-      close.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }),
-      );
-    });
-    expect(document.activeElement?.textContent).toBe('Cancel');
-    act(() => {
-      dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    });
-    expect(host.querySelector('[role="dialog"]')).toBeNull();
-    expect(document.activeElement?.getAttribute('aria-label')).toBe('Variants: Free');
-  });
-  it('disables variants when storage cannot be safely read', () => {
-    mount({ ...model, variantsError: 'Cannot read saved variants.' });
-    expect(host.querySelector<HTMLButtonElement>('.variant-trigger')!.disabled).toBe(true);
-  });
-});
-
-describe('variant parameter hierarchy', () => {
-  it('selects a parent value and child independently without losing either on collapse', () => {
-    mount({
+  it('selects the parameter set globally and initializes every row from current values', async () => {
+    const action = mount({
       ...model,
-      parameters: [
-        { ...parameter, name: 'post', unit: '', expression: '4', value: '4', entityToken: 'post' },
-        { ...parameter, name: 'post_height', entityToken: 'post-height' },
-      ],
+      variants: [saved, { ...saved, id: 'garden', name: 'Garden' }],
     });
-    create();
-    act(() => host.querySelector<HTMLInputElement>('[aria-label="Include post"]')!.click());
-    input('Value for post', '6');
-    expect(host.querySelector('[aria-label="Include post_height"]')).toBeTruthy();
-    act(() => host.querySelector<HTMLInputElement>('[aria-label="Include post_height"]')!.click());
-    input('Value for post_height', '120 mm');
-    click('Collapse post');
-    expect(host.querySelector<HTMLInputElement>('[aria-label="Value for post"]')!.value).toBe('6');
-    act(() => host.querySelector<HTMLInputElement>('[aria-label="Include post"]')!.click());
-    click('Expand post');
+    open();
+    click('Configure · 2');
+    expect(host.querySelector('[aria-label="Include driven"]')).toBeNull();
+    checkbox('Include height');
+    await save();
+    const payload = action.mock.calls[0][1];
+    expect(payload.columns.map((c: { name: string }) => c.name)).toEqual([
+      'width',
+      'Cut',
+      'height',
+    ]);
     expect(
-      host.querySelector<HTMLInputElement>('[aria-label="Include post_height"]')!.checked,
+      payload.variants.every((r: { parameters: { name: string }[] }) =>
+        r.parameters.some((p) => p.name === 'height'),
+      ),
     ).toBe(true);
+  });
+  it('treats a checked feature as enabled and unchecked as suppressed', async () => {
+    const action = mount();
+    open();
     expect(
-      host.querySelector<HTMLInputElement>('[aria-label="Value for post_height"]')!.value,
-    ).toBe('120 mm');
-    expect(host.querySelector<HTMLInputElement>('[aria-label="Include post"]')!.checked).toBe(
-      false,
-    );
+      host.querySelector<HTMLInputElement>('[aria-label="Compact / Cut enabled"]')!.checked,
+    ).toBe(true);
+    checkbox('Compact / Cut enabled');
+    await save();
+    expect(action.mock.calls[0][1].variants[0].features[0].enabled).toBe(false);
   });
-  const treeModel: ModelState = {
-    ...model,
-    parameters: [
-      { ...parameter, name: 'box_inner_width', entityToken: 'inner' },
-      { ...parameter, name: 'box_height', entityToken: 'height' },
-      { ...parameter, name: 'd10', entityToken: 'd10', kind: 'model' },
-    ],
-  };
-  it('uses nested underscore groups and a separate Model parameters section', () => {
-    mount(treeModel);
-    create();
-    expect(host.querySelector('[aria-label="Include box_inner_width"]')).toBeNull();
-    click('Expand box');
-    click('Expand box.inner');
-    expect(host.querySelector('[aria-label="Include box_inner_width"]')).toBeTruthy();
-    expect(host.querySelector('[aria-label="Include d10"]')).toBeNull();
-    click('Model parameters');
-    expect(host.querySelector('[aria-label="Include d10"]')).toBeTruthy();
-    click('Collapse all groups');
-    expect(host.querySelector('[aria-label="Include box_inner_width"]')).toBeNull();
-    click('Expand all groups');
-    expect(host.querySelector('[aria-label="Include box_inner_width"]')).toBeTruthy();
+  it('removes a member from every row without deleting anything from the model', async () => {
+    const action = mount();
+    open();
+    click('Configure · 2');
+    checkbox('Include width');
+    await save();
+    expect(action.mock.calls[0][1].columns.map((c: { kind: string }) => c.kind)).toEqual([
+      'feature',
+    ]);
+    expect(action.mock.calls[0][1].variants[0].parameters).toEqual([]);
   });
-  it('opens matching ancestors during search and preserves selection after clearing it', () => {
-    mount(treeModel);
-    create();
-    input('Find parameters for variant', 'inner_width');
-    expect(host.querySelector('[aria-label="Include box_inner_width"]')).toBeTruthy();
-    expect(host.querySelector('[aria-label="Include box_height"]')).toBeNull();
-    expect(host.textContent).toContain('box');
-    act(() => {
-      host.querySelector<HTMLInputElement>('[aria-label="Include box_inner_width"]')!.click();
-    });
-    input('Value for box_inner_width', '15 mm');
-    input('Find parameters for variant', '');
-    expect(
-      host.querySelector<HTMLInputElement>('[aria-label="Value for box_inner_width"]')!.value,
-    ).toBe('15 mm');
+  it('creates and duplicates rows with editable names and no per-variant membership selector', async () => {
+    const action = mount();
+    click('Variants: Free');
+    click('Create variant');
+    input('Variant name', 'Garden');
+    expect(host.querySelector('[aria-label="Garden / width"]')).toBeTruthy();
+    click('Duplicate Garden');
+    input('Variant name', 'Patio');
+    await save();
+    expect(action).toHaveBeenCalledTimes(1);
+    expect(action.mock.calls[0][1].variants.map((r: { name: string }) => r.name)).toEqual([
+      'Compact',
+      'Garden',
+      'Patio',
+    ]);
   });
-});
-
-describe('smart variant search', () => {
-  const searchModel: ModelState = {
-    ...model,
-    parameters: [
-      { ...parameter, name: 'box_width', entityToken: 'box-width' },
-      { ...parameter, name: 'box_height', entityToken: 'box-height' },
-    ],
-  };
-  it('selects and assigns a dotted path immediately without applying to Fusion', async () => {
-    const action = mount(searchModel);
-    create();
-    input('Find parameters for variant', 'box.width=30');
-    expect(host.querySelector<HTMLInputElement>('[aria-label="Include box_width"]')!.checked).toBe(
+  it('blocks duplicate names and preserves a rejected draft', async () => {
+    const action = mount(model, vi.fn().mockResolvedValue(false));
+    open();
+    click('Duplicate Compact');
+    input('Variant name', 'Compact');
+    expect(host.textContent).toContain('names must be unique');
+    expect(host.querySelector<HTMLButtonElement>('.variant-dialog-footer .primary')!.disabled).toBe(
       true,
     );
-    expect(host.querySelector<HTMLInputElement>('[aria-label="Value for box_width"]')!.value).toBe(
-      '30 mm',
-    );
-    expect(action).not.toHaveBeenCalled();
-    input('Find parameters for variant', 'box.width=40');
-    expect(host.querySelector<HTMLInputElement>('[aria-label="Value for box_width"]')!.value).toBe(
-      '40 mm',
-    );
-    expect(host.textContent).toContain('1 selected');
-    input('Find parameters for variant', '');
-    expect(host.querySelector<HTMLInputElement>('[aria-label="Value for box_width"]')!.value).toBe(
-      '40 mm',
-    );
-    name('Smart');
-    click('Save & apply');
-    await vi.waitFor(() =>
-      expect(action).toHaveBeenCalledWith(
-        'variants.save',
-        expect.objectContaining({
-          parameters: [expect.objectContaining({ name: 'box_width', expression: '40 mm' })],
-        }),
-      ),
-    );
+    input('Variant name', 'Garden');
+    input('Garden / width', 'bad expression');
+    await save();
+    expect(action).toHaveBeenCalled();
+    expect(cellValue('Garden / width')).toBe('bad expression');
   });
-  it('offers hierarchy IntelliSense in the search and compiles formula references', async () => {
-    mount(searchModel);
-    create();
-    input('Find parameters for variant', 'box.');
-    const editor = EditorView.findFromDOM(
-      host.querySelector<HTMLElement>('[aria-label="Find parameters for variant"]')!,
-    )!;
-    act(() => {
-      startCompletion(editor);
-    });
-    await vi.waitFor(() =>
-      expect(currentCompletions(editor.state).map((item) => item.label)).toContain('width'),
-    );
-    input('Find parameters for variant', 'box.width=box.height/2');
-    expect(host.querySelector<HTMLInputElement>('[aria-label="Value for box_width"]')!.value).toBe(
-      'box_height/2',
-    );
-    input('Find parameters for variant', 'unknown=20');
-    expect(host.textContent).toContain('Choose an existing editable parameter');
+  it('requires explicit discard before closing a dirty table', () => {
+    mount();
+    open();
+    input('Compact / width', '40 mm');
+    click('Cancel');
+    expect(host.textContent).toContain('Discard unsaved table');
+    click('Keep editing');
+    expect(host.querySelector('[role="dialog"]')).toBeTruthy();
+    click('Cancel');
+    click('Discard changes');
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
   });
-  it('shows variant search only above five saved variants', () => {
-    const variants = Array.from({ length: 5 }, (_, index) => ({
-      ...saved,
-      id: String(index),
-      name: `Size ${index}`,
-    }));
-    mount({ ...model, variants });
-    click('Variants: Free');
-    expect(host.querySelector('[aria-label="Find variant"]')).toBeNull();
+  it('preserves the draft across stale model refreshes until the user confirms replacement', () => {
+    const action = mount();
+    open();
+    input('Compact / width', '40 mm');
     act(() =>
       render(
         <VariantsControl
-          model={{ ...model, variants: [...variants, { ...saved, id: 'six' }] }}
+          model={{ ...model, variantSnapshotToken: 'new' }}
           disabled={false}
-          onAction={vi.fn()}
+          onAction={action}
         />,
         host,
       ),
     );
-    expect(host.querySelector('[aria-label="Find variant"]')).toBeTruthy();
+    expect(cellValue('Compact / width')).toBe('40 mm');
+    click('Reload from model');
+    click('Keep editing');
+    expect(host.textContent).toContain('draft is preserved');
+    click('Reload from model');
+    click('Replace draft');
+    expect(cellValue('Compact / width')).toBe('10 mm');
+  });
+  it('reorders both axes with keyboard handles and keeps cell identities intact', async () => {
+    const action = mount({
+      ...model,
+      variants: [saved, { ...saved, id: 'garden', name: 'Garden' }],
+    });
+    open();
+    for (const name of ['Compact', 'width']) {
+      const handle = host.querySelector(`[aria-label="Reorder ${name}"]`)!;
+      act(() => {
+        handle.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'ArrowRight', altKey: true, bubbles: true }),
+        );
+      });
+    }
+    await save();
+    const payload = action.mock.calls[0][1];
+    expect(payload.variants.map((r: { name: string }) => r.name)).toEqual(['Garden', 'Compact']);
+    expect(payload.columns.map((c: { name: string }) => c.name)).toEqual(['Cut', 'width']);
+    expect(payload.variants[0].parameters[0].entityToken).toBe('width-token');
+  });
+  it('reorders rows and columns with pointer gestures when native HTML drag events are unavailable', async () => {
+    const action = mount({
+      ...model,
+      variants: [saved, { ...saved, id: 'garden', name: 'Garden' }],
+    });
+    open();
+    const pointer = (type: string, x: number, y: number) =>
+      new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, clientX: x, clientY: y });
+    for (const [source, destination] of [
+      ['Compact', 'Garden'],
+      ['width', 'Cut'],
+    ]) {
+      const handle = host.querySelector(`[aria-label="Reorder ${source}"]`)!;
+      const target = host.querySelector(`[aria-label="Reorder ${destination}"]`)!;
+      Object.defineProperty(document, 'elementFromPoint', {
+        configurable: true,
+        value: () => target,
+      });
+      act(() => {
+        handle.dispatchEvent(pointer('pointerdown', 20, 20));
+      });
+      act(() => {
+        window.dispatchEvent(pointer('pointermove', 60, 60));
+      });
+      act(() => {
+        window.dispatchEvent(pointer('pointerup', 60, 60));
+      });
+    }
+    expect(host.querySelector('[data-reorder-rows="0"]')?.textContent).toContain('Garden');
+    await save();
+    expect(action).toHaveBeenCalledTimes(1);
+    expect(action.mock.calls[0][1].variants.map((r: { name: string }) => r.name)).toEqual([
+      'Garden',
+      'Compact',
+    ]);
+    expect(action.mock.calls[0][1].columns.map((c: { name: string }) => c.name)).toEqual([
+      'Cut',
+      'width',
+    ]);
+    expect(action.mock.calls[0][1].variants[0].parameters[0].entityToken).toBe('width-token');
+  });
+  it('cancels pointer reorder on Escape, pointer cancellation, or release outside the table', () => {
+    mount({ ...model, variants: [saved, { ...saved, id: 'garden', name: 'Garden' }] });
+    open();
+    const pointer = (type: string, x: number) =>
+      new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, clientX: x, clientY: 20 });
+    const handle = host.querySelector('[aria-label="Reorder Compact"]')!;
+    const target = host.querySelector('[aria-label="Reorder Garden"]')!;
+    for (const cancel of ['Escape', 'pointercancel', 'outside']) {
+      Object.defineProperty(document, 'elementFromPoint', {
+        configurable: true,
+        value: () => target,
+      });
+      act(() => {
+        handle.dispatchEvent(pointer('pointerdown', 20));
+      });
+      act(() => {
+        window.dispatchEvent(pointer('pointermove', 60));
+      });
+      act(() => {
+        if (cancel === 'outside')
+          Object.defineProperty(document, 'elementFromPoint', {
+            configurable: true,
+            value: () => null,
+          });
+        else if (cancel === 'Escape')
+          window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        else window.dispatchEvent(pointer('pointercancel', 60));
+        window.dispatchEvent(pointer('pointerup', 60));
+      });
+      expect(host.querySelector('[data-reorder-rows="0"]')?.textContent).toContain('Compact');
+      expect(host.textContent).toContain('All changes saved');
+      expect(host.querySelector('.table-drop-target')).toBeNull();
+      expect(host.querySelector('[role="dialog"]')).toBeTruthy();
+    }
+  });
+  it('ignores foreign HTML drops without changing the draft', () => {
+    mount({ ...model, variants: [saved, { ...saved, id: 'garden', name: 'Garden' }] });
+    open();
+    const target = host.querySelector('[aria-label="Reorder Garden"]')!.closest('th')!;
+    act(() => {
+      target.dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
+    });
+    expect(host.textContent).toContain('All changes saved');
+  });
+  it('uses the original apply and Free actions when switching', async () => {
+    const action = mount();
+    click('Variants: Free');
+    click('Compact');
+    await vi.waitFor(() =>
+      expect(action).toHaveBeenCalledWith(
+        'variants.apply',
+        expect.objectContaining({ id: 'compact' }),
+      ),
+    );
+  });
+  it('closes the draft when the active document changes', () => {
+    const action = mount();
+    open();
+    input('Compact / width', '40 mm');
+    act(() =>
+      render(
+        <VariantsControl
+          model={{ ...model, documentId: 'other' }}
+          disabled={false}
+          onAction={action}
+        />,
+        host,
+      ),
+    );
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    expect(action).not.toHaveBeenCalled();
+  });
+  it('marks configured parameters in the common list independently of the active variant', () => {
+    host = document.createElement('div');
+    act(() =>
+      render(
+        <ParameterList parameters={model.parameters} onEdit={() => {}} onDelete={() => {}} />,
+        host,
+      ),
+    );
+    expect(host.querySelector('[aria-label="width: controlled by variants"]')).toBeTruthy();
+    expect(host.querySelector('[aria-label="height: controlled by variants"]')).toBeNull();
   });
 });

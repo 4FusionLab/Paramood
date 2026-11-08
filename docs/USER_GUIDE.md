@@ -16,37 +16,31 @@ IntelliSense offers model dimensions such as `d1` only when the current token is
 
 In an inline numeric edit, use `+=5`, `-=5`, `*=2`, or `/=2` to update the existing expression. Addition and subtraction use the parameter's unit for a bare number; multiplication and division use a dimensionless number. Existing formula dependencies are preserved.
 
-The unit selector beside the design name changes the design's display units to `mm`, `cm`, `m`, `in`, or `ft`. It preserves physical sizes. In an inline numeric edit or a variant search assignment, a bare number uses that parameter's unit; explicit units make examples easier to share.
+The unit selector beside the design name changes the design's display units to `mm`, `cm`, `m`, `in`, or `ft`. It preserves physical sizes. In an inline numeric edit or a variant table cell, a bare number uses that parameter's unit; explicit units make examples easier to share.
 
 Use the copy icon beside a calculator result to copy its value with units. **Copy expression** copies the input expression. A success notification disappears after 3.5 seconds; errors remain until dismissed.
 
-## Create a variant
+## Variant table 2.0
 
-A variant stores expressions and values for a selected set of existing editable parameters. It can include user parameters, model parameters, and text parameters. It does not capture the entire design or suppress features.
+Open the common table through **Create variant** or **Edit variants** in the variant menu header. Configure selects one model-wide set
+of parameters and supported features. Click a cell to edit that variant's expression; a checked
+feature is enabled, and an unchecked feature is suppressed. Drag handles reorder either axis. Mouse gestures and saved-order round-trip were checked in Fusion on macOS.
+Variants are always rows; parameters/features are always columns, at every width. Names wrap at word boundaries;
+scrolling begins only when readable value columns no longer fit.
 
-1. Open the variant menu in the header and choose **Create variant**.
-2. Enter a unique name, such as `Compact`.
-3. Select the existing parameters whose expressions should belong to this variant. Expand the same groups used in the main parameter tree, or search by name with IntelliSense. The selected-count button filters to selected parameters.
-4. Edit their expressions. An assignment in the search, such as `box.width=30`, selects the existing `box_width` parameter and sets its draft expression. It does not create a CAD parameter. Press **Enter** to clear the search.
-5. Choose **Save & apply**. This both saves the variant and applies its expressions to the current model. At least one parameter is required.
+The table remains a draft until Save. Cancel/close lets you confirm discarding changes without
+changing the model. Save validates every row, applies only the edited active variant, and stores
+the table. In Free it only stores values. Parameters outside the configured set stay global and
+are never enrolled automatically. A table icon in the common parameter list marks configured items.
 
-Select a variant name in the header to apply it. Parameters outside the selected variant retain their current state; use the same member set across variants when you want directly comparable configurations. There is no fixed variant-count limit in Paramood, but Fusion's attribute storage has a size limit. **Find variant** appears when more than five variants exist, and long lists scroll inside the menu.
-
-## Edit, leave, or delete a variant
-
-While a variant is active, a successful parameter change through Paramood updates that variant. Changed parameters that were not members are added automatically. This includes text parameters.
-
-Choose **Free** before making changes that should leave saved variants unchanged. Free keeps the current model values. External Fusion edits that make the active variant no longer match also switch Paramood to Free; saved variants are not rewritten.
-
-Use the pencil beside a variant to change its name, members, or expressions. Removing a member keeps its CAD parameter. Deleting the variant also keeps the model's parameters and current values. A missing parameter is marked **Needs attention**; a newly created parameter with the same name is not silently substituted for the original.
-
-If the document changes while an editor is open, the stale save is rejected. Review the error and use **Reload from model** to reset the draft to the current state before trying again.
+Old 1.x variants are neither read nor migrated; 2.0 uses a separate storage format.
+See [Variants 2.0](VARIANTS_V2.md). Release awaits the owner's personal acceptance.
 
 ## Save and share with F3D
 
 Variants are stored in the Fusion design's attributes. Use Fusion's ordinary save or F3D export to retain them; Paramood does not initiate a cloud save. Share the F3D, then open it in Fusion with Paramood running to read its variants.
 
-On reopening, Paramood compares saved member values with the model. Numeric comparisons use a tolerance in Fusion's internal units; text comparisons are exact, including spaces and empty text. A complete match selects that variant. If several match, the first created is selected; if none matches, the header shows **Free**. A previous explicit Free choice is not a persistent reset instruction for a later reopen.
+On reopening, Paramood compares saved member values with the model. Numeric comparisons use a tolerance in Fusion's internal units; text comparisons are exact, including spaces and empty text. A complete match selects that variant. If several match, the first row in the saved order is selected; if none matches, the header shows **Free**. A previous explicit Free choice is not a persistent reset instruction for a later reopen.
 
 Applying a valid parameter expression can still produce a failed feature in Fusion's timeline. Timeline warnings and errors do not trigger a rollback of the applied variant. Inspect geometry and choose a healthy configuration before saving a model for others. Expression errors, stale requests, and incomplete writes are reported separately.
 

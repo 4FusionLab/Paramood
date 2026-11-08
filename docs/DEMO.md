@@ -2,6 +2,8 @@
 
 [Русский](DEMO.ru.md) · [User guide](USER_GUIDE.md)
 
+> **Legacy 1.x walkthrough.** The supplied F3D and screenshots use the 1.x variant format and interface. Paramood 2.0 does not read or migrate these saved variants. A 2.0 demo export and updated walkthrough are pending; do not use the variant-editing steps below with 2.0.
+
 The [Cedar & Sage F3D](../examples/cedar-sage/Cedar-Sage-Paramood.f3d) includes three variants with eight parameter entries each. It was exported in healthy Classic, reopened from that exact file, and switched through Compact and Garden using the installed palette. All 24 member identities resolved; each configuration retained 14 healthy bodies in Fusion 2706.1.17 on macOS. The model was returned to Classic. See [model information and SHA-256](../examples/cedar-sage/model-info.json). Native Windows validation remains outstanding.
 
 ## Open the example

@@ -357,6 +357,13 @@ class FusionAdapter(VariantsMixin):
                 }
             )
         variant_state = self._variants_state(design)
+        controlled = {
+            column['name']
+            for column in variant_state.get('variantColumns', [])
+            if column['kind'] == 'parameter' and not column.get('missing')
+        }
+        for parameter in parameters:
+            parameter['configured'] = parameter['name'] in controlled
         return {
             'documentId': self._document_id,
             'draftId': self._draft_id,
@@ -391,6 +398,10 @@ class FusionAdapter(VariantsMixin):
             sorted(parameters),
             self._variant_sessions.get(self._draft_id),
             self._read_variants(design)[1],
+            self._variant_feature_snapshot(design)
+            if text == 'variants'
+            or any(c['kind'] == 'feature' for c in self._read_variant_table(design)[0]['columns'])
+            else [],
         ]
         return hashlib.sha256(
             json.dumps(payload, ensure_ascii=True, allow_nan=False).encode('utf-8')
@@ -649,6 +660,10 @@ class FusionAdapter(VariantsMixin):
         return {'created': [], 'updated': [op.name for op in ops]}
 
     def request(self, action, payload):
+        if action == 'variants.cell.preview':
+            return self._preview_variant_cell(payload)
+        if action == 'variants.selection.get':
+            return self._variant_timeline_selection()
         if action.startswith('variants.'):
             return self._request_variant(action, payload)
         if action == 'document.units':

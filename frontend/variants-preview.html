@@ -32,7 +32,25 @@
         documentName: 'Enclosure v12',
         defaultLengthUnit: 'mm',
         parameters,
-        variants: [],
+        variantTableVersion: 2,
+        variantColumns: [
+          ...parameters.slice(0, 2).map((p) => ({
+            kind: 'parameter',
+            name: p.name,
+            entityToken: p.entityToken,
+            unit: p.unit,
+          })),
+          { kind: 'feature', name: 'Lid cut', entityToken: 'lid-cut' },
+        ],
+        timelineFeatures: [{ name: 'Lid cut', entityToken: 'lid-cut', enabled: true }],
+        variants: ['Classic', 'Compact', 'Garden'].map((name, index) => ({
+          id: String(index),
+          name,
+          parameters: parameters
+            .slice(0, 2)
+            .map((p) => ({ ...p, value: 12, expression: index ? '90 mm' : p.expression })),
+          features: [{ name: 'Lid cut', entityToken: 'lid-cut', enabled: index !== 1 }],
+        })),
         activeVariantId: null,
         variantsToken: 'storage',
         variantSnapshotToken: 'snapshot',
@@ -50,7 +68,9 @@
               unit: 'mm',
               value: (90 + index) / 10,
             },
+            { ...parameters[1], value: 8 },
           ],
+          features: [{ name: 'Lid cut', entityToken: 'lid-cut', enabled: true }],
         }));
       }
       window.adsk = {
@@ -58,7 +78,69 @@
           const r = JSON.parse(raw);
           let data = {};
           const p = r.payload;
-          if (r.action === 'state.get') data = structuredClone(model);
+          if (r.action === 'state.get') {
+            parameters.forEach(
+              (p) =>
+                (p.configured = model.variantColumns.some(
+                  (c) => c.kind === 'parameter' && c.name === p.name,
+                )),
+            );
+            data = structuredClone(model);
+          }
+          if (r.action === 'variants.selection.get')
+            data = { documentId: model.documentId, features: [] };
+          if (r.action === 'variants.cell.preview') {
+            // This browser-only fixture preserves syntax; Fusion performs real validation.
+            let parts = [],
+              part = '',
+              depth = 0,
+              quote = '',
+              escaped = false;
+            for (const character of p.text) {
+              if (quote) {
+                part += character;
+                if (escaped) escaped = false;
+                else if (character === '\\') escaped = true;
+                else if (character === quote) quote = '';
+                continue;
+              }
+              if (character === "'" || character === '"') {
+                quote = character;
+                part += character;
+              } else if (character === '(') {
+                depth++;
+                part += character;
+              } else if (character === ')') {
+                depth--;
+                part += character;
+              } else if (character === ';' && depth === 0) {
+                parts.push(part);
+                part = '';
+              } else part += character;
+            }
+            parts.push(part);
+            const definitions = parts.map((text) => {
+              const at = text.indexOf('=');
+              return {
+                name: text.slice(0, at).trim().replaceAll('.', '_'),
+                expression: text.slice(at + 1).trim(),
+              };
+            });
+            const target = definitions.find((x) => x.name === p.target);
+            data = {
+              expression:
+                target?.expression ||
+                p.parameters.find((x) => x.name === p.target)?.expression ||
+                '',
+              newParameters: definitions
+                .filter((x) => x.name !== p.target)
+                .map((x) => ({
+                  ...x,
+                  unit: parameters.find((x) => x.name === p.target)?.unit || 'mm',
+                  value: x.expression,
+                })),
+            };
+          }
           if (r.action === 'document.units') model.defaultLengthUnit = p.unit;
           if (r.action === 'calculator.evaluate') {
             const arithmetic = p.expression
@@ -135,32 +217,49 @@
                 if (active) {
                   const entry = { ...parameter };
                   const index = active.parameters.findIndex((item) => item.name === name);
-                  if (index < 0) active.parameters.push(entry);
-                  else active.parameters[index] = entry;
+                  if (index >= 0) active.parameters[index] = entry;
                 }
               });
           }
 
-          if (r.action === 'variants.save') {
-            let v = {
-              id: p.id || String(Date.now()),
-              name: p.name,
-              parameters: structuredClone(p.parameters),
-            };
-            const i = model.variants.findIndex((x) => x.id === v.id);
-            if (i < 0) model.variants.push(v);
-            else model.variants[i] = v;
-            model.activeVariantId = v.id;
-            v.parameters.forEach((e) => {
-              let a = parameters.find((x) => x.name === e.name);
-              a.expression = e.expression;
-              a.value = e.expression;
-            });
+          if (r.action === 'variants.table.save') {
+            (p.newParameters || []).forEach((entry) =>
+              parameters.push({
+                ...entry,
+                entityToken: entry.name,
+                kind: 'user',
+                favorite: false,
+                configured: false,
+                value: entry.expression,
+              }),
+            );
+            model.variantColumns = structuredClone(p.columns);
+            model.variants = structuredClone(p.variants).map((v) => ({
+              ...v,
+              id: v.id || crypto.randomUUID(),
+            }));
+            const active = model.variants.find((v) => v.id === model.activeVariantId);
+            if (active) {
+              active.parameters.forEach((e) => {
+                const p = parameters.find((x) => x.name === e.name);
+                p.expression = e.expression;
+                p.value = e.expression;
+              });
+              (active.features || []).forEach((f) => {
+                model.timelineFeatures.find((x) => x.entityToken === f.entityToken).enabled =
+                  f.enabled;
+              });
+            }
+            if (model.activeVariantId && !active) model.activeVariantId = null;
           }
           if (r.action === 'variants.free') model.activeVariantId = null;
           if (r.action === 'variants.apply') {
             const v = model.variants.find((x) => x.id === p.id);
             model.activeVariantId = v.id;
+            (v.features || []).forEach((f) => {
+              model.timelineFeatures.find((x) => x.entityToken === f.entityToken).enabled =
+                f.enabled;
+            });
             v.parameters.forEach((e) => {
               let a = parameters.find((x) => x.name === e.name);
               a.expression = e.expression;
