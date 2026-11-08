@@ -13,7 +13,7 @@ type Props = {
 export function VariantsControl({ model, disabled, error, onAction }: Props) {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
-  const [editor, setEditor] = useState<{ create: boolean; initialId?: string } | null>(null);
+  const [editor, setEditor] = useState<{ create: boolean } | null>(null);
   const [menuPosition, setMenuPosition] = useState({
     left: 12,
     top: 38,
@@ -55,9 +55,9 @@ export function VariantsControl({ model, disabled, error, onAction }: Props) {
     setOpen(false);
     setEditor(null);
   }, [model.documentId]);
-  function edit(variant?: Variant) {
+  function edit(create = false) {
     setOpen(false);
-    setEditor({ create: !variant, initialId: variant?.id });
+    setEditor({ create });
   }
   function closeEditor() {
     setEditor(null);
@@ -71,6 +71,12 @@ export function VariantsControl({ model, disabled, error, onAction }: Props) {
       trigger.current?.focus();
     }
   }
+  const parameterCount = (model.variantColumns || []).filter(
+    (column) => column.kind === 'parameter',
+  ).length;
+  const featureCount = (model.variantColumns || []).filter(
+    (column) => column.kind === 'feature',
+  ).length;
   const matching = variants.filter((variant) =>
     variant.name.toLocaleLowerCase().includes(filter.toLocaleLowerCase()),
   );
@@ -141,7 +147,24 @@ export function VariantsControl({ model, disabled, error, onAction }: Props) {
             }
           }}
         >
-          <div class="variant-menu-heading">Variants</div>
+          <div class="variant-menu-heading">
+            <div>
+              <strong>Variants</strong>
+              <small>
+                {parameterCount} parameter{parameterCount === 1 ? '' : 's'}
+                {featureCount > 0 && ` · ${featureCount} feature${featureCount === 1 ? '' : 's'}`}
+              </small>
+            </div>
+            <button
+              class="icon"
+              aria-label="Edit variants"
+              title="Edit variants"
+              disabled={disabled}
+              onClick={() => edit()}
+            >
+              <Pencil size={14} />
+            </button>
+          </div>
           {error && (
             <div class="variant-editor-error error" role="alert">
               {error}
@@ -188,24 +211,11 @@ export function VariantsControl({ model, disabled, error, onAction }: Props) {
                   </span>
                   <span>
                     <strong>{variant.name}</strong>
-                    <small>
-                      {variant.parameters.length} parameter
-                      {variant.parameters.length === 1 ? '' : 's'}
-                      {variant.parameters.some((parameter) => parameter.missing) ||
-                      variant.features?.some((feature) => feature.missing)
-                        ? ' · Needs attention'
-                        : ''}
-                    </small>
+                    {(variant.parameters.some((parameter) => parameter.missing) ||
+                      variant.features?.some((feature) => feature.missing)) && (
+                      <small>Needs attention</small>
+                    )}
                   </span>
-                </button>
-                <button
-                  class="icon"
-                  aria-label={`Edit ${variant.name}`}
-                  title="Edit variant"
-                  disabled={disabled}
-                  onClick={() => edit(variant)}
-                >
-                  <Pencil size={13} />
                 </button>
               </div>
             ))}
@@ -218,7 +228,7 @@ export function VariantsControl({ model, disabled, error, onAction }: Props) {
               <p class="variants-empty">No matching variants.</p>
             )}
           </div>
-          <button class="variant-create" disabled={disabled} onClick={() => edit()}>
+          <button class="variant-create" disabled={disabled} onClick={() => edit(true)}>
             <Plus size={14} />
             Create variant
           </button>
@@ -228,7 +238,6 @@ export function VariantsControl({ model, disabled, error, onAction }: Props) {
         <VariantTable
           model={model}
           create={editor.create}
-          initialId={editor.initialId}
           disabled={disabled}
           error={error}
           onClose={closeEditor}

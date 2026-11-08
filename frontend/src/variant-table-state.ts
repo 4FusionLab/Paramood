@@ -1,7 +1,11 @@
-import type { ModelState, Variant, VariantColumn } from './bridge';
+import type { ModelState, Variant, VariantColumn, Parameter } from './bridge';
 
 export type TableRow = Omit<Variant, 'id'> & { id?: string; key: string };
-export type TableDraft = { columns: VariantColumn[]; rows: TableRow[] };
+export type TableDraft = {
+  columns: VariantColumn[];
+  rows: TableRow[];
+  newParameters?: Parameter[];
+};
 export const columnKey = (column: VariantColumn) => `${column.kind}:${column.entityToken}`;
 
 export function tableDraft(model: ModelState): TableDraft {
@@ -68,6 +72,11 @@ export function tableProblem(draft: TableDraft): string | undefined {
 
 export function tablePayload(draft: TableDraft) {
   return {
+    newParameters: draft.newParameters?.map(({ name, expression, unit }) => ({
+      name,
+      expression,
+      unit,
+    })),
     columns: draft.columns.map(({ kind, name, entityToken, unit }) => ({
       kind,
       name,

@@ -7,7 +7,9 @@ import uuid
 import adsk.fusion
 
 from ..bridge.protocol import BridgeError
-from ..core.expressions import LENGTH
+from ..core.expressions import TextValue, _fold_assignments
+from ..core.inline_equation import solve_inline_equation
+from .expression_engine import NativeExpressionEngine
 from ..core.variants import decode_variant_table, encode_variants, variants_token
 
 GROUP = '4FusionLab.Paramood'
@@ -15,6 +17,121 @@ ATTRIBUTE = 'variants.v2'
 
 
 class VariantTableMixin:
+    def _new_variant_parameters(self, design, payload):
+        entries = payload.get('newParameters', [])
+        if not isinstance(entries, list):
+            raise BridgeError('BAD_REQUEST', 'Invalid pending parameters.')
+        definitions = {}
+        for entry in entries:
+            if not isinstance(entry, dict) or any(
+                not isinstance(entry.get(k), str) or not entry[k].strip()
+                for k in ('name', 'expression')
+            ):
+                raise BridgeError('BAD_REQUEST', 'A pending parameter needs a name and expression.')
+            name = entry['name']
+            if name in definitions or design.allParameters.itemByName(name):
+                raise BridgeError('CONFLICT', 'A pending parameter already exists: ' + name)
+            definitions[name] = entry['expression']
+        if not definitions:
+            return {}, []
+        _, operations = self._plan(
+            ';'.join(name + '=' + expression for name, expression in definitions.items())
+        )
+        if {op.name for op in operations} != set(definitions) or any(
+            op.status != 'New' for op in operations
+        ):
+            raise BridgeError('BAD_REQUEST', 'Pending definitions must create new parameters only.')
+        return definitions, operations
+
+    def _preview_variant_cell(self, payload):
+        design = self._design()
+        if payload.get('variantsToken') != self._read_variant_table(design)[1] or payload.get(
+            'snapshotToken'
+        ) != self._snapshot_token(design, 'variants'):
+            raise BridgeError('CONFLICT', 'The model changed. Refresh the variant table.')
+        target = payload.get('target')
+        cells = payload.get('parameters')
+        if not isinstance(target, str) or not isinstance(cells, list):
+            raise BridgeError('BAD_REQUEST', 'A cell target and row parameters are required.')
+        expressions, units, entities = {}, {}, []
+        for cell in cells:
+            if not isinstance(cell, dict) or any(
+                not isinstance(cell.get(k), str) for k in ('entityToken', 'expression', 'unit')
+            ):
+                raise BridgeError('BAD_REQUEST', 'Invalid row parameter.')
+            parameter = self._resolve_variant_parameter(design, cell)
+            if not parameter or any(parameter == p for p in entities):
+                raise BridgeError('CONFLICT', 'A row parameter changed or is duplicated.')
+            entities.append(parameter)
+            expressions[parameter.name] = cell['expression']
+            units[parameter.name] = parameter.unit
+        if target not in expressions:
+            raise BridgeError('BAD_REQUEST', 'The edited parameter is not in this row.')
+        pending, _ = self._new_variant_parameters(design, payload)
+        _, baseline = self._plan(
+            ';'.join(
+                name + '=' + expression for name, expression in {**pending, **expressions}.items()
+            )
+        )
+        quantities = self._quantities(design)
+        quantities.update({op.name: op.quantity for op in baseline})
+        text = payload.get('text')
+        if payload.get('inlineEquation') is not None:
+            equation = payload['inlineEquation']
+            if not isinstance(equation, str):
+                raise BridgeError('BAD_REQUEST', 'Invalid inline equation.')
+            text = solve_inline_equation(
+                equation, target, units[target], quantities, quantities.keys()
+            )
+        if not isinstance(text, str) or not text.strip() or len(text) > 10000:
+            raise BridgeError('BAD_REQUEST', 'Enter one expression.')
+        original = {p.name: p.expression for p in design.allParameters}
+        original.update({**pending, **expressions})
+        display_units = {p.name: p.unit for p in design.allParameters}
+        display_units.update({op.name: op.unit for op in baseline})
+        folded = _fold_assignments(
+            text,
+            quantities,
+            original,
+            display_units,
+            design.fusionUnitsManager.defaultLengthUnits,
+            self._native_function(design),
+        )
+        created = [name for name in folded if name not in quantities]
+        if target not in folded or len(created) > 1 or set(folded) != {target, *created}:
+            raise BridgeError(
+                'BAD_REQUEST', 'A cell may update only its parameter and create one new parameter.'
+            )
+        if payload.get('sourceName') == target and created:
+            folded[created[0]] = NativeExpressionEngine.literal(quantities[target])
+        expressions[target] = folded[target]
+        _, operations = self._plan(
+            ';'.join(
+                name + '=' + expression
+                for name, expression in {
+                    **pending,
+                    **{name: folded[name] for name in created},
+                    **expressions,
+                }.items()
+            )
+        )
+        planned = {op.name: op for op in operations}
+        if set(planned) != {*pending, *expressions, *created}:
+            raise BridgeError('BAD_REQUEST', 'Unexpected parameter assignments in a cell.')
+        return {
+            'expression': planned[target].expression,
+            'newParameters': [
+                {
+                    'name': name,
+                    'expression': planned[name].expression,
+                    'unit': planned[name].unit,
+                    'value': planned[name].quantity.value,
+                    'valueExpression': NativeExpressionEngine.literal(planned[name].quantity),
+                }
+                for name in created
+            ],
+        }
+
     def _read_variant_table(self, design):
         attributes = getattr(design, 'attributes', None)
         attribute = attributes.itemByName(GROUP, ATTRIBUTE) if attributes else None
@@ -108,6 +225,12 @@ class VariantTableMixin:
         if not isinstance(columns, list) or not isinstance(rows, list):
             raise BridgeError('BAD_REQUEST', 'A table needs columns and variants.')
         old, _ = self._read_variant_table(design)
+        pending, new_operations = self._new_variant_parameters(design, payload)
+        if new_operations and not self.in_command:
+            raise BridgeError(
+                'TRANSACTION_REQUIRED',
+                'Finish the active Fusion command or sketch before creating and linking parameters.',
+            )
         active = self._active_variant(design, old['variants'])
         old_ids = {v['id'] for v in old['variants']}
         columns = copy.deepcopy(columns)
@@ -173,10 +296,13 @@ class VariantTableMixin:
             planned = {}
             if entries:
                 _, operations = self._plan(
-                    ';'.join(entry['name'] + '=' + entry['expression'] for entry in entries)
+                    ';'.join(
+                        [name + '=' + expression for name, expression in pending.items()]
+                        + [entry['name'] + '=' + entry['expression'] for entry in entries]
+                    )
                 )
                 planned = {op.name: op for op in operations}
-                if set(planned) != {entry['name'] for entry in entries}:
+                if set(planned) != {entry['name'] for entry in entries} | set(pending):
                     raise BridgeError(
                         'BAD_REQUEST', 'A cell must contain one expression, not assignments.'
                     )
@@ -184,8 +310,8 @@ class VariantTableMixin:
             for entry in entries:
                 op = planned[entry['name']]
                 value = op.quantity.value
-                if op.quantity.dimension == LENGTH:
-                    value /= 10.0  # Fusion database length units are centimetres.
+                if not isinstance(op.quantity, TextValue):
+                    value /= 10.0 ** op.quantity.dimension[0]
                 saved_parameters.append(
                     {k: entry[k] for k in ('name', 'entityToken', 'unit')}
                     | {'expression': op.expression, 'value': value}
@@ -214,11 +340,15 @@ class VariantTableMixin:
             raise BridgeError(
                 'STALE_DOCUMENT', 'The active document changed. Refresh and try again.'
             )
+        # The Fusion command transaction owns creation rollback if applying/storing later fails.
+        # No global parameter is created during cell preview or before the complete table validates.
+        if new_operations:
+            self._execute_new_batch(design, new_operations)
         replacement = next((row for row in prepared if active and row['id'] == active['id']), None)
 
         def cells(row):
             return (
-                {p['entityToken']: (p['expression'], p['value']) for p in row['parameters']},
+                {p['entityToken']: p['expression'] for p in row['parameters']},
                 {f['entityToken']: f['enabled'] for f in row.get('features', [])},
             )
 

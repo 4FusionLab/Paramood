@@ -89,6 +89,58 @@
           }
           if (r.action === 'variants.selection.get')
             data = { documentId: model.documentId, features: [] };
+          if (r.action === 'variants.cell.preview') {
+            // This browser-only fixture preserves syntax; Fusion performs real validation.
+            let parts = [],
+              part = '',
+              depth = 0,
+              quote = '',
+              escaped = false;
+            for (const character of p.text) {
+              if (quote) {
+                part += character;
+                if (escaped) escaped = false;
+                else if (character === '\\') escaped = true;
+                else if (character === quote) quote = '';
+                continue;
+              }
+              if (character === "'" || character === '"') {
+                quote = character;
+                part += character;
+              } else if (character === '(') {
+                depth++;
+                part += character;
+              } else if (character === ')') {
+                depth--;
+                part += character;
+              } else if (character === ';' && depth === 0) {
+                parts.push(part);
+                part = '';
+              } else part += character;
+            }
+            parts.push(part);
+            const definitions = parts.map((text) => {
+              const at = text.indexOf('=');
+              return {
+                name: text.slice(0, at).trim().replaceAll('.', '_'),
+                expression: text.slice(at + 1).trim(),
+              };
+            });
+            const target = definitions.find((x) => x.name === p.target);
+            data = {
+              expression:
+                target?.expression ||
+                p.parameters.find((x) => x.name === p.target)?.expression ||
+                '',
+              newParameters: definitions
+                .filter((x) => x.name !== p.target)
+                .map((x) => ({
+                  ...x,
+                  unit: parameters.find((x) => x.name === p.target)?.unit || 'mm',
+                  value: x.expression,
+                })),
+            };
+          }
           if (r.action === 'document.units') model.defaultLengthUnit = p.unit;
           if (r.action === 'calculator.evaluate') {
             const arithmetic = p.expression
@@ -171,6 +223,16 @@
           }
 
           if (r.action === 'variants.table.save') {
+            (p.newParameters || []).forEach((entry) =>
+              parameters.push({
+                ...entry,
+                entityToken: entry.name,
+                kind: 'user',
+                favorite: false,
+                configured: false,
+                value: entry.expression,
+              }),
+            );
             model.variantColumns = structuredClone(p.columns);
             model.variants = structuredClone(p.variants).map((v) => ({
               ...v,

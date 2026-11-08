@@ -88,6 +88,7 @@ def model(monkeypatch):
         userParameters=params,
         fusionUnitsManager=SimpleNamespace(
             defaultLengthUnits='mm',
+            formatUnits=lambda name: '',
             isValidExpression=lambda expression, unit: expression != 'invalid',
         ),
         findEntityByToken=lambda token: [p for p in params if p.entityToken == token],
@@ -475,3 +476,175 @@ def test_table_storage_failure_does_not_change_model_and_active_capture_restores
         adapter._execute_tracked_parameters(design, [op])
     assert params[0].expression == '20 mm' and params[0].value == 2
     assert design.attributes.value == raw
+    assert adapter._variants_state(design)['activeVariantId'] == table['variants'][0]['id']
+
+
+def save(adapter, params):
+    table = table_save(adapter, params[:1], (params[0].expression,))
+    identity = table['variants'][0]['id']
+    send(adapter, 'variants.apply', id=identity)
+    return identity
+
+
+def test_parameter_preview_rejected_after_variant_selection_changes(model):
+    adapter, design, params, calls = model
+    save(adapter, params)
+    old = adapter._snapshot_token(design, 'width=20')
+    send(adapter, 'variants.free')
+    assert old != adapter._snapshot_token(design, 'width=20')
+    response = dispatch(
+        adapter,
+        {
+            'requestId': 'stale',
+            'action': 'parameters.apply',
+            'documentId': adapter.document_id,
+            'payload': {'text': 'width=20', 'snapshotToken': old},
+        },
+    )
+    assert response['error']['code'] == 'STALE_PREVIEW'
+
+
+def test_model_units_require_fresh_snapshot_and_preserve_variant(model, monkeypatch):
+    adapter, design, params, calls = model
+    identity = save(adapter, params)
+    enum = SimpleNamespace(
+        MillimeterDistanceUnits=0,
+        CentimeterDistanceUnits=1,
+        MeterDistanceUnits=2,
+        InchDistanceUnits=3,
+        FootDistanceUnits=4,
+    )
+    monkeypatch.setattr(sys.modules['adsk.fusion'], 'DistanceUnits', enum, raising=False)
+
+    class ModelUnits:
+        defaultLengthUnits = 'mm'
+
+        def isValidExpression(self, expression, unit):
+            return True
+
+        @property
+        def distanceDisplayUnits(self):
+            return self._units
+
+        @distanceDisplayUnits.setter
+        def distanceDisplayUnits(self, value):
+            self._units = value
+            self.defaultLengthUnits = {0: 'mm', 1: 'cm', 2: 'm', 3: 'in', 4: 'ft'}[value]
+
+    design.fusionUnitsManager = ModelUnits()
+    snapshot = adapter._snapshot_token(design, 'units')
+    assert adapter.request('document.units', {'unit': 'in', 'snapshotToken': snapshot}) == {
+        'defaultLengthUnit': 'in'
+    }
+    assert params[0].expression == '10 mm' and params[0].value == 1
+    assert adapter._variants_state(design)['activeVariantId'] == identity
+    with pytest.raises(Exception, match='changed'):
+        adapter.request('document.units', {'unit': 'cm', 'snapshotToken': snapshot})
+    with pytest.raises(Exception, match='supported'):
+        adapter.request(
+            'document.units',
+            {'unit': 'not-units', 'snapshotToken': adapter._snapshot_token(design, 'units')},
+        )
+
+
+def test_variant_identity_survives_compatible_model_unit_changes(model):
+    adapter, design, params, calls = model
+    identity = save(adapter, params)
+    design.fusionUnitsManager.isValidExpression = lambda expression, unit: (
+        expression == '1 mm' and unit in {'mm', 'cm', 'in'}
+    )
+    params[0].unit = 'in'
+    assert adapter._variants_state(design)['activeVariantId'] == identity
+    assert not adapter._variants_state(design)['variants'][0]['parameters'][0]['missing']
+    params[0].unit = 'deg'
+    assert adapter._variants_state(design)['variants'][0]['parameters'][0]['missing']
+
+
+def test_random_variant_matches_its_expression_after_recompute(model):
+    adapter, design, params, _ = model
+    params[0].expression = 'random()*10 mm'
+    entry = adapter._variant_entry(params[0])
+    variant = {'id': 'sample', 'name': 'Random', 'parameters': [entry]}
+    params[0].value = 123.0
+    assert adapter._variant_matches(design, variant)
+    params[0].expression = 'random()*20 mm'
+    assert not adapter._variant_matches(design, variant)
+
+
+def preview_cell(adapter, params, text, **extra):
+    state = adapter._variants_state(adapter._design())
+    return adapter.request(
+        'variants.cell.preview',
+        {
+            'target': params[0].name,
+            'parameters': [adapter._variant_entry(p) for p in params],
+            'text': text,
+            'variantsToken': state['variantsToken'],
+            'snapshotToken': state['variantSnapshotToken'],
+            **extra,
+        },
+    )
+
+
+def test_cell_preview_relative_this_and_new_link_use_variant_row_without_writes(model):
+    adapter, design, params, calls = model
+    cells = [adapter._variant_entry(p) for p in params]
+    cells[0]['expression'] = '30 mm'
+    for text, expected in [('width=this*2', 60), ('width+=2', 32)]:
+        result = preview_cell(adapter, params, text, parameters=cells)
+        _, ops = adapter._plan('width=' + result['expression'])
+        assert ops[0].quantity.value == expected
+    result = preview_cell(
+        adapter, params, 'beam=10 mm;width=beam', parameters=cells, sourceName='width'
+    )
+    assert result['newParameters'][0]['name'] == 'beam'
+    assert result['newParameters'][0]['value'] == 30
+    assert result['expression'] == 'beam'
+    equation = preview_cell(adapter, params, '', parameters=cells, inlineEquation='span*2=50')
+    assert equation['newParameters'][0]['name'] == 'span'
+    assert equation['newParameters'][0]['value'] == 25
+    assert not calls and design.attributes.value is None and len(params) == 2
+
+
+def test_pending_new_parameters_are_deferred_and_never_enrolled(model, monkeypatch):
+    adapter, design, params, calls = model
+    table = table_save(adapter, params[:1], ('20 mm',))
+    row = table['variants'][0]
+    row['parameters'][0]['expression'] = 'beam'
+    pending = [{'name': 'beam', 'expression': '25 mm', 'unit': 'mm'}]
+    adapter.in_command, adapter.in_direct_apply = False, True
+    with pytest.raises(Exception, match='Finish'):
+        send(
+            adapter,
+            'variants.table.save',
+            columns=table['columns'],
+            variants=[row],
+            newParameters=pending,
+        )
+    assert len(params) == 2 and not calls
+    adapter.in_command, adapter.in_direct_apply = True, False
+    created = []
+
+    def create(design, operations):
+        created.extend(operations)
+
+    monkeypatch.setattr(adapter, '_execute_new_batch', create)
+    send(
+        adapter,
+        'variants.table.save',
+        columns=table['columns'],
+        variants=[row],
+        newParameters=pending,
+    )
+    stored = json.loads(design.attributes.value)
+    assert [op.name for op in created] == ['beam']
+    assert [c['name'] for c in stored['columns']] == ['width']
+    assert stored['variants'][0]['parameters'][0]['value'] == 2.5
+    assert not calls
+
+
+def test_table_stores_derived_native_units_in_fusion_database_units(model):
+    adapter, design, params, calls = model
+    params[0].unit, params[0].expression, params[0].value = 'mm^2', '10 mm^2', 0.1
+    table = table_save(adapter, params[:1], ('20 mm^2',))
+    assert table['variants'][0]['parameters'][0]['value'] == 0.2

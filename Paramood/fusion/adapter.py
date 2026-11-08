@@ -5,21 +5,22 @@ import json
 import math
 import re
 import uuid
+from dataclasses import replace
 
 import adsk.core
 import adsk.fusion
 
 from ..core.expressions import (
     ANGLE,
-    ExpressionError,
     LENGTH,
     SCALAR,
     TextValue,
-    UNITS,
     ParameterSnapshot,
     Quantity,
     dependency_closure,
     dimension_unit,
+    unit_definition,
+    mark_stochastic,
     evaluate,
     normalize_expression,
     plan_batch,
@@ -29,6 +30,7 @@ from ..core.inline_equation import solve_inline_equation
 from ..bridge.protocol import BridgeError
 from ..bridge.formatting import display_quantity
 from .variants import VariantsMixin
+from .expression_engine import NativeExpressionEngine
 from ..core.text import map_code, normalize_literals, split_definitions, text_literal
 
 
@@ -52,19 +54,14 @@ def _value_expression(parameter):
         raise ValueError('Non-finite parameter value')
     if not unit:
         return repr(value) + 'n'
-    if unit in UNITS and UNITS[unit][1] == LENGTH:
-        base = value * 10.0
-    elif unit in UNITS and UNITS[unit][1] == ANGLE:
-        base = value
-    else:
-        raise ValueError('Unsupported parameter unit')
-    factor = UNITS[unit][0]
-    converted = base / factor
+    factor, dimension, offset = unit_definition(unit)
+    base = value * 10.0 ** dimension[0]
+    converted = (base - offset) / factor
     if not math.isfinite(converted):
         raise ValueError('Non-finite converted value')
     if abs(converted) < 1e12:
         integer = round(converted)
-        if integer * factor == base:
+        if integer * factor + offset == base:
             converted = float(integer)
     return repr(converted) + ' ' + unit
 
@@ -145,21 +142,27 @@ class FusionAdapter(VariantsMixin):
         for parameter in design.allParameters:
             if _is_text(parameter):
                 result[parameter.name] = TextValue(parameter.textValue)
-                continue
-            unit = parameter.unit
-            if unit not in UNITS and unit != '':
-                continue
-            try:
-                value = parameter.value
-                if unit == '':
-                    result[parameter.name] = Quantity(value, SCALAR)
-                elif UNITS[unit][1] == LENGTH:
-                    result[parameter.name] = Quantity(value * 10.0, LENGTH)
-                elif UNITS[unit][1] == ANGLE:
-                    result[parameter.name] = Quantity(value, ANGLE)
-            except Exception:
-                continue
-        return result
+            else:
+                _, dimension, _ = unit_definition(parameter.unit)
+                result[parameter.name] = Quantity(parameter.value * 10.0 ** dimension[0], dimension)
+        dynamic = self._stochastic_parameters(design)
+        return {name: replace(value, stochastic=name in dynamic) for name, value in result.items()}
+
+    @staticmethod
+    def _stochastic_parameters(design):
+        expressions = {p.name: p.expression for p in design.allParameters}
+        dependencies = {}
+        for parameter in design.allParameters:
+            # API dependency lists are preferred. Lightweight offline fixtures have none.
+            native = getattr(parameter, 'dependencyParameters', None)
+            if native is not None:
+                dependencies[parameter.name] = {p.name for p in native}
+            else:
+                dependencies[parameter.name] = (
+                    set(re.findall(r'[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*', parameter.expression))
+                    & expressions.keys()
+                )
+        return mark_stochastic(expressions, dependencies)
 
     def _dependency_snapshot(self, design):
         """Read a strict graph for future update planning; it does not authorize writes."""
@@ -199,14 +202,9 @@ class FusionAdapter(VariantsMixin):
                     dimension, value = 'text', parameter.textValue
                     if not isinstance(value, str) or unit != 'Text':
                         raise ValueError('Invalid text parameter: ' + name)
-                elif unit == '':
-                    dimension, value = SCALAR, parameter.value
-                elif unit in UNITS and UNITS[unit][1] == LENGTH:
-                    dimension, value = LENGTH, parameter.value * 10.0
-                elif unit in UNITS and UNITS[unit][1] == ANGLE:
-                    dimension, value = ANGLE, parameter.value
                 else:
-                    raise ValueError('Unsupported parameter unit: ' + name)
+                    _, dimension, _ = unit_definition(unit)
+                    value = parameter.value * 10.0 ** dimension[0]
                 if not text and not math.isfinite(value):
                     raise ValueError('Non-finite parameter value: ' + name)
                 dependencies[name] = names_of(parameter.dependencyParameters)
@@ -227,7 +225,11 @@ class FusionAdapter(VariantsMixin):
             for name in by_name:
                 if actual_dependents[name] != expected_dependents[name]:
                     raise ValueError('Inconsistent parameter dependency graph: ' + name)
-            return result
+            dynamic = self._stochastic_parameters(design)
+            return {
+                name: replace(item, quantity=replace(item.quantity, stochastic=name in dynamic))
+                for name, item in result.items()
+            }
         except Exception as exc:
             raise BridgeError(
                 'INCOMPLETE_SNAPSHOT', 'Cannot verify parameter dependencies: ' + str(exc)
@@ -378,6 +380,7 @@ class FusionAdapter(VariantsMixin):
 
     def _snapshot_token(self, design, text):
         parameters = []
+        dynamic = self._stochastic_parameters(design)
         for param in design.allParameters:
             try:
                 value = param.textValue if _is_text(param) else param.value
@@ -385,7 +388,9 @@ class FusionAdapter(VariantsMixin):
                 value = (
                     None  # Text/unsupported parameter, expression is still part of the snapshot.
                 )
-            parameters.append((param.name, param.expression, param.unit, value))
+            parameters.append(
+                (param.name, param.expression, param.unit, None if param.name in dynamic else value)
+            )
         payload = [
             self._document_id,
             text,
@@ -416,12 +421,45 @@ class FusionAdapter(VariantsMixin):
             else None
         )
 
+    def _normalize_unit_aliases(self, text, design):
+        if not callable(getattr(design.fusionUnitsManager, 'formatUnits', None)):
+            return text
+        known = {p.name for p in design.allParameters}
+        known.update(
+            match.group(1).replace('.', '_')
+            for match in re.finditer(
+                r'(?:^|[;\n])\s*([A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9.]*)\s*[+*/-]?=', text
+            )
+        )
+        cache = {}
+
+        def normalize(code):
+            def alias(match):
+                name = match.group()
+                if name in known or name[0].isdigit() or name.startswith('.') or '.' in name:
+                    return name
+                if name not in cache:
+                    try:
+                        cache[name] = design.fusionUnitsManager.formatUnits(name) or name
+                    except RuntimeError:
+                        cache[name] = name
+                return cache[name]
+
+            return re.sub(
+                r'(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?|[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*(?:\.[A-Za-zА-Яа-яЁё_0-9]+)*',
+                alias,
+                code,
+            )
+
+        return map_code(text, normalize)
+
     def _plan(self, text):
         design = self._design()
         if not design:
             raise BridgeError('NO_DESIGN', 'Open a Fusion design first.')
         if not isinstance(text, str) or len(text) > 10000:
             raise BridgeError('BAD_REQUEST', 'Expression is missing or too long.')
+        text = self._normalize_unit_aliases(text, design)
         names = [
             re.sub(r'[+*/-]$', '', item.split('=', 1)[0].strip()).strip().replace('.', '_')
             for item in split_definitions(text)
@@ -534,44 +572,39 @@ class FusionAdapter(VariantsMixin):
         return {'created': created_names, 'updated': updated_names}
 
     def _native_function(self, design):
-        """Evaluate preference-sensitive calls only on an explicit bridge request."""
-
-        def evaluate_call(name, arguments, dimension):
-            # This callback currently handles unitless arguments and unitless results.
-            # It never creates temporary parameters or changes the active document.
-            if dimension != SCALAR or any(arg.dimension != SCALAR for arg in arguments):
-                raise ExpressionError('Unsupported native function dimension')
-            expression = name + '(' + ';'.join(format(arg.value, '.17g') for arg in arguments) + ')'
-            manager = design.fusionUnitsManager
-            if not manager.isValidExpression(expression, ''):
-                raise ExpressionError('Fusion cannot validate function: ' + name)
-            value = manager.evaluateExpression(expression, '')
-            if not math.isfinite(value):
-                raise ExpressionError('Fusion returned a non-finite result')
-            return Quantity(value, dimension)
-
-        return evaluate_call
+        manager = design.fusionUnitsManager
+        return (
+            NativeExpressionEngine(manager, self._quantities(design))
+            if hasattr(manager, 'evaluateExpression')
+            else None
+        )
 
     def _verify_value(self, parameter, op):
         unit = parameter.unit
         if isinstance(op.quantity, TextValue):
-            if not _is_text(parameter) or parameter.textValue != op.quantity.value:
+            if not _is_text(parameter) or (
+                not op.quantity.stochastic and parameter.textValue != op.quantity.value
+            ):
                 raise BridgeError(
                     'RESULT_MISMATCH', 'Fusion text differs from preview for ' + op.name + '.'
                 )
             return
         if _is_text(parameter):
             raise BridgeError('TYPE_MISMATCH', 'Cannot assign a number to a text parameter.')
-        if unit == '' and op.quantity.dimension == SCALAR:
-            actual = parameter.value
-        elif unit in UNITS and UNITS[unit][1] == LENGTH and op.quantity.dimension == LENGTH:
-            actual = parameter.value * 10.0
-        elif unit in UNITS and UNITS[unit][1] == ANGLE and op.quantity.dimension == ANGLE:
-            actual = parameter.value
-        else:
+        _, dimension, _ = unit_definition(unit)
+        if dimension != op.quantity.dimension:
             raise BridgeError(
                 'RESULT_MISMATCH', 'Fusion returned an unexpected unit for ' + op.name + '.'
             )
+        actual = parameter.value * 10.0 ** dimension[0]
+        if not math.isfinite(actual):
+            raise BridgeError(
+                'RESULT_MISMATCH', 'Fusion returned a non-finite value for ' + op.name + '.'
+            )
+        if op.quantity.stochastic:
+            # The expression and type are verified; the sampled preview value is
+            # deliberately not compared with a fresh native random evaluation.
+            return
         if not math.isclose(actual, op.quantity.value, rel_tol=1e-9, abs_tol=1e-9):
             raise BridgeError(
                 'RESULT_MISMATCH', 'Fusion result differs from preview for ' + op.name + '.'
@@ -627,6 +660,8 @@ class FusionAdapter(VariantsMixin):
         return {'created': [], 'updated': [op.name for op in ops]}
 
     def request(self, action, payload):
+        if action == 'variants.cell.preview':
+            return self._preview_variant_cell(payload)
         if action == 'variants.selection.get':
             return self._variant_timeline_selection()
         if action.startswith('variants.'):
@@ -800,6 +835,10 @@ class FusionAdapter(VariantsMixin):
                             'value': display_quantity(op.quantity, op.unit),
                             'unit': op.unit,
                             'status': op.status,
+                            'estimated': op.quantity.stochastic,
+                            'message': 'Sample value. Fusion will evaluate this expression again when applied.'
+                            if op.quantity.stochastic
+                            else None,
                         }
                         for op in ops
                     ],
@@ -831,6 +870,10 @@ class FusionAdapter(VariantsMixin):
                         'value': display_quantity(op.quantity, op.unit),
                         'unit': op.unit,
                         'status': op.status,
+                        'estimated': op.quantity.stochastic,
+                        'message': 'Sample value. Fusion will evaluate this expression again when applied.'
+                        if op.quantity.stochastic
+                        else None,
                         'previous': str(display_quantity(op.previous, op.unit))
                         if op.previous
                         else None,
@@ -889,7 +932,9 @@ class FusionAdapter(VariantsMixin):
             if not isinstance(expression, str) or len(expression) > 10000:
                 raise BridgeError('BAD_REQUEST', 'Expression is missing or too long.')
             quantities = self._quantities(design)
-            expression = normalize_expression(expression, quantities)
+            expression = self._normalize_unit_aliases(
+                normalize_expression(expression, quantities), design
+            )
             quantity = evaluate(
                 expression, quantities, self._native_function(design), allow_nondeterministic=True
             )
@@ -904,9 +949,7 @@ class FusionAdapter(VariantsMixin):
                 dimension_unit(quantity.dimension, design.fusionUnitsManager.defaultLengthUnits),
             )
             manager = design.fusionUnitsManager
-            if not manager.isValidExpression(expression, unit):
-                raise BridgeError('INVALID_EXPRESSION', 'Fusion cannot validate this expression.')
-            value = manager.evaluateExpression(expression, unit)
+            value = quantity.value / (10.0 ** quantity.dimension[0])
             formatted = manager.formatValue(value, unit) if unit else str(value)
             display_value = (
                 value

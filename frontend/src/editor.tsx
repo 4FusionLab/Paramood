@@ -4,6 +4,7 @@ import {
   EditorView,
   keymap,
   placeholder,
+  tooltips,
   hoverTooltip,
   Decoration,
   ViewPlugin,
@@ -169,6 +170,8 @@ interface Props {
   disabled?: boolean;
   label: string;
   hint: string;
+  floatingTooltips?: boolean;
+  onBlur?: () => void;
 }
 function highlighting(
   parameters: () => Parameter[],
@@ -210,7 +213,7 @@ function highlighting(
           kind = 'new';
         else kind = 'unknown';
       }
-      const diagnostic = diagnostics.find((d) => d.from === from);
+      const diagnostic = diagnostics.find((d) => d.from === from && d.severity !== 'info');
       ranges.push(
         Decoration.mark({
           class: `token-${kind}${diagnostic ? ' token-error' : ''}`,
@@ -257,6 +260,9 @@ export function ExpressionEditor(props: Props) {
               ]
             : []),
           history(),
+          ...(props.floatingTooltips
+            ? [tooltips({ parent: document.body, position: 'fixed' })]
+            : []),
           expressionSignatureHelp,
           highlighting(
             () => latest.current.parameters,
@@ -267,6 +273,7 @@ export function ExpressionEditor(props: Props) {
           EditorView.lineWrapping,
           EditorView.domEventObservers({
             focus: () => latest.current.onFocus?.(),
+            blur: () => latest.current.onBlur?.(),
           }),
           readOnly.current.of([
             EditorState.readOnly.of(!!props.disabled),

@@ -8,4 +8,6 @@ CATALOG = json.loads(
 )
 FUNCTIONS = {item['name']: item for item in CATALOG['functions']}
 CONSTANT_NAMES = {item['name'] for item in CATALOG['constants']}
-UNIT_NAMES = set(CATALOG['units'])
+UNIT_NAMES = set(CATALOG['units']) | {
+    alias for unit in CATALOG['unitDefinitions'] for alias in unit['aliases']
+}

@@ -1,11 +1,10 @@
-from ..core.expressions import SCALAR, UNITS, TextValue
+from ..core.expressions import TextValue, unit_definition
 
 
 def display_quantity(quantity, unit):
     if isinstance(quantity, TextValue):
         return quantity.value
-    if not unit and quantity.dimension == SCALAR:
-        return quantity.value
-    if unit not in UNITS or UNITS[unit][1] != quantity.dimension:
-        raise ValueError('Unsupported output unit')
-    return quantity.value / UNITS[unit][0]
+    factor, dimension, offset = unit_definition(unit)
+    if dimension != quantity.dimension:
+        raise ValueError('Incompatible output unit')
+    return (quantity.value - offset) / factor

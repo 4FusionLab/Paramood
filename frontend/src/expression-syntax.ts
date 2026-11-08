@@ -1,7 +1,9 @@
+import { expressionTokens, normalizeUnitSymbols } from '../../src/expression-language';
 /** Separators and identifiers inside quoted values are content, not commands. */
 export function mapExpressionCode(text: string, transform: (code: string) => string): string {
-  return text.replace(/'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|[^'"]+/gs, (part) =>
-    part.startsWith("'") || part.startsWith('"') ? part : transform(part),
+  return normalizeUnitSymbols(text).replace(
+    /'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|[^'"]+/gs,
+    (part) => (part.startsWith("'") || part.startsWith('"') ? part : transform(part)),
   );
 }
 export function hasAssignment(text: string): boolean {
@@ -37,14 +39,6 @@ export function hasDefinitionSeparator(text: string): boolean {
   return found;
 }
 export function inString(text: string): boolean {
-  let quote = '';
-  for (let i = 0; i < text.length; i++) {
-    if (quote && text[i] === '\\') {
-      i++;
-      continue;
-    }
-    if (quote === text[i]) quote = '';
-    else if (!quote && (text[i] === "'" || text[i] === '"')) quote = text[i];
-  }
-  return !!quote;
+  const last = expressionTokens(text).at(-1);
+  return !!last && last.kind === 'string' && !/^(['"])(?:\\.|(?!\1).)*\1$/s.test(last.value);
 }

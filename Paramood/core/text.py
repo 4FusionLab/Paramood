@@ -1,7 +1,40 @@
 """Quote-aware Fusion string syntax; never evaluate arbitrary Python input."""
 
 
+def normalize_unit_symbols(source):
+    """Quotes following a number are native inch/foot suffixes, not text starts."""
+    result, quote, escaped, previous = [], '', False, ''
+    for i, char in enumerate(source):
+        if quote:
+            result.append(char)
+            if escaped:
+                escaped = False
+            elif char == '\\':
+                escaped = True
+            elif char == quote:
+                quote = ''
+                previous = char
+            continue
+        if char in '\'"' and previous and (previous.isdigit() or previous == ')'):
+            result.append(' in' if char == '"' else ' ft')
+        elif char in '\'"':
+            quote = char
+            result.append(char)
+        elif (
+            char in 'µ°'
+            and not (i + 1 < len(source) and source[i + 1].isalpha())
+            and not previous.isalpha()
+        ):
+            result.append(' micron' if char == 'µ' else ' deg')
+        else:
+            result.append(char)
+        if not char.isspace():
+            previous = char
+    return ''.join(result)
+
+
 def segments(source):
+    source = normalize_unit_symbols(source)
     start, i = 0, 0
     while i < len(source):
         if source[i] not in '\'"':

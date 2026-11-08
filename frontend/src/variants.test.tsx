@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'preact';
+import { EditorView } from '@codemirror/view';
+import { currentCompletions, startCompletion } from '@codemirror/autocomplete';
 import { act } from 'preact/test-utils';
 import { VariantsControl } from './variants';
 import type { ModelState } from './bridge';
@@ -45,6 +47,26 @@ const model: ModelState = {
   activeVariantId: null,
 };
 function mount(state = model, onAction = vi.fn().mockResolvedValue(true)) {
+  if (!Range.prototype.getClientRects)
+    Range.prototype.getClientRects = () => [] as unknown as DOMRectList;
+  if (!Range.prototype.getBoundingClientRect)
+    Range.prototype.getBoundingClientRect = () => new DOMRect();
+  if (!window.adsk)
+    window.adsk = {
+      fusionSendData: (_action, raw) => {
+        const message = JSON.parse(raw),
+          text = message.payload.text as string;
+        window.fusionJavaScriptHandler!.handle(
+          'response',
+          JSON.stringify({
+            requestId: message.requestId,
+            ok: true,
+            documentId: state.documentId,
+            data: { expression: text?.slice(text.indexOf('=') + 1).trim(), newParameters: [] },
+          }),
+        );
+      },
+    };
   host = document.createElement('div');
   document.body.appendChild(host);
   act(() => render(<VariantsControl model={state} disabled={false} onAction={onAction} />, host));
@@ -58,16 +80,34 @@ function click(label: string) {
   act(() => b!.click());
 }
 function input(label: string, value: string) {
-  const e = host.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
+  let e = host.querySelector<HTMLElement>(`[aria-label="${label}"]`)!;
   expect(e, label).toBeTruthy();
+  if (e.matches('button.variant-cell-value')) {
+    act(() => e.click());
+    e = host.querySelector<HTMLElement>(`[aria-label="${label}"]`)!;
+  }
   act(() => {
-    e.value = value;
-    e.dispatchEvent(new Event('input', { bubbles: true }));
+    if (e.matches('.cm-content')) {
+      const view = EditorView.findFromDOM(e)!;
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: value },
+        selection: { anchor: value.length },
+      });
+    } else {
+      const field = e as HTMLInputElement;
+      field.value = value;
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    }
   });
 }
+function cellValue(label: string) {
+  const e = host.querySelector<HTMLElement>(`[aria-label="${label}"]`)!;
+  return e.matches('.cm-content') ? EditorView.findFromDOM(e)!.state.doc.toString() : e.textContent;
+}
+
 function open() {
   click('Variants: Free');
-  click('Edit Compact');
+  click('Edit variants');
 }
 function checkbox(label: string) {
   const e = host.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
@@ -77,11 +117,79 @@ function checkbox(label: string) {
 async function save() {
   click('Save');
   await act(async () => {
-    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
 }
 
 describe('global variant table', () => {
+  it('shows shared counts and one table editor entry in the switcher header', () => {
+    mount();
+    click('Variants: Free');
+    const heading = host.querySelector('.variant-menu-heading')!;
+    expect(heading.textContent).toContain('1 parameter · 1 feature');
+    expect(heading.querySelector('[aria-label="Edit variants"]')).toBeTruthy();
+    const options = host.querySelector('.variant-options')!;
+    expect(options.querySelector('.icon')).toBeNull();
+    expect(options.textContent).not.toContain('parameter');
+    click('Edit variants');
+    expect(host.querySelector('[role="dialog"]')).toBeTruthy();
+  });
+  it('uses shared IntelliSense, this and function completions inside a table cell', async () => {
+    mount();
+    open();
+    input('Compact / width', '');
+    const view = EditorView.findFromDOM(host.querySelector<HTMLElement>('.cm-content')!)!;
+    act(() => {
+      startCompletion(view);
+    });
+    await vi.waitFor(() =>
+      expect(currentCompletions(view.state).map((c) => c.label)).toContain('this'),
+    );
+    expect(currentCompletions(view.state).map((c) => c.label)).toContain('random');
+    input('Compact / width', 'sin(30 deg)');
+    expect(host.querySelector('.token-function')?.textContent).toBe('sin');
+    expect(host.querySelector('.variant-table-scroll .cm-tooltip')).toBeNull();
+  });
+  it('keeps newly linked global parameters in the draft and sends them only on Save', async () => {
+    window.adsk = {
+      fusionSendData: (_action, raw) => {
+        const message = JSON.parse(raw);
+        window.fusionJavaScriptHandler!.handle(
+          'response',
+          JSON.stringify({
+            requestId: message.requestId,
+            ok: true,
+            documentId: 'model',
+            data: {
+              expression: 'beam',
+              newParameters: [{ name: 'beam', expression: '25 mm', unit: 'mm', value: 25 }],
+            },
+          }),
+        );
+      },
+    };
+    const action = mount();
+    open();
+    input('Compact / width', 'beam=25');
+    await save();
+    expect(action.mock.calls[0][1].newParameters).toEqual([
+      { name: 'beam', expression: '25 mm', unit: 'mm' },
+    ]);
+    expect(action.mock.calls[0][1].columns.map((c: { name: string }) => c.name)).toEqual([
+      'width',
+      'Cut',
+    ]);
+    expect(action.mock.calls[0][1].variants[0].parameters[0].expression).toBe('beam');
+  });
+  it('duplicates the committed cell draft without losing the action during editor blur', async () => {
+    mount();
+    open();
+    input('Compact / width', '35 mm');
+    click('Duplicate Compact');
+    await vi.waitFor(() => expect(host.querySelector('[aria-label="Variant name"]')).toBeTruthy());
+    expect(cellValue('Compact / width')).toBe('35 mm');
+    expect(cellValue('Compact copy / width')).toBe('35 mm');
+  });
   it('keeps variants as rows at any width and appends Add variant as the last row', () => {
     mount();
     open();
@@ -244,9 +352,7 @@ describe('global variant table', () => {
     input('Garden / width', 'bad expression');
     await save();
     expect(action).toHaveBeenCalled();
-    expect(host.querySelector<HTMLInputElement>('[aria-label="Garden / width"]')!.value).toBe(
-      'bad expression',
-    );
+    expect(cellValue('Garden / width')).toBe('bad expression');
   });
   it('requires explicit discard before closing a dirty table', () => {
     mount();
@@ -274,17 +380,13 @@ describe('global variant table', () => {
         host,
       ),
     );
-    expect(host.querySelector<HTMLInputElement>('[aria-label="Compact / width"]')!.value).toBe(
-      '40 mm',
-    );
+    expect(cellValue('Compact / width')).toBe('40 mm');
     click('Reload from model');
     click('Keep editing');
     expect(host.textContent).toContain('draft is preserved');
     click('Reload from model');
     click('Replace draft');
-    expect(host.querySelector<HTMLInputElement>('[aria-label="Compact / width"]')!.value).toBe(
-      '10 mm',
-    );
+    expect(cellValue('Compact / width')).toBe('10 mm');
   });
   it('reorders both axes with keyboard handles and keeps cell identities intact', async () => {
     const action = mount({
@@ -334,7 +436,7 @@ describe('global variant table', () => {
   it('uses the original apply and Free actions when switching', async () => {
     const action = mount();
     click('Variants: Free');
-    click('Compact1 parameter');
+    click('Compact');
     await vi.waitFor(() =>
       expect(action).toHaveBeenCalledWith(
         'variants.apply',

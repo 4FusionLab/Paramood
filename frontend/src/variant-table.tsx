@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Fragment, type JSX } from 'preact';
 import { GripVertical, Plus, X, Copy, Trash2 } from 'lucide-preact';
 import {
@@ -7,9 +7,12 @@ import {
   type TimelineSelection,
   type ModelState,
   type VariantColumn,
-  type VariantParameter,
 } from './bridge';
 import { VariantParameterTree } from './variant-parameter-tree';
+import { ExpressionEditor } from './editor';
+import { prepareInlineEdit } from './inline-edit';
+import { hasAssignment } from './expression-syntax';
+import type { Parameter } from './bridge';
 import {
   columnKey,
   moveItem,
@@ -24,13 +27,20 @@ import {
 type Props = {
   model: ModelState;
   create: boolean;
-  initialId?: string;
   disabled: boolean;
   error?: string;
   onSave: (payload: Record<string, unknown>) => Promise<boolean>;
   onClose: () => void;
 };
 type Axis = 'rows' | 'columns';
+type CellEdit = {
+  rowKey: string;
+  token: string;
+  value: string;
+  original: string;
+  wasDirty: boolean;
+};
+type CellPreview = { expression: string; newParameters: Parameter[] };
 
 function unusedName(rows: TableRow[], base = 'Variant') {
   let name = base,
@@ -40,15 +50,7 @@ function unusedName(rows: TableRow[], base = 'Variant') {
   return name;
 }
 
-export function VariantTable({
-  model,
-  create,
-  initialId,
-  disabled,
-  error,
-  onSave,
-  onClose,
-}: Props) {
+export function VariantTable({ model, create, disabled, error, onSave, onClose }: Props) {
   const [draft, setDraft] = useState<TableDraft>(() => {
     const result = tableDraft(model);
     if (create) result.rows.push(newRow(model, result.columns, unusedName(result.rows)));
@@ -66,6 +68,14 @@ export function VariantTable({
   const [deleteKey, setDeleteKey] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
   const [pickError, setPickError] = useState('');
+  const [editingCell, setEditingState] = useState<CellEdit | null>(null);
+  const editingRef = useRef<CellEdit | null>(null);
+  const [cellError, setCellError] = useState('');
+  const [cellBusy, setCellBusy] = useState(false);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const cellGeneration = useRef(0);
+  const cellFlight = useRef<Promise<TableDraft | null> | null>(null);
   const originalName = useRef(create ? draft.rows[draft.rows.length - 1]?.name : '');
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const dialog = useRef<HTMLDivElement>(null);
@@ -80,17 +90,23 @@ export function VariantTable({
     tokens.current.snapshotToken !== model.variantSnapshotToken;
   const unavailable = disabled || stale;
   const problem = tableProblem(draft);
+  const completionParameters = useMemo(() => {
+    const row = draft.rows.find((r) => r.key === editingCell?.rowKey);
+    return row ? cellParameters(row) : model.parameters;
+  }, [model.parameters, draft.rows, draft.newParameters, editingCell?.rowKey]);
 
   useEffect(() => {
     const element = dialog.current!;
     const target = create
       ? element.querySelector<HTMLInputElement>('[aria-label="Variant name"]')
-      : Array.from(element.querySelectorAll<HTMLElement>('[data-variant-id]'))
-          .find((e) => e.dataset.variantId === initialId)
-          ?.querySelector<HTMLButtonElement>('.variant-table-name');
+      : element.querySelector<HTMLButtonElement>('[aria-label="Close variant editor"]');
     (
       target ?? element.querySelector<HTMLButtonElement>('[aria-label="Close variant editor"]')
     )?.focus();
+    return () => {
+      cellGeneration.current++;
+      pickGeneration.current++;
+    };
   }, []);
 
   useEffect(() => {
@@ -109,6 +125,7 @@ export function VariantTable({
       setDirty(true);
       setAnnouncement(`Added ${added.map((f) => f.name).join(', ')} to the configured set.`);
       return {
+        ...current,
         columns: [
           ...current.columns,
           ...added.map((f) => ({
@@ -150,35 +167,159 @@ export function VariantTable({
       }
     }
   }
-  function addVariant() {
-    const added = newRow(model, draft.columns, unusedName(draft.rows));
-    change({ ...draft, rows: [...draft.rows, added] });
-    originalName.current = added.name;
-    setRenaming(added.key);
+  function afterCell(action: (current: TableDraft) => void) {
+    if (!editingRef.current && !cellFlight.current) action(draftRef.current);
+    else
+      void commitCell().then((current) => {
+        if (current) action(current);
+      });
   }
-  function duplicateVariant(row: TableRow) {
-    const added = {
-      ...row,
-      id: undefined,
-      key: crypto.randomUUID(),
-      name: unusedName(draft.rows, `${row.name} copy`),
-      parameters: row.parameters.map((p) => ({ ...p })),
-      features: row.features?.map((f) => ({ ...f })),
-    };
-    change({ ...draft, rows: [...draft.rows, added] });
-    originalName.current = added.name;
-    setRenaming(added.key);
+  function addVariant() {
+    afterCell((current) => {
+      const added = newRow(model, current.columns, unusedName(current.rows));
+      change({ ...current, rows: [...current.rows, added] });
+      originalName.current = added.name;
+      setRenaming(added.key);
+    });
+  }
+  function duplicateVariant(source: TableRow) {
+    afterCell((current) => {
+      const row = current.rows.find((r) => r.key === source.key);
+      if (!row) return;
+      const added = {
+        ...row,
+        id: undefined,
+        key: crypto.randomUUID(),
+        name: unusedName(current.rows, `${row.name} copy`),
+        parameters: row.parameters.map((p) => ({ ...p })),
+        features: row.features?.map((f) => ({ ...f })),
+      };
+      change({ ...current, rows: [...current.rows, added] });
+      originalName.current = added.name;
+      setRenaming(added.key);
+    });
   }
 
   function change(next: TableDraft) {
+    draftRef.current = next;
     setDraft(next);
     setDirty(true);
+  }
+  function setEditingCell(next: CellEdit | null) {
+    editingRef.current = next;
+    setEditingState(next);
+  }
+  function cellParameters(row: TableRow): Parameter[] {
+    return [...model.parameters, ...(draft.newParameters ?? [])].map((parameter) => {
+      const cell = row.parameters.find((p) => p.name === parameter.name);
+      return cell
+        ? {
+            ...parameter,
+            expression: cell.expression,
+            value: cell.unit === 'Text' ? cell.value : cell.expression,
+            valueExpression: cell.expression,
+          }
+        : parameter;
+    });
+  }
+  async function commitCell(): Promise<TableDraft | null> {
+    if (cellFlight.current) return cellFlight.current;
+    const edit = editingRef.current;
+    if (!edit) return draftRef.current;
+    if (edit.value === edit.original) {
+      setEditingCell(null);
+      return draftRef.current;
+    }
+    const row = draftRef.current.rows.find((r) => r.key === edit.rowKey);
+    const parameter = row?.parameters.find((p) => p.entityToken === edit.token);
+    if (!row || !parameter) return null;
+    const generation = ++cellGeneration.current;
+    const promise = Promise.resolve().then(async () => {
+      setCellBusy(true);
+      setCellError('');
+      try {
+        const parameters = cellParameters(row);
+        const target = parameters.find((p) => p.name === parameter.name)!;
+        const prepared = prepareInlineEdit(target, edit.value, parameters);
+        const result = await request<CellPreview>(
+          'variants.cell.preview',
+          {
+            target: parameter.name,
+            parameters: row.parameters,
+            text: prepared.text,
+            ...(prepared.equation ? { inlineEquation: prepared.equation } : {}),
+            ...(prepared.sourceValueExpression ? { sourceName: parameter.name } : {}),
+            newParameters: draftRef.current.newParameters,
+            ...tokens.current,
+          },
+          model.documentId!,
+        );
+        if (generation !== cellGeneration.current) return null;
+        const current = draftRef.current;
+        if (
+          !current.rows.some(
+            (r) => r.key === row.key && r.parameters.some((p) => p.entityToken === edit.token),
+          )
+        ) {
+          setEditingCell(null);
+          return current;
+        }
+        const next = {
+          ...current,
+          newParameters: [...(current.newParameters ?? []), ...result.newParameters],
+          rows: current.rows.map((r) =>
+            r.key !== row.key
+              ? r
+              : {
+                  ...r,
+                  parameters: r.parameters.map((p) =>
+                    p.entityToken !== edit.token ? p : { ...p, expression: result.expression },
+                  ),
+                },
+          ),
+        };
+        change(next);
+        draftRef.current = next;
+        setEditingCell(null);
+        return next;
+      } catch (error) {
+        if (generation === cellGeneration.current)
+          setCellError(error instanceof Error ? error.message : String(error));
+        return null;
+      } finally {
+        setCellBusy(false);
+        cellFlight.current = null;
+      }
+    });
+    cellFlight.current = promise;
+    return promise;
   }
   function close() {
     if (!disabled) {
       if (dirty) setConfirmClose(true);
       else onClose();
     }
+  }
+  function beginCell(row: TableRow, column: VariantColumn) {
+    const open = (current: TableDraft) => {
+      const parameter = current.rows
+        .find((r) => r.key === row.key)
+        ?.parameters.find((p) => p.entityToken === column.entityToken);
+      if (!parameter) return;
+      setCellError('');
+      setEditingCell({
+        rowKey: row.key,
+        token: column.entityToken,
+        value: parameter.expression,
+        original: parameter.expression,
+        wasDirty: dirty,
+      });
+    };
+    if (editingRef.current || cellFlight.current)
+      void commitCell().then((current) => {
+        if (current) open(current);
+      });
+    else open(draftRef.current);
   }
   function reload() {
     setDraft(tableDraft(model));
@@ -191,6 +332,9 @@ export function VariantTable({
     setRenaming(undefined);
     stopPicking();
     setDeleteKey(null);
+    cellGeneration.current++;
+    setEditingCell(null);
+    setCellError('');
   }
   function reorder(axis: Axis, from: number, to: number) {
     if (unavailable) return;
@@ -258,31 +402,6 @@ export function VariantTable({
       </button>
     );
   }
-  function setParameter(r: TableRow, column: VariantColumn, expression: string) {
-    const previous = r.parameters.find((p) => p.entityToken === column.entityToken);
-    const entry: VariantParameter = {
-      name: column.name,
-      entityToken: column.entityToken,
-      unit: column.unit ?? '',
-      value: previous?.value ?? 0,
-      expression,
-      missing: false,
-    };
-    change({
-      ...draft,
-      rows: draft.rows.map((item) =>
-        item.key !== r.key
-          ? item
-          : {
-              ...item,
-              parameters: [
-                ...item.parameters.filter((p) => p.entityToken !== column.entityToken),
-                entry,
-              ],
-            },
-      ),
-    });
-  }
   function cell(r: TableRow, column: VariantColumn) {
     const parameter = r.parameters.find((p) => p.entityToken === column.entityToken);
     const feature = r.features?.find((f) => f.entityToken === column.entityToken);
@@ -297,21 +416,44 @@ export function VariantTable({
         ) : missingCell ? (
           <span class="error">Unavailable</span>
         ) : column.kind === 'parameter' ? (
-          <input
-            aria-label={`${r.name} / ${column.name}`}
-            value={parameter!.expression}
-            disabled={unavailable}
-            spellcheck={false}
-            onFocus={(event) => event.currentTarget.select()}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault();
-                event.stopPropagation();
-                event.currentTarget.blur();
-              }
-            }}
-            onInput={(event) => setParameter(r, column, event.currentTarget.value)}
-          />
+          editingCell?.rowKey === r.key && editingCell.token === column.entityToken ? (
+            <ExpressionEditor
+              inline
+              autoFocus
+              floatingTooltips
+              singleLine
+              label={`${r.name} / ${column.name}`}
+              hint="Expression"
+              parameters={completionParameters}
+              currentTarget={column.name}
+              batch={hasAssignment(editingCell.value)}
+              value={editingCell.value}
+              disabled={unavailable || cellBusy}
+              onChange={(value) => {
+                setEditingCell({ ...editingCell, value });
+                setDirty(true);
+                setCellError('');
+              }}
+              onSubmit={() => void commitCell()}
+              onBlur={() => void commitCell()}
+              onCancel={() => {
+                cellGeneration.current++;
+                setDirty(editingCell.wasDirty);
+                setEditingCell(null);
+                setCellError('');
+              }}
+            />
+          ) : (
+            <button
+              class="variant-cell-value"
+              aria-label={`${r.name} / ${column.name}`}
+              title={parameter!.expression}
+              disabled={unavailable}
+              onClick={() => beginCell(r, column)}
+            >
+              {parameter!.expression}
+            </button>
+          )
         ) : (
           <input
             type="checkbox"
@@ -388,10 +530,13 @@ export function VariantTable({
             title="Click to rename"
             disabled={unavailable}
             aria-label={`Rename ${r.name}`}
-            onClick={() => {
-              originalName.current = r.name;
-              setRenaming(r.key);
-            }}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() =>
+              afterCell(() => {
+                originalName.current = r.name;
+                setRenaming(r.key);
+              })
+            }
           >
             {r.name || 'Unnamed variant'}
           </button>
@@ -405,6 +550,7 @@ export function VariantTable({
             class="icon"
             title="Duplicate variant"
             aria-label={`Duplicate ${r.name}`}
+            onMouseDown={(event) => event.preventDefault()}
             disabled={unavailable}
             onClick={() => duplicateVariant(r)}
           >
@@ -414,11 +560,14 @@ export function VariantTable({
             class="icon"
             title="Delete variant"
             aria-label={`Delete ${r.name}`}
+            onMouseDown={(event) => event.preventDefault()}
             disabled={unavailable}
-            onClick={() => {
-              setDeleteKey(r.key);
-              stopPicking();
-            }}
+            onClick={() =>
+              afterCell(() => {
+                setDeleteKey(r.key);
+                stopPicking();
+              })
+            }
           >
             <Trash2 size={12} />
           </button>
@@ -451,6 +600,7 @@ export function VariantTable({
       const existing = draft.columns.find((c) => columnKey(c) === columnKey(column));
       if (existing) return;
       change({
+        ...draft,
         columns: [...draft.columns, column],
         rows: draft.rows.map((r) => {
           const current = newRow(model, [column], r.name);
@@ -463,6 +613,7 @@ export function VariantTable({
       });
     } else
       change({
+        ...draft,
         columns: draft.columns.filter((c) => columnKey(c) !== columnKey(column)),
         rows: draft.rows.map((r) => ({
           ...r,
@@ -512,7 +663,7 @@ export function VariantTable({
           if (event.key === 'Tab') {
             const elements = Array.from(
               dialog.current!.querySelectorAll<HTMLElement>(
-                'button:not(:disabled),input:not(:disabled),select:not(:disabled)',
+                'button:not(:disabled),input:not(:disabled),select:not(:disabled),[contenteditable="true"]',
               ),
             ).filter((e) => !e.closest('[hidden]'));
             const first = elements[0],
@@ -532,6 +683,7 @@ export function VariantTable({
           <button
             class="icon"
             aria-label="Close variant editor"
+            onMouseDown={(event) => event.preventDefault()}
             onClick={close}
             disabled={disabled}
           >
@@ -539,7 +691,12 @@ export function VariantTable({
           </button>
         </div>
         <div class="variant-table-toolbar">
-          <button aria-expanded={picker} disabled={unavailable} onClick={() => setPicker(!picker)}>
+          <button
+            aria-expanded={picker}
+            disabled={unavailable}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => afterCell(() => setPicker(!picker))}
+          >
             Configure · {draft.columns.length}
           </button>
           <span>{draft.rows.length} variants</span>
@@ -728,7 +885,11 @@ export function VariantTable({
               ))}
               <tr class="variant-add-row">
                 <td colSpan={draft.columns.length + 1}>
-                  <button disabled={unavailable} onClick={addVariant}>
+                  <button
+                    disabled={unavailable}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={addVariant}
+                  >
                     <Plus size={13} /> Add variant
                   </button>
                 </td>
@@ -749,6 +910,17 @@ export function VariantTable({
             {error}
           </div>
         )}
+        {cellError && (
+          <div class="variant-editor-error error" role="alert">
+            {cellError}
+          </div>
+        )}
+        {!!draft.newParameters?.length && (
+          <p class="variant-editor-hint">
+            New global parameters will be created on Save:{' '}
+            {draft.newParameters.map((p) => p.name).join(', ')}.
+          </p>
+        )}
         <div class="sr-only" role="status" aria-live="polite">
           {announcement}
         </div>
@@ -761,14 +933,21 @@ export function VariantTable({
         )}
         <div class="variant-dialog-footer">
           <span>{dirty ? 'Unsaved changes' : 'All changes saved'}</span>
-          <button disabled={disabled} onClick={close}>
+          <button
+            disabled={disabled}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={close}
+          >
             Cancel
           </button>
           <button
             class="primary"
             disabled={unavailable || !dirty || !!problem}
+            onMouseDown={(event) => event.preventDefault()}
             onClick={async () => {
-              if (await onSave({ ...tablePayload(draft), ...tokens.current })) onClose();
+              const current = await commitCell();
+              if (current && (await onSave({ ...tablePayload(current), ...tokens.current })))
+                onClose();
             }}
           >
             {disabled ? 'Saving…' : 'Save'}

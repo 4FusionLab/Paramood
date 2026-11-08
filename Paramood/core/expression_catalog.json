@@ -261,12 +261,12 @@
         {
           "name": "value",
           "description": "Value to evaluate.",
-          "type": "unitless",
-          "dimension": "unitless"
+          "type": "numeric",
+          "dimension": "numeric"
         }
       ],
       "arity": 1,
-      "returns": "unitless",
+      "returns": "same as input",
       "example": "floor(-1.5)",
       "restriction": ""
     },
@@ -279,12 +279,12 @@
         {
           "name": "value",
           "description": "Value to evaluate.",
-          "type": "unitless",
-          "dimension": "unitless"
+          "type": "numeric",
+          "dimension": "numeric"
         }
       ],
       "arity": 1,
-      "returns": "unitless",
+      "returns": "same as input",
       "example": "ceil(1.5)",
       "restriction": ""
     },
@@ -297,12 +297,12 @@
         {
           "name": "value",
           "description": "Value to evaluate.",
-          "type": "unitless",
-          "dimension": "unitless"
+          "type": "numeric",
+          "dimension": "numeric"
         }
       ],
       "arity": 1,
-      "returns": "unitless",
+      "returns": "same as input",
       "example": "round(-1.5)",
       "restriction": "Halfway values round away from zero."
     },
@@ -315,8 +315,8 @@
         {
           "name": "value",
           "description": "Value to evaluate.",
-          "type": "unitless",
-          "dimension": "unitless"
+          "type": "numeric",
+          "dimension": "numeric"
         }
       ],
       "arity": 1,
@@ -459,7 +459,7 @@
       "arity": 0,
       "returns": "unitless",
       "example": "random()",
-      "restriction": "Changes when evaluated. Exact preview and batch application are unavailable; Quick Calculator uses native Fusion evaluation."
+      "restriction": "Preview shows a sample. Fusion evaluates the original expression again when applied or recomputed; the resulting value can change."
     },
     {
       "name": "if",
@@ -489,7 +489,7 @@
       "arity": 3,
       "returns": "same as branches",
       "example": "if(2 mm < 3 mm; 10 mm; 20 mm)",
-      "restriction": "Three arguments; both branches must have matching types and dimensions."
+      "restriction": "Fusion evaluates only the selected branch. Unitless numeric branches can adopt the other branch dimension."
     }
   ],
   "constants": [
@@ -640,5 +640,1173 @@
     "and",
     "or",
     "not"
+  ],
+  "unitDefinitions": [
+    {
+      "name": "mm",
+      "dimension": [
+        1,
+        0
+      ],
+      "factor": 1.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "cm",
+      "dimension": [
+        1,
+        0
+      ],
+      "factor": 10.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "m",
+      "dimension": [
+        1,
+        0
+      ],
+      "factor": 1000.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "hm",
+      "dimension": [
+        1,
+        0
+      ],
+      "factor": 100000.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "micron",
+      "dimension": [
+        1,
+        0
+      ],
+      "factor": 0.001,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "in",
+      "dimension": [
+        1,
+        0
+      ],
+      "factor": 25.4,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "ft",
+      "dimension": [
+        1,
+        0
+      ],
+      "factor": 304.8,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "yd",
+      "dimension": [
+        1,
+        0
+      ],
+      "factor": 914.4,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "mi",
+      "dimension": [
+        1,
+        0
+      ],
+      "factor": 1609344.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "nauticalMile",
+      "dimension": [
+        1,
+        0
+      ],
+      "factor": 1852000.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "mil",
+      "dimension": [
+        1,
+        0
+      ],
+      "factor": 0.025400000000000002,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "rad",
+      "dimension": [
+        0,
+        1
+      ],
+      "factor": 1.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "deg",
+      "dimension": [
+        0,
+        1
+      ],
+      "factor": 0.017453292519943295,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "grad",
+      "dimension": [
+        0,
+        1
+      ],
+      "factor": 0.015707963267948967,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "s",
+      "dimension": [
+        0,
+        0,
+        1
+      ],
+      "factor": 1.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "min",
+      "dimension": [
+        0,
+        0,
+        1
+      ],
+      "factor": 60.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "hr",
+      "dimension": [
+        0,
+        0,
+        1
+      ],
+      "factor": 3600.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "acre",
+      "dimension": [
+        2,
+        0
+      ],
+      "factor": 4046856422.4,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "circular_mil",
+      "dimension": [
+        2,
+        0
+      ],
+      "factor": 0.0005067074791,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "rpm",
+      "dimension": [
+        0,
+        1,
+        -1
+      ],
+      "factor": 0.10471975511965977,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "farad",
+      "dimension": [
+        -2,
+        0,
+        4,
+        -1,
+        2
+      ],
+      "factor": 1.0000000000000002e-06,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "coulomb",
+      "dimension": [
+        0,
+        0,
+        1,
+        0,
+        1
+      ],
+      "factor": 1.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "S",
+      "dimension": [
+        -2,
+        0,
+        3,
+        -1,
+        2
+      ],
+      "factor": 1.0000000000000002e-06,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "mho",
+      "dimension": [
+        -2,
+        0,
+        3,
+        -1,
+        2
+      ],
+      "factor": 1.0000000000000002e-06,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "dol",
+      "dimension": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "factor": 1.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "A",
+      "dimension": [
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "factor": 1.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "J",
+      "dimension": [
+        2,
+        0,
+        -2,
+        1
+      ],
+      "factor": 1000000.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "erg",
+      "dimension": [
+        2,
+        0,
+        -2,
+        1
+      ],
+      "factor": 0.1,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "calorie",
+      "dimension": [
+        2,
+        0,
+        -2,
+        1
+      ],
+      "factor": 4184000.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "Btu",
+      "dimension": [
+        2,
+        0,
+        -2,
+        1
+      ],
+      "factor": 1055055852.62,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "V",
+      "dimension": [
+        2,
+        0,
+        -3,
+        1,
+        -1
+      ],
+      "factor": 1000000.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "ccs",
+      "dimension": [
+        3,
+        0,
+        -1
+      ],
+      "factor": 1000.0,
+      "offset": 0.0,
+      "aliases": [
+        "CCS"
+      ]
+    },
+    {
+      "name": "cis",
+      "dimension": [
+        3,
+        0,
+        -1
+      ],
+      "factor": 16387.064,
+      "offset": 0.0,
+      "aliases": [
+        "CIS"
+      ]
+    },
+    {
+      "name": "cfm",
+      "dimension": [
+        3,
+        0,
+        -1
+      ],
+      "factor": 471947.44320000004,
+      "offset": 0.0,
+      "aliases": [
+        "CFM"
+      ]
+    },
+    {
+      "name": "cmh",
+      "dimension": [
+        3,
+        0,
+        -1
+      ],
+      "factor": 277777.77777777775,
+      "offset": 0.0,
+      "aliases": [
+        "CMH"
+      ]
+    },
+    {
+      "name": "gpm",
+      "dimension": [
+        3,
+        0,
+        -1
+      ],
+      "factor": 63090.19639999999,
+      "offset": 0.0,
+      "aliases": [
+        "GPM"
+      ]
+    },
+    {
+      "name": "lph",
+      "dimension": [
+        3,
+        0,
+        -1
+      ],
+      "factor": 277.77777777777777,
+      "offset": 0.0,
+      "aliases": [
+        "LPH"
+      ]
+    },
+    {
+      "name": "N",
+      "dimension": [
+        1,
+        0,
+        -2,
+        1
+      ],
+      "factor": 1000.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "dyne",
+      "dimension": [
+        1,
+        0,
+        -2,
+        1
+      ],
+      "factor": 0.01,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "lbforce",
+      "dimension": [
+        1,
+        0,
+        -2,
+        1
+      ],
+      "factor": 4448.221615260501,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "ounceforce",
+      "dimension": [
+        1,
+        0,
+        -2,
+        1
+      ],
+      "factor": 278.01385095,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "tonforce",
+      "dimension": [
+        1,
+        0,
+        -2,
+        1
+      ],
+      "factor": 8896443.230521,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "Hz",
+      "dimension": [
+        0,
+        0,
+        -1
+      ],
+      "factor": 1.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "lx",
+      "dimension": [
+        -2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1
+      ],
+      "factor": 1.0000000000000002e-06,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "H",
+      "dimension": [
+        2,
+        0,
+        -2,
+        1,
+        -2
+      ],
+      "factor": 1000000.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "cd",
+      "dimension": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "factor": 1.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "EV",
+      "dimension": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "factor": 1.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "lm",
+      "dimension": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1
+      ],
+      "factor": 1.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "Wb",
+      "dimension": [
+        2,
+        0,
+        -2,
+        1,
+        -1
+      ],
+      "factor": 1000000.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "maxwell",
+      "dimension": [
+        2,
+        0,
+        -2,
+        1,
+        -1
+      ],
+      "factor": 0.01,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "T",
+      "dimension": [
+        0,
+        0,
+        -2,
+        1,
+        -1
+      ],
+      "factor": 1.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "gamma",
+      "dimension": [
+        0,
+        0,
+        -2,
+        1,
+        -1
+      ],
+      "factor": 1e-09,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "gauss",
+      "dimension": [
+        0,
+        0,
+        -2,
+        1,
+        -1
+      ],
+      "factor": 0.0001,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "oersted",
+      "dimension": [
+        -1,
+        0,
+        0,
+        0,
+        1
+      ],
+      "factor": 0.07957747200000001,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "g",
+      "dimension": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "factor": 0.001,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "kg",
+      "dimension": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "factor": 1.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "slug",
+      "dimension": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "factor": 14.5939029372,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "lbmass",
+      "dimension": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "factor": 0.45359237,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "ouncemass",
+      "dimension": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "factor": 0.028349523125,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "tonmass",
+      "dimension": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "factor": 907.18474,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "pcs",
+      "dimension": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "factor": 1.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "W",
+      "dimension": [
+        2,
+        0,
+        -3,
+        1
+      ],
+      "factor": 1000000.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "hp",
+      "dimension": [
+        2,
+        0,
+        -3,
+        1
+      ],
+      "factor": 745699871.582,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "Pa",
+      "dimension": [
+        -1,
+        0,
+        -2,
+        1
+      ],
+      "factor": 0.001,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "psi",
+      "dimension": [
+        -1,
+        0,
+        -2,
+        1
+      ],
+      "factor": 6.894757293178,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "psf",
+      "dimension": [
+        -1,
+        0,
+        -2,
+        1
+      ],
+      "factor": 0.047880259,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "ksi",
+      "dimension": [
+        -1,
+        0,
+        -2,
+        1
+      ],
+      "factor": 6894.7572931780005,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "bar",
+      "dimension": [
+        -1,
+        0,
+        -2,
+        1
+      ],
+      "factor": 100.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "atm",
+      "dimension": [
+        -1,
+        0,
+        -2,
+        1
+      ],
+      "factor": 101.325,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "inH2O",
+      "dimension": [
+        -1,
+        0,
+        -2,
+        1
+      ],
+      "factor": 0.24908891,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "ftH2O",
+      "dimension": [
+        -1,
+        0,
+        -2,
+        1
+      ],
+      "factor": 2.9890669200000004,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "mH2O",
+      "dimension": [
+        -1,
+        0,
+        -2,
+        1
+      ],
+      "factor": 9.806650000000001,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "mmHg",
+      "dimension": [
+        -1,
+        0,
+        -2,
+        1
+      ],
+      "factor": 0.133322387415,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "inHg",
+      "dimension": [
+        -1,
+        0,
+        -2,
+        1
+      ],
+      "factor": 3.386388,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "ohm",
+      "dimension": [
+        2,
+        0,
+        -3,
+        1,
+        -2
+      ],
+      "factor": 1000000.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "sr",
+      "dimension": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "factor": 1.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "mps",
+      "dimension": [
+        1,
+        0,
+        -1
+      ],
+      "factor": 1000.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "fps",
+      "dimension": [
+        1,
+        0,
+        -1
+      ],
+      "factor": 304.8,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "mph",
+      "dimension": [
+        1,
+        0,
+        -1
+      ],
+      "factor": 447.04,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "knots",
+      "dimension": [
+        1,
+        0,
+        -1
+      ],
+      "factor": 514.4444444444445,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "mmpm",
+      "dimension": [
+        1,
+        0,
+        -1
+      ],
+      "factor": 0.016666666666666666,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "mpm",
+      "dimension": [
+        1,
+        0,
+        -1
+      ],
+      "factor": 16.666666666666668,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "inpm",
+      "dimension": [
+        1,
+        0,
+        -1
+      ],
+      "factor": 0.42333333333333334,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "ftpm",
+      "dimension": [
+        1,
+        0,
+        -1
+      ],
+      "factor": 5.08,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "mole",
+      "dimension": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "factor": 1.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "K",
+      "dimension": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "factor": 1.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "C",
+      "dimension": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "factor": 1.0,
+      "offset": 273.15,
+      "aliases": []
+    },
+    {
+      "name": "F",
+      "dimension": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "factor": 0.5555555555555429,
+      "offset": 255.3722222222222,
+      "aliases": []
+    },
+    {
+      "name": "R",
+      "dimension": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "factor": 0.5555555555555556,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "poise",
+      "dimension": [
+        -1,
+        0,
+        -1,
+        1
+      ],
+      "factor": 0.0001,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "l",
+      "dimension": [
+        3,
+        0
+      ],
+      "factor": 1000000.0,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "gal",
+      "dimension": [
+        3,
+        0
+      ],
+      "factor": 3785411.784,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "qt",
+      "dimension": [
+        3,
+        0
+      ],
+      "factor": 946352.946,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "pt",
+      "dimension": [
+        3,
+        0
+      ],
+      "factor": 473176.473,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "cup",
+      "dimension": [
+        3,
+        0
+      ],
+      "factor": 236588.2365,
+      "offset": 0.0,
+      "aliases": []
+    },
+    {
+      "name": "fl_oz",
+      "dimension": [
+        3,
+        0
+      ],
+      "factor": 29573.5295625,
+      "offset": 0.0,
+      "aliases": []
+    }
   ]
 }

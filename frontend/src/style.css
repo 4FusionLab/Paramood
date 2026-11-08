@@ -717,8 +717,20 @@ kbd {
   overflow: hidden;
 }
 .variant-menu-heading {
-  padding: 10px 12px 5px;
+  padding: 8px 9px 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.variant-menu-heading strong {
   font-weight: 600;
+}
+.variant-menu-heading small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
 }
 .variant-options {
   max-height: min(340px, 55vh);
@@ -770,10 +782,7 @@ kbd {
   border-radius: 0;
 }
 .variant-option {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 30px;
-  align-items: center;
-  padding-right: 4px;
+  display: block;
 }
 .variants-empty {
   color: var(--muted);
@@ -948,6 +957,25 @@ kbd {
 }
 .variant-config-table input:not([type='checkbox']):hover {
   border-color: var(--border);
+}
+.variant-cell-value {
+  display: block;
+  width: 100%;
+  padding: 5px 2px;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.variant-config-table .parameter-edit {
+  width: 100%;
+  min-width: 0;
+  flex: initial;
+}
+body > .cm-tooltip {
+  z-index: 100;
 }
 .variant-config-table td.variant-feature-cell {
   text-align: center;
@@ -1406,4 +1434,24 @@ kbd {
 }
 .expression-signature > div + div {
   margin-top: 4px;
+}
+
+.preview-note {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  white-space: normal;
+}
+
+.preview-row > div:first-child {
+  min-width: 0;
+  flex: 1;
+}
+.preview-row > .row-end {
+  max-width: 52%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.preview-row .formula {
+  overflow-wrap: anywhere;
 }
