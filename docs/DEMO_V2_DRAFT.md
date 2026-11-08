@@ -1,14 +1,14 @@
-# Cedar & Sage — Paramood 2.0 demo draft
+# Cedar & Sage — Paramood 2.0 demo
 
 [Русский](DEMO_V2_DRAFT.ru.md) · [Variant workflow](VARIANTS_V2.md)
 
-**Review draft:** the [2.0 demo export](../examples/cedar-sage-v2/Cedar-Sage-Paramood-2-review.f3d) was reopened and its three variants applied through the source-loaded palette in Fusion 2706.1.17 on macOS. All 11 columns resolved. It remains subject to owner review. The repository's existing [Cedar & Sage file](../examples/cedar-sage/Cedar-Sage-Paramood.f3d) is a 1.x example; its saved variants do not appear in 2.0. Do not treat it as the 2.0 demo.
+The [2.0 demo export](../examples/cedar-sage-v2/Cedar-Sage-Paramood-2-review.f3d) was reopened and its three variants applied through the source-loaded palette in Fusion 2706.1.17 on macOS. All 11 columns resolved. The repository's existing [Cedar & Sage file](../examples/cedar-sage/Cedar-Sage-Paramood.f3d) is a 1.x example; its saved variants do not appear in 2.0. Do not treat it as the 2.0 demo.
 
 ## Explore the variant table
 
 Open the verified 2.0 demo in Fusion with Paramood running. Open the variant switcher and choose **Edit variants** in its header. The table uses one configured set for the model: each variant is a row, each selected parameter or timeline feature a column. A checked feature is **Enabled**; unchecked means **Suppressed**.
 
-The current review model contains the following saved expressions and states. The Compact width is 120 mm, as confirmed by the owner.
+The example model contains the following saved expressions and states. The Compact width is 120 mm, as confirmed by the owner.
 
 | Variant | Tray width | Tray depth | Post height | Roof pitch | Perch features |
 | --- | --- | --- | --- | --- | --- |
@@ -24,9 +24,9 @@ The cell editor supports IntelliSense, `this`, relative edits and supported crea
 
 ## Share a copy
 
-After the final export is reviewed, download the actual F3D and open it in Fusion with Paramood 2.0. Save your own copy for experiments. A valid expression can still result in a Fusion timeline warning or error; inspect the model before sharing. Paramood stores its own variant data in the design and does not use Autodesk Configuration API. This workflow does not claim full Fusion Configurations parity.
+Download the linked F3D and open it in Fusion with Paramood 2.0. Save your own copy for experiments. A valid expression can still result in a Fusion timeline warning or error; inspect the model before sharing. Paramood stores its own variant data in the design and does not use Autodesk Configuration API. This workflow does not claim full Fusion Configurations parity.
 
-**Release work remaining:** review the Fusion interface screenshots, decide the `post` role, and update this guide and the example links to the accepted artifact. The review export SHA-256 is `853d7084c86c46380adfdaa9f442d410e5b262df4caea0eb4b75cf79bd37e639`. The installed package has had a scoped macOS UI check; complete acceptance and native Windows validation remain outstanding.
+The example export SHA-256 is `853d7084c86c46380adfdaa9f442d410e5b262df4caea0eb4b75cf79bd37e639`. The installed package has had a scoped macOS UI check; native Windows validation remains outstanding.
 
 ![Classic model](../assets/screenshots/v2-review/classic.png)
 
@@ -34,4 +34,4 @@ After the final export is reviewed, download the actual F3D and open it in Fusio
 
 ![Garden model](../assets/screenshots/v2-review/garden.png)
 
-These are Fusion graphics-view captures of the reopened review copy, not palette screenshots.
+These are Fusion graphics-view captures of the reopened example, not palette screenshots.

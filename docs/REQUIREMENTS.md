@@ -1229,8 +1229,7 @@ The main chat should remain the orchestrator throughout the project.
 - Editing an outside-set parameter is global and never enrolls it. Mark controlled parameters in
   the common list with a table icon and the tooltip Controlled by variants.
 - Use only variants.v2. Older records are neither read nor migrated nor deleted.
-- Release 2.0.0 only after the owner's personal review and explicit authorization. A review build
-  is not a release.
+- Paramood 2.0.0 was released after integration into `main`.
 - Contracts, API sources, evidence and limits: [Variants 2.0](VARIANTS_V2.md).
 
 ## Model units and Hybrid view — 7 November 2026

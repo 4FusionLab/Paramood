@@ -1,10 +1,8 @@
-# Model-wide variant table (2.0 review build)
+# Model-wide variant table (2.0)
 
 [Русская версия](VARIANTS_V2.ru.md)
 
-This development branch is awaiting the owner's personal review. Do not publish, push to main,
-create tags, or invoke the automatic release workflow until the owner explicitly authorizes release.
-`GitVersion.yml` establishes 2.0.0 as the next major version; it does not publish a release.
+Paramood 2.0.0 is available on the [Releases page](https://github.com/4FusionLab/Paramood/releases/tag/v2.0.0).
 
 ## Workflow
 
@@ -60,8 +58,7 @@ parameters in a native Fusion command transaction. Creating parameters while ano
 active is rejected before any writes; finish that command first. Cancellation discards all pending
 creations. Source/preview identities are rechecked before persistence.
 
-The branch includes origin/main commit `5cb1e55` (native expressions, extended units and stochastic
-Preview/Apply). Database-unit conversion covers derived dimensions; random samples are not used
+Native expressions, extended units and stochastic Preview/Apply are supported. Database-unit conversion covers derived dimensions; random samples are not used
 to decide whether an unchanged active row needs reapplying.
 
 ## Storage and boundaries
@@ -106,7 +103,8 @@ configured inserts and other downstream workflows are not implemented in this bu
   absent; a real command transaction then created `draft_beam` and linked the 27 mm target without
   adding it to the configured set.
 - This source-adapter smoke test does not prove the installed palette UI, F3D round-trip, all
-  feature types, Windows operation, or the owner's acceptance. No release has been authorized.
+  feature types or Windows operation. A separate scoped installed-palette and F3D round-trip check
+  is recorded in the [validation record](releases/2.0.0-review-checklist.md).
 
 API sources: [Feature.isSuppressed](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/fusion_Feature_isSuppressed.htm),
 [Feature.isParametric](https://help.autodesk.com/cloudhelp/ENU/Fusion-360-API/files/fusion_Feature_isParametric.htm),

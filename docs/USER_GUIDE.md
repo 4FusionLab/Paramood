@@ -34,7 +34,7 @@ the table. In Free it only stores values. Parameters outside the configured set 
 are never enrolled automatically. A table icon in the common parameter list marks configured items.
 
 Old 1.x variants are neither read nor migrated; 2.0 uses a separate storage format.
-See [Variants 2.0](VARIANTS_V2.md). Release awaits the owner's personal acceptance.
+See [Variants 2.0](VARIANTS_V2.md).
 
 ## Save and share with F3D
 
@@ -88,4 +88,4 @@ A text result is limited to 65,536 characters. The projected text across a plann
 
 ## Model walkthrough
 
-See the [Cedar & Sage example](DEMO.md) for variant switching, parameter-and-group names, and text formulas on a feeder model.
+See the [Cedar & Sage example](DEMO_V2_DRAFT.md) for variant switching, parameter-and-group names, and text formulas on a feeder model.

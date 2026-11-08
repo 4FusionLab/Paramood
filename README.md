@@ -53,15 +53,15 @@ Switch saved variants from the header, or open the table to compare and edit con
   <img src="assets/screenshots/v2-review/palette-variant-table.jpg" alt="Paramood 2.0 variant table showing Compact dimensions" width="360">
 </p>
 
-The Compact configuration of the Cedar & Sage review model:
+The Compact configuration of the Cedar & Sage example model:
 
 ![Cedar & Sage Compact model in Fusion](assets/screenshots/v2-review/compact.png)
 
-Screenshots show the 2.0 review build running in Fusion on macOS.
+Screenshots show Paramood 2.0 running in Fusion on macOS.
 
-## Paramood 2.0 capabilities — review draft
+## Paramood 2.0 capabilities
 
-This page describes the unreleased 2.0 development branch. The [Releases page](https://github.com/4FusionLab/Paramood/releases) lists published builds; features and screenshots may differ from the installed release.
+Download [Paramood 2.0.0](https://github.com/4FusionLab/Paramood/releases/tag/v2.0.0) from GitHub Releases.
 
 | Area | Capability |
 | --- | --- |
@@ -125,8 +125,6 @@ Creation and linking are validated together. Equation solving supports one new n
 
 ## Save and switch variants
 
-The 2.0 variant editor is awaiting the owner's personal review; release is not yet authorized.
-
 1. Open the variant menu and choose **Create variant** or the shared **Edit variants** button in the menu header.
 2. Use **Configure** to choose the model-wide set of parameters and timeline features.
 3. Variants are always rows; parameters and features are always columns. Click a value to
@@ -140,7 +138,7 @@ remain global and are never enrolled automatically. **Free** keeps the current g
 parameter edits leave saved variants unchanged. The switcher keeps its existing interaction.
 
 Format 2 is stored separately in the model: old 1.x variants are not read or migrated.
-The original Cedar & Sage 1.x example retains the old format; use the separate 2.0 review file or recreate its variants.
+The original Cedar & Sage 1.x example retains the old format; use the separate [2.0 example](docs/DEMO_V2_DRAFT.md) or recreate its variants.
 See [Variants 2.0](docs/VARIANTS_V2.md) for workflow, verification and limitations.
 
 ## Create text parameters
@@ -193,8 +191,8 @@ The package declares support for both platforms, and automated checks run on bot
 ## Guides and release notes
 
 - [User guide](docs/USER_GUIDE.md): input, units, variants, text, and boundaries.
-- [Cedar & Sage walkthrough](docs/DEMO.md): a feeder model and parameter-group examples.
-- [Published releases](https://github.com/4FusionLab/Paramood/releases) and [2.0 review notes](docs/releases/2.0.0-draft.md): published builds and the draft for this branch.
+- [Cedar & Sage 2.0 walkthrough](docs/DEMO_V2_DRAFT.md): a feeder model and variant examples.
+- [Published releases](https://github.com/4FusionLab/Paramood/releases): downloads and release notes.
 - [Product concept](docs/PRODUCT_CONCEPT.md) and [IntelliSense details](docs/INTELLISENSE.md).
 
 ## Build from source
