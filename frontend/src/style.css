@@ -1010,6 +1010,8 @@ body > .cm-tooltip {
   color: var(--accent);
 }
 .variant-add-row button {
+  position: sticky;
+  left: 6px;
   display: inline-flex;
   align-items: center;
   gap: 5px;
