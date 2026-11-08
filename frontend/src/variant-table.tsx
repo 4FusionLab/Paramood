@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { Fragment, type JSX } from 'preact';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { Fragment } from 'preact';
 import { GripVertical, Plus, X, Copy, Trash2 } from 'lucide-preact';
 import {
   onTimelineSelection,
@@ -79,7 +79,15 @@ export function VariantTable({ model, create, disabled, error, onSave, onClose }
   const originalName = useRef(create ? draft.rows[draft.rows.length - 1]?.name : '');
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const dialog = useRef<HTMLDivElement>(null);
-  const drag = useRef<{ axis: Axis; index: number } | null>(null);
+  const drag = useRef<{
+    axis: Axis;
+    index: number;
+    pointerId: number;
+    x: number;
+    y: number;
+    moved: boolean;
+    target: number | null;
+  } | null>(null);
   const pickGeneration = useRef(0);
   const tokens = useRef({
     variantsToken: model.variantsToken,
@@ -344,24 +352,73 @@ export function VariantTable({ model, create, disabled, error, onSave, onClose }
       `${axis === 'rows' ? 'Variant' : 'Parameter or feature'} moved to position ${to + 1}.`,
     );
   }
-  function dropProps(axis: Axis, index: number) {
-    const target = `${axis}:${index}`;
-    return {
-      class: dropTarget === target ? 'table-drop-target' : '',
-      onDragOver: (event: JSX.TargetedDragEvent<HTMLElement>) => {
-        if (drag.current?.axis === axis && !unavailable) {
-          event.preventDefault();
-          setDropTarget(target);
-          if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+  useLayoutEffect(() => {
+    function cancelDrag() {
+      drag.current = null;
+      setDropTarget(null);
+    }
+    function track(event: PointerEvent) {
+      const source = drag.current;
+      if (!source || source.pointerId !== event.pointerId || unavailable) return;
+      if (Math.hypot(event.clientX - source.x, event.clientY - source.y) < 4 && !source.moved)
+        return;
+      source.moved = true;
+      event.preventDefault();
+      const scroller = dialog.current?.querySelector<HTMLElement>('.variant-table-scroll');
+      if (scroller) {
+        const bounds = scroller.getBoundingClientRect();
+        if (source.axis === 'columns') {
+          if (event.clientX > bounds.right - 28) scroller.scrollLeft += 24;
+          else if (event.clientX < bounds.left + 28) scroller.scrollLeft -= 24;
+        } else {
+          if (event.clientY > bounds.bottom - 28) scroller.scrollTop += 24;
+          else if (event.clientY < bounds.top + 28) scroller.scrollTop -= 24;
         }
-      },
-      onDrop: (event: JSX.TargetedDragEvent<HTMLElement>) => {
+      }
+      // Pointer capture retargets events to the handle. Hit-test the actual position instead.
+      const hit = document.elementFromPoint(event.clientX, event.clientY);
+      const target = hit?.closest<HTMLElement>(`[data-reorder-${source.axis}]`);
+      source.target =
+        target && dialog.current?.contains(target)
+          ? Number(target.getAttribute(`data-reorder-${source.axis}`))
+          : null;
+      setDropTarget(source.target === null ? null : `${source.axis}:${source.target}`);
+    }
+    function finish(event: PointerEvent) {
+      const source = drag.current;
+      if (!source || source.pointerId !== event.pointerId) return;
+      track(event);
+      cancelDrag();
+      if (source.moved && source.target !== null && !unavailable)
+        reorder(source.axis, source.index, source.target);
+    }
+    function escape(event: KeyboardEvent) {
+      if (event.key === 'Escape' && drag.current) {
         event.preventDefault();
-        const source = drag.current;
-        drag.current = null;
-        setDropTarget(null);
-        if (source?.axis === axis) reorder(axis, source.index, index);
-      },
+        event.stopImmediatePropagation();
+        cancelDrag();
+      }
+    }
+    window.addEventListener('pointermove', track, { passive: false });
+    window.addEventListener('pointerup', finish);
+    window.addEventListener('pointercancel', cancelDrag);
+    window.addEventListener('lostpointercapture', cancelDrag);
+    window.addEventListener('blur', cancelDrag);
+    window.addEventListener('keydown', escape, true);
+    return () => {
+      window.removeEventListener('pointermove', track);
+      window.removeEventListener('pointerup', finish);
+      window.removeEventListener('pointercancel', cancelDrag);
+      window.removeEventListener('lostpointercapture', cancelDrag);
+      window.removeEventListener('blur', cancelDrag);
+      window.removeEventListener('keydown', escape, true);
+      drag.current = null;
+    };
+  }, [unavailable, draft]);
+  function dropProps(axis: Axis, index: number) {
+    return {
+      [`data-reorder-${axis}`]: index,
+      class: dropTarget === `${axis}:${index}` ? 'table-drop-target' : '',
     };
   }
   function handle(axis: Axis, index: number, name: string) {
@@ -369,22 +426,24 @@ export function VariantTable({ model, create, disabled, error, onSave, onClose }
       <button
         type="button"
         class="table-drag-handle"
-        draggable={!unavailable}
+        draggable={false}
         disabled={unavailable}
         aria-label={`Reorder ${name}`}
         title="Drag to reorder; Alt + arrow keys to move"
-        onDragStart={(event) => {
-          if (unavailable) {
-            event.preventDefault();
-            return;
-          }
-          drag.current = { axis, index };
-          event.dataTransfer?.setData('text/plain', 'Paramood table item');
-          if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
-        }}
-        onDragEnd={() => {
-          drag.current = null;
-          setDropTarget(null);
+        onDragStart={(event) => event.preventDefault()}
+        onPointerDown={(event) => {
+          if (unavailable || event.button !== 0 || event.isPrimary === false) return;
+          event.preventDefault();
+          drag.current = {
+            axis,
+            index,
+            pointerId: event.pointerId,
+            x: event.clientX,
+            y: event.clientY,
+            moved: false,
+            target: null,
+          };
+          event.currentTarget.setPointerCapture?.(event.pointerId);
         }}
         onKeyDown={(event) => {
           if (
@@ -821,17 +880,7 @@ export function VariantTable({ model, create, disabled, error, onSave, onClose }
             Choose the parameters and timeline features this model will configure.
           </p>
         )}
-        <div
-          class="variant-table-scroll"
-          onDragOver={(event) => {
-            if (!drag.current || unavailable) return;
-            const element = event.currentTarget,
-              bounds = element.getBoundingClientRect();
-            // Keep off-screen columns reachable when dragging in a narrow palette.
-            if (event.clientX > bounds.right - 28) element.scrollBy({ left: 24 });
-            else if (event.clientX < bounds.left + 28) element.scrollBy({ left: -24 });
-          }}
-        >
+        <div class="variant-table-scroll">
           <table
             class="variant-config-table"
             data-headings="wrapped"

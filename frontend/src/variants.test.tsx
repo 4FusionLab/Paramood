@@ -47,6 +47,12 @@ const model: ModelState = {
   activeVariantId: null,
 };
 function mount(state = model, onAction = vi.fn().mockResolvedValue(true)) {
+  // jsdom has no pointer event properties; Preact otherwise preserves an unsupported event's case.
+  if (!('onpointerdown' in HTMLElement.prototype))
+    Object.defineProperty(HTMLElement.prototype, 'onpointerdown', {
+      configurable: true,
+      value: null,
+    });
   if (!Range.prototype.getClientRects)
     Range.prototype.getClientRects = () => [] as unknown as DOMRectList;
   if (!Range.prototype.getBoundingClientRect)
@@ -333,6 +339,7 @@ describe('global variant table', () => {
     click('Duplicate Garden');
     input('Variant name', 'Patio');
     await save();
+    expect(action).toHaveBeenCalledTimes(1);
     expect(action.mock.calls[0][1].variants.map((r: { name: string }) => r.name)).toEqual([
       'Compact',
       'Garden',
@@ -408,30 +415,90 @@ describe('global variant table', () => {
     expect(payload.columns.map((c: { name: string }) => c.name)).toEqual(['Cut', 'width']);
     expect(payload.variants[0].parameters[0].entityToken).toBe('width-token');
   });
-  it('rejects foreign drag data and accepts local drops only within the matching axis', async () => {
+  it('reorders rows and columns with pointer gestures when native HTML drag events are unavailable', async () => {
     const action = mount({
       ...model,
       variants: [saved, { ...saved, id: 'garden', name: 'Garden' }],
     });
+    open();
+    const pointer = (type: string, x: number, y: number) =>
+      new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, clientX: x, clientY: y });
+    for (const [source, destination] of [
+      ['Compact', 'Garden'],
+      ['width', 'Cut'],
+    ]) {
+      const handle = host.querySelector(`[aria-label="Reorder ${source}"]`)!;
+      const target = host.querySelector(`[aria-label="Reorder ${destination}"]`)!;
+      Object.defineProperty(document, 'elementFromPoint', {
+        configurable: true,
+        value: () => target,
+      });
+      act(() => {
+        handle.dispatchEvent(pointer('pointerdown', 20, 20));
+      });
+      act(() => {
+        window.dispatchEvent(pointer('pointermove', 60, 60));
+      });
+      act(() => {
+        window.dispatchEvent(pointer('pointerup', 60, 60));
+      });
+    }
+    expect(host.querySelector('[data-reorder-rows="0"]')?.textContent).toContain('Garden');
+    await save();
+    expect(action).toHaveBeenCalledTimes(1);
+    expect(action.mock.calls[0][1].variants.map((r: { name: string }) => r.name)).toEqual([
+      'Garden',
+      'Compact',
+    ]);
+    expect(action.mock.calls[0][1].columns.map((c: { name: string }) => c.name)).toEqual([
+      'Cut',
+      'width',
+    ]);
+    expect(action.mock.calls[0][1].variants[0].parameters[0].entityToken).toBe('width-token');
+  });
+  it('cancels pointer reorder on Escape, pointer cancellation, or release outside the table', () => {
+    mount({ ...model, variants: [saved, { ...saved, id: 'garden', name: 'Garden' }] });
+    open();
+    const pointer = (type: string, x: number) =>
+      new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, clientX: x, clientY: 20 });
+    const handle = host.querySelector('[aria-label="Reorder Compact"]')!;
+    const target = host.querySelector('[aria-label="Reorder Garden"]')!;
+    for (const cancel of ['Escape', 'pointercancel', 'outside']) {
+      Object.defineProperty(document, 'elementFromPoint', {
+        configurable: true,
+        value: () => target,
+      });
+      act(() => {
+        handle.dispatchEvent(pointer('pointerdown', 20));
+      });
+      act(() => {
+        window.dispatchEvent(pointer('pointermove', 60));
+      });
+      act(() => {
+        if (cancel === 'outside')
+          Object.defineProperty(document, 'elementFromPoint', {
+            configurable: true,
+            value: () => null,
+          });
+        else if (cancel === 'Escape')
+          window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        else window.dispatchEvent(pointer('pointercancel', 60));
+        window.dispatchEvent(pointer('pointerup', 60));
+      });
+      expect(host.querySelector('[data-reorder-rows="0"]')?.textContent).toContain('Compact');
+      expect(host.textContent).toContain('All changes saved');
+      expect(host.querySelector('.table-drop-target')).toBeNull();
+      expect(host.querySelector('[role="dialog"]')).toBeTruthy();
+    }
+  });
+  it('ignores foreign HTML drops without changing the draft', () => {
+    mount({ ...model, variants: [saved, { ...saved, id: 'garden', name: 'Garden' }] });
     open();
     const target = host.querySelector('[aria-label="Reorder Garden"]')!.closest('th')!;
     act(() => {
       target.dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
     });
     expect(host.textContent).toContain('All changes saved');
-    act(() => {
-      host
-        .querySelector('[aria-label="Reorder Compact"]')!
-        .dispatchEvent(new Event('dragstart', { bubbles: true }));
-    });
-    act(() => {
-      target.dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
-    });
-    await save();
-    expect(action.mock.calls[0][1].variants.map((r: { name: string }) => r.name)).toEqual([
-      'Garden',
-      'Compact',
-    ]);
   });
   it('uses the original apply and Free actions when switching', async () => {
     const action = mount();

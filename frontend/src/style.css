@@ -924,6 +924,8 @@ kbd {
   font-weight: 400;
 }
 .table-drag-handle {
+  touch-action: none;
+  user-select: none;
   padding: 2px;
   border: 0;
   background: transparent;
