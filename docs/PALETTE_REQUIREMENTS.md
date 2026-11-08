@@ -1,4 +1,15 @@
-# Interface clarification of 5 November 2026
+# Current interface clarifications — 7 November 2026
+
+
+- Hybrid opens by default: the parameter list and shared bottom field remain visible; results, history, and preview open in a closable panel over the list.
+- Separate Calculator and Parameter list views retain the shared input. Synchronization is automatic; the shared Refresh button was removed.
+- Editable model parameters can be changed; driven sketch dimensions remain read-only. Inline Enter applies after internal validation; Escape cancels.
+- The header contains model length units and variants. The variant editor uses the same hierarchy, including the coexistence of an independent parameter and a group of the same name.
+- Historical requirements from 5 November are retained below. Their statements on the default editor, the ban on model editing, and the old layout have been superseded by current requirements. Actual palette placement is recorded separately in the current implementation and acceptance.
+
+## Historical requirements
+
+### Interface clarification of 5 November 2026
 
 [Русская версия](PALETTE_REQUIREMENTS.ru.md)
 

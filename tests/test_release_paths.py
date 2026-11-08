@@ -31,6 +31,7 @@ class ReleasePathsTests(unittest.TestCase):
             'frontend/index.html',
             'frontend/package-lock.json',
             'frontend/vite.config.ts',
+            'src/intellisense.ts',
             'scripts/build_release.py',
         ):
             with self.subTest(path=path):
@@ -40,7 +41,6 @@ class ReleasePathsTests(unittest.TestCase):
         for path in (
             'README.md',
             'docs/INTELLISENSE.md',
-            'src/intellisense.ts',
             'src/codemirror.ts',
             'package.json',
             'pyproject.toml',

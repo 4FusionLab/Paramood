@@ -56,3 +56,12 @@ def test_no_design_rejects_apply():
     adapter.document_id = None
     result = dispatch(adapter, {'requestId': 'r', 'action': 'parameters.apply', 'payload': {}})
     assert result['error']['code'] == 'NO_DESIGN'
+
+
+def test_favorite_requires_current_document():
+    adapter = FakeAdapter()
+    result = dispatch(
+        adapter,
+        {'requestId': 'r', 'action': 'parameters.favorite', 'documentId': 'old', 'payload': {}},
+    )
+    assert result['error']['code'] == 'STALE_DOCUMENT'

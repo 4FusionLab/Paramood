@@ -18,7 +18,7 @@
 
 ## This repository
 
-Runtime allowlist: `Paramood/**`, shipped `frontend/src/**` excluding test/spec files, frontend HTML/public assets and build/dependency inputs, and `scripts/build_release.py`. Root `src/**` (the standalone, private IntelliSense module), root `package.json` (test-only) and `pyproject.toml` (test/lint configuration) do not affect the published add-in ZIP and must not create a release. Run cross-platform Python/TypeScript checks and verify the embedded Fusion manifest.
+Runtime allowlist: `Paramood/**`, shipped `frontend/src/**` excluding test/spec files, frontend HTML/public assets and build/dependency inputs, and `scripts/build_release.py`. `src/intellisense.ts` is imported by the shipped variant editor and is a runtime release input. The standalone `src/codemirror.ts` adapter, root `package.json` (test-only) and `pyproject.toml` (test/lint configuration) do not affect the published add-in ZIP and must not create a release. Run cross-platform Python/TypeScript checks and verify the embedded Fusion manifest.
 
 When no eligible runtime input has changed since the last published release, CI may run but publication is skipped even if GitVersion computes a different version. A failed publication is retried by the next push to `main` after all normal CI gates pass; existing released tags/assets are never overwritten.
 

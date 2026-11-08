@@ -21,3 +21,13 @@ Fusion command operations may be grouped in Undo. This alone does not prove atom
 ## Events and lifecycle
 
 Subscriptions and handlers are retained until the add-in stops. After a document switch, the interface receives a notification and requests state again. Fusion can remove a palette when changing workspaces; code must check its validity before showing it again. See the [active-command investigation](docs/ACTIVE_COMMAND_APPLY_INVESTIGATION.md) for recorded checks and open questions.
+
+## Text, variants, and display
+
+The core distinguishes numeric Quantity from TextValue. It parses literals with awareness of quotation, so separators and identifiers inside strings do not become commands or references. Length limits are checked before concatenation and writes. The adapter reads computed textValue for the list, but writes the original expression to preserve formulas.
+
+Versioned variant storage resides in Design attributes. It contains stable variant IDs, participant entityTokens, expressions, units, and values. Writes check documentId, snapshotToken, and storage version; unknown or corrupt formats are not overwritten. A full value match determines the active variant on opening. Successful Paramood edits update the active set; an external mismatch switches to Free.
+
+Parameters and variants share the frontend grouping algorithm. An independent parameter can coexist with a group of the same name; the shared ParameterIndex converts a dotted path to its actual Fusion name. Hybrid, Calculator, and Parameter list share input state.
+
+Length-unit changes are sent as a separate validated request to FusionUnitsManager.distanceDisplayUnits and preserve physical sizes. Clipboard operations belong to the frontend: Fusion/Qt uses synchronous copying on the user click through a temporary field, checking success and restoring focus. In an ordinary browser, the Clipboard API is tried first, with the same limited fallback on failure. Native clipboard acceptance is recorded separately from automated tests.

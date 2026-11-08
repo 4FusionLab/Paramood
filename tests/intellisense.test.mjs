@@ -123,3 +123,9 @@ test('explicit Ctrl+Space can offer root suggestions without prefix', () => {
   assert.equal(suggestCompletions('2 + ', 4, index), null);
   assert.equal(suggestCompletions('2 + ', 4, index, true)?.options[0].label, 'box');
 });
+
+test('supports Cyrillic hierarchical names in completion and expressions', () => {
+  const index = new ParameterIndex([{ name: 'корпус_ширина' }]);
+  assert.equal(suggestCompletions('корпус.ш', 8, index).options[0].label, 'ширина');
+  assert.equal(compileExpression('корпус.ширина', index).expression, 'корпус_ширина');
+});
