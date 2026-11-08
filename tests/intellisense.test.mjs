@@ -197,3 +197,24 @@ test('native preview waits for complete expressions', () => {
   for (const input of ['probe=pow(2;3)', 'random()', 'PI', 'min(1;2)', '2+3'])
     assert.equal(incompleteExpression(input), false, input);
 });
+
+test('native quote and symbol units do not start text literals', () => {
+  for (const [source, unit] of [
+    ['1"', 'in'],
+    ["1'", 'ft'],
+    ['2 µ', 'micron'],
+    ['30 °', 'deg'],
+  ]) {
+    const tokens = expressionTokens(source);
+    assert.equal(tokens.at(-1).value, unit);
+    assert.equal(tokens.at(-1).kind, 'identifier');
+    assert.equal(incompleteExpression(source), false);
+  }
+  assert.equal(expressionTokens(JSON.stringify('1"'))[0].kind, 'string');
+  assert.equal(
+    expressionDiagnostics('2 centimeter + 1 cm', new Map()).some((d) => d.severity !== 'info'),
+    false,
+  );
+  assert.deepEqual(expressionDiagnostics('if(1<2;1 mm;2)', new Map()), []);
+  assert.deepEqual(expressionDiagnostics('floor(1 mm)', new Map()), []);
+});

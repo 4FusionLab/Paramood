@@ -4,7 +4,7 @@ Paramood uses the case-sensitive Autodesk Fusion expression language. This refer
 
 ## Functions
 
-Arguments are separated with **semicolons**, never commas. Functions insert parentheses and place the cursor inside; existing opening parentheses are reused.
+Arguments are separated with semicolons. Function completion reuses existing parentheses and places the cursor inside. Runtime numeric validity and results come from Fusion itself.
 
 ### `sin(angle)`
 
@@ -200,11 +200,11 @@ Example: `abs(-5 mm)`.
 
 Rounds down to the nearest integer.
 
-Category: Mathematics. Returns: unitless.
+Category: Mathematics. Returns: same as input.
 
 | Argument | Type / dimension | Description |
 | --- | --- | --- |
-| `value` | unitless | Value to evaluate. |
+| `value` | numeric | Value to evaluate. |
 
 Example: `floor(-1.5)`.
 
@@ -212,11 +212,11 @@ Example: `floor(-1.5)`.
 
 Rounds up to the nearest integer.
 
-Category: Mathematics. Returns: unitless.
+Category: Mathematics. Returns: same as input.
 
 | Argument | Type / dimension | Description |
 | --- | --- | --- |
-| `value` | unitless | Value to evaluate. |
+| `value` | numeric | Value to evaluate. |
 
 Example: `ceil(1.5)`.
 
@@ -224,11 +224,11 @@ Example: `ceil(1.5)`.
 
 Rounds to the nearest integer.
 
-Category: Mathematics. Returns: unitless.
+Category: Mathematics. Returns: same as input.
 
 | Argument | Type / dimension | Description |
 | --- | --- | --- |
-| `value` | unitless | Value to evaluate. |
+| `value` | numeric | Value to evaluate. |
 
 Example: `round(-1.5)`.
 
@@ -242,7 +242,7 @@ Category: Mathematics. Returns: unitless.
 
 | Argument | Type / dimension | Description |
 | --- | --- | --- |
-| `value` | unitless | Value to evaluate. |
+| `value` | numeric | Value to evaluate. |
 
 Example: `sign(-2)`.
 
@@ -343,7 +343,7 @@ Category: Mathematics. Returns: unitless.
 
 Example: `random()`.
 
-Changes when evaluated. Exact preview and batch application are unavailable; Quick Calculator uses native Fusion evaluation.
+Preview shows a sample. Fusion evaluates the original expression again when applied or recomputed; the resulting value can change.
 
 ### `if(condition; whenTrue; whenFalse)`
 
@@ -359,7 +359,7 @@ Category: Logic. Returns: same as branches.
 
 Example: `if(2 mm < 3 mm; 10 mm; 20 mm)`.
 
-Three arguments; both branches must have matching types and dimensions.
+Fusion evaluates only the selected branch. Unitless numeric branches can adopt the other branch dimension.
 
 ## Constants
 
@@ -384,9 +384,11 @@ The editor recognizes these abbreviations from the Autodesk unit reference:
 
 `rad`, `deg`, `grad`, `rpm`, `acre`, `circular_mil`, `farad`, `coulomb`, `S`, `mho`, `dol`, `A`, `J`, `erg`, `calorie`, `Btu`, `V`, `ccs`, `cis`, `cfm`, `cmh`, `gpm`, `lph`, `N`, `dyne`, `lbforce`, `ounceforce`, `tonforce`, `Hz`, `lx`, `H`, `mm`, `cm`, `m`, `hm`, `micron`, `in`, `ft`, `yd`, `mi`, `nauticalMile`, `mil`, `cd`, `EV`, `lm`, `Wb`, `maxwell`, `T`, `gamma`, `gauss`, `oersted`, `g`, `kg`, `slug`, `lbmass`, `ouncemass`, `tonmass`, `pcs`, `W`, `hp`, `Pa`, `psi`, `psf`, `ksi`, `bar`, `atm`, `inH2O`, `ftH2O`, `mH2O`, `mmHg`, `inHg`, `ohm`, `sr`, `mps`, `fps`, `mph`, `knots`, `mmpm`, `mpm`, `inpm`, `ftpm`, `mole`, `K`, `C`, `F`, `R`, `s`, `min`, `hr`, `poise`, `l`, `gal`, `qt`, `pt`, `cup`, `fl_oz`.
 
-The local planner supports all documented length units (`mm`, `cm`, `m`, `hm`, `micron`, `in`, `ft`, `yd`, `mi`, `nauticalMile`, `mil`), angle units (`deg`, `rad`, `grad`), unitless values, and text. Time units (`s`, `min`, `hr`) and the physical constants can participate in intermediate expressions. For example, `Gravity / (1 mm / s^2)` returns the unitless value `9806.65`. Quick Calculator can also display derived length/angle/time quantities such as `Gravity` and `SpeedOfLight`. Final batch outputs remain length, angle, unitless, or text; mass, temperature, other physical quantities, and fractional resulting dimensions require further planner support. Recognizing a Fusion unit in the editor does not assert local support for every physical quantity.
+Preview, Calculate, and Apply support the 96 abbreviations above, compound dimensions, and native unit aliases. The metadata includes Fusion-verified dimensions, scale factors, offsets, and canonical aliases. Examples include `area=10 mm*20 mm`, `mass=5 kg`, `force=2 N`, `temperature=-20 C`, `speed=SpeedOfLight`, and `root=pow(8 mm^3;1/3)`. A decimal exponent is accepted when Fusion accepts its resulting dimension. Fusion itself rejects unsupported fractional dimensions such as a standalone `sqrt(4 mm)`; Paramood does not impose an additional dimension allowlist.
 
-`n` is a Paramood-only suffix for a unitless numeric literal, such as `count=5n`; it is removed before sending the expression to Fusion. Use explicit units for trigonometric arguments. Bare angle arguments use native Fusion preferences on an explicit Preview or Calculate request; no Fusion API calls occur while typing.
+Native quote and symbol suffixes are accepted: `1"`, `1'`, `2 µ`, and `30 °`. Quote suffixes do not start text literals or swallow subsequent batch definitions. Quoted text such as `'1"'` remains text. Long native aliases such as `2 centimeter` are normalized with Fusion's `formatUnits`.
+
+`n` remains a Paramood-only unitless suffix, removed before sending formulas to Fusion. The planner retains mm internally; conversions account for the length exponent in derived units, while Fusion uses cm. Other base dimensions use Fusion's internal units. Affine temperature offsets are preserved.
 
 ## Signature Help and diagnostics
 
@@ -394,13 +396,17 @@ Typing `(` opens the function signature. The current argument is emphasized; `;`
 
 Confirmed errors receive a wavy underline and an English explanation on hover: unknown calls and completed parameter references, unknown unit abbreviations, wrong argument counts, clearly incompatible argument dimensions, commas, invalid operators, extra closing parentheses, and calling a constant. Missing trailing arguments, opening parentheses, strings, and identifier prefixes are treated as unfinished input. Dimension diagnostics intentionally cover only expressions whose types can be established locally; Preview and Apply remain the authoritative full validation steps. An unclosed opening parenthesis is reported by Preview rather than while typing.
 
-## Safety and native validation
+## Native evaluation and random expressions
 
-The planner preserves dependencies and rejects cycles, invalid arithmetic, incompatible parameter types, stale previews, and unsupported syntax. Unsupported local evaluation is returned as `LOCAL_EVALUATION_UNSUPPORTED`, distinct from `INVALID_EXPRESSION`. Preference-dependent bare trigonometric calls have a narrow read-only native fallback on explicit requests. Unsupported physical units and ambiguous dimensions fail closed without creating temporary parameters or claiming a result.
+The production bridge delegates original numeric expressions to `FusionUnitsManager.isValidExpression` and `evaluateExpression` on Fusion's main thread. The symbolic layer infers unit hints and substitutes planned values for parameters not yet created or modified. Existing unchanged references and source formulas are preserved. A local numerical approximation does not veto a valid native result. No temporary model parameters are created during Preview.
 
-`random()` is offered with its nondeterministic restriction. Quick Calculator evaluates a fresh native sample. A stable batch Preview or Apply is rejected with `NONDETERMINISTIC_EXPRESSION`, even if the call occurs in an unselected branch. Existing random-dependent snapshots cannot be certified as stable. No arbitrary local random sample is ever treated as a verified preview.
+`random()` works in Calculator, Preview, Apply, inline edits, dependencies, and saved variants. Preview rows show `≈` and explain that the value is a sample. Apply writes the original formula, including `random()`, and the parameter list refreshes from actual native values. Sample values are not substituted into the model formula. The adapter verifies expression, type, and finiteness without requiring a fresh random result to equal a previous sample. The sample marker propagates through dependencies.
 
-Fusion validates each numeric expression again before mutation and the adapter compares the resulting value with the plan. Local safety limits are 10,000 expression characters, 2,000 AST nodes, and absolute exponents up to 10,000. Both conditional branches must have compatible types and be evaluable; an unused invalid branch is not silently accepted.
+Preview snapshots retain document identity, expressions, units, variant identity, and deterministic values. A natural change in a random-dependent value does not create a false stale-preview failure; a formula, unit, document, or deterministic-value edit still invalidates the preview. Random-containing variants match their expressions after recompute and reopen.
+
+Native semantics also control lazy `if` branches, implicit numeric units, dimensioned `floor`/`ceil`/`round`, and `sign` of dimensioned input. For example, `if(1<2;2;1/0)` is accepted because Fusion does not evaluate the unused branch. Errors from Fusion remain structured bridge errors. Cycles, changed document identity, incompatible existing parameter types, and stale deterministic data are still checked before mutation.
+
+The pure offline evaluator is retained for host-independent tests and unit algebra. Host-dependent values, including random samples and angle preferences, require a native callback. This is not a runtime rejection policy. Existing input/payload size bounds remain in place to protect the palette bridge.
 
 ## Keyboard shortcuts
 

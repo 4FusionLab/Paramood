@@ -3,7 +3,6 @@
 from ..core.expressions import (
     ExpressionError,
     LocalEvaluationUnsupported,
-    NondeterministicExpression,
 )
 
 
@@ -66,9 +65,7 @@ def dispatch(adapter, message):
         }
     except ExpressionError as exc:
         code = (
-            'NONDETERMINISTIC_EXPRESSION'
-            if isinstance(exc, NondeterministicExpression)
-            else 'LOCAL_EVALUATION_UNSUPPORTED'
+            'LOCAL_EVALUATION_UNSUPPORTED'
             if isinstance(exc, LocalEvaluationUnsupported)
             else 'INVALID_EXPRESSION'
         )

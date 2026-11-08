@@ -683,11 +683,16 @@ export function App() {
                           <div>
                             <strong>{item.name}</strong>
                             <span class="formula">{item.expression}</span>
-                            {item.message && <span class="error">{item.message}</span>}
+                            {item.message && (
+                              <span class={item.estimated ? 'preview-note' : 'error'}>
+                                {item.message}
+                              </span>
+                            )}
                           </div>
                           <div class="row-end">
                             <span>
                               {item.previous ? `${item.previous} → ` : ''}
+                              {item.estimated ? '≈ ' : ''}
                               {item.value ?? ''} {item.unit ?? ''}
                             </span>
                             <span class={`badge ${item.status.toLowerCase()}`}>{item.status}</span>

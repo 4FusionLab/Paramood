@@ -57,6 +57,7 @@ This overview describes the v1.5.0 source. The [Releases page](https://github.co
 | **Create while editing** | Enter a new name, `name=25`, or a supported equation such as `-name/5=50` in an editable value to create and link a new parameter. |
 | **Parameter removal** | Delete individual parameters from the list when Fusion permits it; failed or unsupported deletions return an error. |
 | **Model awareness** | Refresh on document changes; show indicators for known sketch, feature, or other parameter links. |
+| **Native expressions** | Physical and compound units, lazy conditionals, native unit aliases, and `random()` in Preview/Apply. Sampled previews are marked `≈`. |
 | **Calculator** | Evaluate expressions against the current design, see formatted results, reuse recent calculations, and copy results or expressions. |
 | **Saved variants** | Named sets of existing parameter expressions, stored in the design and carried with an F3D export. Switch sizes or configurations from the header. |
 | **Text parameters** | Quoted text, references, concatenation, and supported conditional expressions; the list shows the computed text while editing preserves the formula. |
@@ -147,9 +148,9 @@ The packaged add-in includes the compiled frontend. **Node.js is not required fo
 
 - **Platforms:** Windows and macOS are declared in the manifest. Automated checks run on both (and Linux); interactive Fusion testing has been performed on macOS, while native Windows validation remains outstanding.
 - **Scope:** the active Fusion design. User parameters and editable model parameters are supported where Fusion allows changes; parameters in externally linked components are not edited.
-- **Safety:** assignment previews are validated again against the current document before applying. Unsupported expressions, dimensions, and stale previews are rejected rather than guessed. Fusion may still report downstream feature errors after a legitimate parameter change. Timeline errors and warnings do not cause Paramood to roll back an applied value or variant; inspect the geometry after switching.
+- **Safety:** assignment previews are validated again against the current document before applying. Original numeric formulas are checked and evaluated by Fusion; stale previews are rejected. Random-dependent preview values are marked as samples, while Apply preserves the original formula. Fusion may still report downstream feature errors after a legitimate parameter change. Timeline errors and warnings do not cause Paramood to roll back an applied value or variant; inspect the geometry after switching.
 - **Deletion:** per-parameter deletion is available, subject to Fusion's restrictions. **Automatic unused-parameter cleanup is not available in the current release.**
-- **Known limitations:** expression and unit support is intentionally conservative. Virtual dotted names do not create objects inside Fusion; they are a convenience in Paramood.
+- **Known limitations:** Native expression evaluation supports the documented Fusion functions, physical and compound units, and random formulas. Virtual dotted names do not create objects inside Fusion; they are a convenience in Paramood.
 
 ## Frequently asked questions
 

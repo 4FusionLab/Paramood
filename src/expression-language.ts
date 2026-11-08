@@ -14,20 +14,58 @@ export interface ExpressionToken {
 /** One lexer for incomplete editor text, including scientific notation and escaped strings. */
 export function expressionTokens(text: string): ExpressionToken[] {
   const pattern =
-    /'(?:\\.|[^'\\])*'?|"(?:\\.|[^"\\])*"?|(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?|[A-Za-zА-Яа-яЁё_µ°][A-Za-zА-Яа-яЁё_0-9µ°]*(?:\.[A-Za-zА-Яа-яЁё0-9_]+)*|>=|<=|==|<>|!=|[^\s]/g;
-  return Array.from(text.matchAll(pattern), (m) => ({
-    value: m[0],
-    from: m.index!,
-    to: m.index! + m[0].length,
-    kind: /^['"]/.test(m[0])
-      ? 'string'
-      : /^(?:\d|\.\d)/.test(m[0])
-        ? 'number'
-        : /^[A-Za-zА-Яа-яЁё_µ°]/.test(m[0])
-          ? 'identifier'
-          : 'operator',
-  }));
+    /'(?:\\.|[^'\\])*'?|"(?:\\.|[^"\\])*"?|(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?|[A-Za-zА-Яа-яЁё_µ°][A-Za-zА-Яа-яЁё_0-9µ°]*(?:\.[A-Za-zА-Яа-яЁё0-9_]+)*|>=|<=|==|<>|!=|[^\s]/y;
+  const result: ExpressionToken[] = [];
+  for (let i = 0; i < text.length;) {
+    if (/\s/.test(text[i])) {
+      i++;
+      continue;
+    }
+    const previous = result.at(-1);
+    const symbols: Record<string, string> = { '"': 'in', "'": 'ft', µ: 'micron', '°': 'deg' };
+    if (symbols[text[i]] && (previous?.kind === 'number' || previous?.value === ')')) {
+      result.push({ value: symbols[text[i]], from: i, to: i + 1, kind: 'identifier' });
+      i++;
+      continue;
+    }
+    pattern.lastIndex = i;
+    const match = pattern.exec(text);
+    if (!match) {
+      i++;
+      continue;
+    }
+    const value = match[0];
+    result.push({
+      value,
+      from: i,
+      to: i + value.length,
+      kind: /^['"]/.test(value)
+        ? 'string'
+        : /^(?:\d|\.\d)/.test(value)
+          ? 'number'
+          : /^[A-Za-zА-Яа-яЁё_µ°]/.test(value)
+            ? 'identifier'
+            : 'operator',
+    });
+    i += value.length;
+  }
+  return result;
 }
+export function normalizeUnitSymbols(text: string): string {
+  let result = '',
+    start = 0;
+  for (const token of expressionTokens(text)) {
+    result +=
+      text.slice(start, token.from) +
+      (token.kind === 'identifier' &&
+      ['"', "'", 'µ', '°'].includes(text.slice(token.from, token.to))
+        ? ' ' + token.value
+        : text.slice(token.from, token.to));
+    start = token.to;
+  }
+  return result + text.slice(start);
+}
+
 export function statementStart(text: string, pos: number): number {
   let depth = 0,
     start = 0;
@@ -69,6 +107,7 @@ export interface ExpressionDiagnostic {
   to: number;
   message: string;
   code: string;
+  severity?: 'error' | 'info';
 }
 /** Diagnose only proven errors. Missing trailing tokens remain a normal editing state. */
 export function expressionDiagnostics(
@@ -138,10 +177,18 @@ export function expressionDiagnostics(
           ['min', 'max'].includes(fn.name) &&
           dimensions[0] &&
           dimensions[1] &&
-          dimensions[0] !== dimensions[1]
+          dimensions[0] !== dimensions[1] &&
+          !dimensions.includes('unitless')
         )
           error(call.token, 'dimension', 'Arguments must have matching dimensions.');
-        if (fn.name === 'if' && dimensions[1] && dimensions[2] && dimensions[1] !== dimensions[2])
+        if (
+          fn.name === 'if' &&
+          dimensions[1] &&
+          dimensions[2] &&
+          dimensions[1] !== dimensions[2] &&
+          dimensions[1] !== 'unitless' &&
+          dimensions[2] !== 'unitless'
+        )
           error(
             call.token,
             'dimension',
@@ -180,13 +227,15 @@ export function expressionDiagnostics(
       continue;
     // The final identifier may still be a prefix the user is typing.
     if (i === tokens.length - 1 && t.to === text.length) continue;
-    error(
-      t,
-      tokens[i - 1]?.kind === 'number' ? 'unit' : 'parameter',
-      tokens[i - 1]?.kind === 'number'
-        ? `Unknown unit: ${t.value}.`
-        : `Unknown parameter: ${t.value}.`,
-    );
+    if (tokens[i - 1]?.kind === 'number')
+      result.push({
+        from: t.from,
+        to: t.to,
+        code: 'unit',
+        severity: 'info',
+        message: `Fusion will validate this unit alias: ${t.value}.`,
+      });
+    else error(t, 'parameter', `Unknown parameter: ${t.value}.`);
   }
   return result;
 }

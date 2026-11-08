@@ -36,4 +36,6 @@ Run root `npm test` for the standalone index and `npm test --prefix frontend` fo
 
 ## Fusion builtins and Signature Help
 
-All 26 documented Fusion functions and four mathematical/physical constants have shared metadata, descriptions, examples, argument signatures, completion, and dedicated highlighting. Signature Help tracks nested calls and the active argument without querying Fusion while typing. Confirmed syntax and simple dimension errors are underlined; unfinished input stays editable. See the [full expression reference](EXPRESSION_REFERENCE.md) for functions, constants, units, shortcuts, and planner restrictions.
+All 26 documented Fusion functions and four mathematical/physical constants have shared metadata, descriptions, examples, argument signatures, completion, and dedicated highlighting. Signature Help tracks nested calls and the active argument without querying Fusion while typing. Confirmed syntax and simple dimension errors are underlined; unfinished input stays editable. See the [full expression reference](EXPRESSION_REFERENCE.md) for functions, constants, units, shortcuts, and native evaluation behavior.
+
+Numeric Preview, Calculate, and Apply delegate to Fusion. All 96 documented unit abbreviations, physical/compound dimensions, aliases, and native quote/symbol suffixes are supported. `random()` and its dependents show a sampled preview and remain applicable; the original formula is sent to Fusion. See the expression reference for recompute and variant behavior.

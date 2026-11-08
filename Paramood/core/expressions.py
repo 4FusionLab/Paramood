@@ -9,15 +9,15 @@ from __future__ import annotations
 import ast
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import ClassVar, Mapping, Tuple
 from itertools import zip_longest
 
-from .builtins import FUNCTIONS, CONSTANT_NAMES, UNIT_NAMES
+from .builtins import CATALOG, FUNCTIONS, CONSTANT_NAMES, UNIT_NAMES
 
 from .text import decode_literal, map_code, normalize_literals, segments, split_definitions
 
-Dimension = Tuple[int, ...]  # powers of length, angle, and optional time
+Dimension = Tuple[float, ...]  # powers of length, angle, and optional time
 SCALAR = (0, 0)
 LENGTH = (1, 0)
 ANGLE = (0, 1)
@@ -25,24 +25,16 @@ TEXT = 'text'
 MAX_TEXT_LENGTH = 65536
 MAX_BATCH_TEXT_LENGTH = 262144
 UNITS = {
-    'mm': (1.0, LENGTH),
-    'cm': (10.0, LENGTH),
-    'm': (1000.0, LENGTH),
-    'in': (25.4, LENGTH),
-    'ft': (304.8, LENGTH),
-    'deg': (math.pi / 180, ANGLE),
-    'rad': (1.0, ANGLE),
-    'n': (1.0, SCALAR),
-    'hm': (100000.0, LENGTH),
-    'micron': (0.001, LENGTH),
-    'yd': (914.4, LENGTH),
-    'mi': (1609344.0, LENGTH),
-    'nauticalMile': (1852000.0, LENGTH),
-    'mil': (0.0254, LENGTH),
-    'grad': (math.pi / 200, ANGLE),
-    's': (1.0, (0, 0, 1)),
-    'min': (60.0, (0, 0, 1)),
-    'hr': (3600.0, (0, 0, 1)),
+    item['name']: (item['factor'], tuple(item['dimension'])) for item in CATALOG['unitDefinitions']
+}
+for item in CATALOG['unitDefinitions']:
+    for alias in item['aliases']:
+        UNITS[alias] = (item['factor'], tuple(item['dimension']))
+UNITS['n'] = (1.0, SCALAR)
+UNIT_OFFSETS = {
+    name: item['offset']
+    for item in CATALOG['unitDefinitions']
+    for name in [item['name'], *item['aliases']]
 }
 _UNIT_PATTERN = '|'.join(re.escape(u) for u in sorted(UNIT_NAMES | {'n'}, key=len, reverse=True))
 _LITERAL = re.compile(
@@ -76,29 +68,61 @@ class LocalEvaluationUnsupported(ExpressionError):
     """Valid Fusion syntax whose result cannot be established by the local evaluator."""
 
 
-class NondeterministicExpression(LocalEvaluationUnsupported):
-    """A stable preview cannot be promised for an expression containing random()."""
-
-
 def _dimension(values):
-    result = list(values)
+    result = [round(v) if math.isclose(v, round(v), abs_tol=1e-7) else round(v, 8) for v in values]
     while len(result) > 2 and result[-1] == 0:
         result.pop()
     return tuple(result)
 
 
 def dimension_unit(dimension, length_unit='mm'):
-    """Serialize length/angle/time dimensions without inferring physical types."""
-    if len(dimension) > 3:
-        raise LocalEvaluationUnsupported('Unsupported physical dimension')
+    """Serialize native dimensions; all base units come from the Fusion catalog."""
+    bases = (length_unit, 'rad', 's', 'kg', 'A', 'K', 'mole', 'cd', 'dol', 'pcs', 'sr')
+    if len(dimension) > len(bases):
+        raise LocalEvaluationUnsupported('Unknown Fusion base dimension')
     numerator, denominator = [], []
-    for unit, power in zip((length_unit, 'rad', 's'), dimension):
+    for unit, power in zip(bases, dimension):
         if power:
             magnitude = abs(power)
-            part = unit if magnitude == 1 else unit + '^' + str(magnitude)
+            part = unit if magnitude == 1 else unit + '^' + format(magnitude, '.8g')
             (numerator if power > 0 else denominator).append(part)
+    if not numerator and denominator:
+        # Fusion unit strings need a unit numerator, not the numeric token "1".
+        numerator.append(length_unit)
+        denominator.insert(0, length_unit)
     top = '*'.join(numerator)
-    return (top or '1') + '/' + '/'.join(denominator) if denominator else top
+    return top + '/' + '/'.join(denominator) if denominator else top
+
+
+def unit_definition(unit):
+    if not unit:
+        return 1.0, SCALAR, 0.0
+    if unit in UNITS:
+        factor, dim = UNITS[unit]
+        return factor, dim, UNIT_OFFSETS.get(unit, 0.0)
+    quantity = evaluate('1 ' + unit, {})
+    if isinstance(quantity, TextValue):
+        raise ExpressionError('Expected a numeric unit')
+    return quantity.value, quantity.dimension, 0.0
+
+
+def stochastic_expression(expression, parameters=None):
+    tree = _tree(expression)
+    return any(
+        isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == 'random'
+        for n in ast.walk(tree)
+    ) or any(
+        getattr((parameters or {}).get(name), 'stochastic', False) for name in _dependencies(tree)
+    )
+
+
+def mark_stochastic(expressions, dependencies):
+    names = {name for name, expr in expressions.items() if stochastic_expression(expr)}
+    while True:
+        expanded = names | {name for name, deps in dependencies.items() if deps & names}
+        if expanded == names:
+            return names
+        names = expanded
 
 
 def _assignment(item: str) -> tuple[str, str, str]:
@@ -131,11 +155,13 @@ def normalize_expression(expression: str, names) -> str:
 class Quantity:
     value: float
     dimension: Dimension = SCALAR
+    stochastic: bool = False
 
 
 @dataclass(frozen=True)
 class TextValue:
     value: str
+    stochastic: bool = False
     dimension: ClassVar[str] = TEXT
 
 
@@ -174,8 +200,6 @@ def _tree(expression: str) -> ast.Expression:
             lambda m: '(' + m.group(1) + '*__unit__(1,"' + m.group(2) + '")**(' + m.group(3) + '))',
             raw,
         )
-        if re.search(r'\b(' + _UNIT_PATTERN + r')\s*\*\*\s*[A-Za-z_(]', raw):
-            raise LocalEvaluationUnsupported('Use pow() for nonliteral unit exponents')
         raw = _LITERAL.sub(lambda m: '__unit__(' + m.group(1) + ',"' + m.group(2) + '")', raw)
         return re.sub(
             r'(?<=[\w)])\s+(' + _UNIT_PATTERN + r')\b(?!\s*\()',
@@ -211,7 +235,10 @@ def evaluate(
     """Evaluate supported operations, rejecting unknown units/functions and dimensions."""
     if len(expression) > 10000:
         raise ExpressionError('Expression is too long')
-    tree = _tree(normalize_expression(expression, parameters))
+    expression = normalize_expression(expression, parameters)
+    if hasattr(native_function, 'evaluate'):
+        return native_function.evaluate(expression, parameters)
+    tree = _tree(expression)
     if sum(1 for _ in ast.walk(tree)) > 2000:
         raise ExpressionError('Expression is too complex')
     for call in ast.walk(tree):
@@ -222,14 +249,6 @@ def evaluate(
         ):
             if len(call.args) != FUNCTIONS[call.func.id]['arity'] or call.keywords:
                 raise ExpressionError('Invalid function arguments')
-    # Reject random even in an unselected conditional branch: recompute is unstable.
-    if not allow_nondeterministic and any(
-        isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == 'random'
-        for n in ast.walk(tree)
-    ):
-        raise NondeterministicExpression(
-            'random() has no stable preview. Use Quick Calculator for a native sample.'
-        )
 
     def logical(node):
         if isinstance(node, ast.BoolOp) and isinstance(node.op, (ast.And, ast.Or)):
@@ -261,13 +280,9 @@ def evaluate(
         if abs(exponent) > 10000:
             raise ExpressionError('Exponent is too large')
         dim = [round(d * exponent, 8) for d in a.dimension]
-        if any(not math.isclose(d, round(d), abs_tol=1e-8) for d in dim):
-            raise LocalEvaluationUnsupported(
-                'Fractional resulting dimensions require native Fusion evaluation'
-            )
         if a.value < 0 and exponent != int(exponent):
             raise ExpressionError('Power must have a real result')
-        return Quantity(math.pow(a.value, exponent), _dimension(round(d) for d in dim))
+        return Quantity(math.pow(a.value, exponent), _dimension(dim))
 
     def calc(node: ast.AST) -> Quantity | TextValue:
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
@@ -359,7 +374,7 @@ def evaluate(
                 if q.dimension != SCALAR:
                     raise ExpressionError('Unit requires a dimensionless number')
                 factor, dim = UNITS[unit]
-                return Quantity(q.value * factor, dim)
+                return Quantity(q.value * factor + UNIT_OFFSETS.get(unit, 0), dim)
             if name not in _FUNCTIONS:
                 raise ExpressionError('Unknown function: ' + name)
             args = [calc(arg) for arg in node.args]
@@ -368,9 +383,11 @@ def evaluate(
             if len(args) != FUNCTIONS.get(name, {}).get('arity'):
                 raise ExpressionError('Invalid function arguments')
             if name == 'random':
-                if native_function and allow_nondeterministic:
+                if native_function:
                     return native_function(name, args, SCALAR)
-                raise NondeterministicExpression('random() requires native Fusion evaluation')
+                raise LocalEvaluationUnsupported(
+                    'Native Fusion evaluation is required for random()'
+                )
             q = args[0]
             if name == 'pow':
                 return power(q, args[1])
@@ -379,9 +396,9 @@ def evaluate(
                     raise ExpressionError('Incompatible dimensions')
                 return Quantity((min if name == 'min' else max)(a.value for a in args), q.dimension)
             if name == 'sqrt':
-                if any(d % 2 for d in q.dimension) or q.value < 0:
+                if q.value < 0:
                     raise ExpressionError('Invalid sqrt dimension or value')
-                return Quantity(math.sqrt(q.value), _dimension(d // 2 for d in q.dimension))
+                return Quantity(math.sqrt(q.value), _dimension(d / 2 for d in q.dimension))
             if name in {'sin', 'cos', 'tan', 'sinh', 'cosh', 'tanh'}:
                 if q.dimension == SCALAR:
                     if native_function:
@@ -416,7 +433,7 @@ def evaluate(
         raise ExpressionError('Result must be finite')
     if isinstance(result, TextValue) and len(result.value) > MAX_TEXT_LENGTH:
         raise ExpressionError('Text result exceeds 65536 characters')
-    return result
+    return replace(result, stochastic=stochastic_expression(expression, parameters))
 
 
 def _increment_unit(
@@ -452,7 +469,7 @@ def _increment_unit(
         return default_unit
     if dimension == ANGLE:
         return 'deg'
-    raise ExpressionError('Unsupported resulting dimension')
+    return dimension_unit(dimension, default_unit)
 
 
 def _fold_assignments(
@@ -472,8 +489,18 @@ def _fold_assignments(
     def numeric_literal(name: str, expression: str) -> str:
         if not _NUMERIC.fullmatch(expression):
             return expression
+        if name in existing and isinstance(existing[name], TextValue):
+            raise ExpressionError('Cannot change existing parameter type or dimension: ' + name)
         # A scalar's empty display unit is meaningful, not a missing length unit.
-        unit = 'n' if name in existing and existing[name].dimension == SCALAR else default_unit
+        unit = (
+            (
+                'n'
+                if existing[name].dimension == SCALAR
+                else units.get(name) or dimension_unit(existing[name].dimension, default_unit)
+            )
+            if name in existing
+            else default_unit
+        )
         return expression + ' ' + unit
 
     initial: dict[str, str] = {}
@@ -503,7 +530,9 @@ def _fold_assignments(
                 if operator in '+-' and _NUMERIC.fullmatch(expression):
                     unit = units.get(name)
                     if unit is None:
-                        unit = _increment_unit(previous, {**initial, **raw}, existing, default_unit)
+                        unit = _increment_unit(
+                            previous, {**initial, **raw}, existing, default_unit, native_function
+                        )
                     if unit:
                         expression += ' ' + unit
                 expression = replacement + operator + '(' + expression + ')'
@@ -557,8 +586,6 @@ def plan_batch(
             text_size += len(value.value)
             if text_size > MAX_BATCH_TEXT_LENGTH:
                 raise ExpressionError('Combined text results exceed 262144 characters')
-        if value.dimension not in (SCALAR, LENGTH, ANGLE, TEXT):
-            raise ExpressionError('Unsupported resulting dimension')
         if name in existing and existing[name].dimension != value.dimension:
             raise ExpressionError('Cannot change existing parameter type or dimension: ' + name)
         fusion_expr = map_code(expr, lambda code: re.sub(r'(?<=\d)\s*n\b', '', code))
@@ -566,7 +593,13 @@ def plan_batch(
             default_unit
             if value.dimension == LENGTH
             else (
-                'deg' if value.dimension == ANGLE else ('Text' if value.dimension == TEXT else '')
+                'deg'
+                if value.dimension == ANGLE
+                else (
+                    'Text'
+                    if value.dimension == TEXT
+                    else dimension_unit(value.dimension, default_unit)
+                )
             )
         )
         if name not in existing:
@@ -707,13 +740,11 @@ def plan_batch_snapshot(
     original_exprs: dict[str, str] = {}
     original_graph: dict[str, set[str]] = {}
     for name, item in snapshot.items():
-        if item.quantity.dimension not in (SCALAR, LENGTH, ANGLE, TEXT):
-            raise ExpressionError('Unsupported snapshot dimension: ' + name)
         if isinstance(item.quantity, TextValue):
             if item.unit != 'Text':
                 raise ExpressionError('Invalid text snapshot unit: ' + name)
         elif item.unit:
-            if item.unit not in UNITS or UNITS[item.unit][1] != item.quantity.dimension:
+            if unit_definition(item.unit)[1] != item.quantity.dimension:
                 raise ExpressionError('Unsupported snapshot unit: ' + name)
         elif item.quantity.dimension != SCALAR:
             raise ExpressionError('Missing snapshot unit: ' + name)
@@ -742,7 +773,9 @@ def plan_batch_snapshot(
             else not isinstance(expected, TextValue)
             and math.isclose(actual.value, expected.value, rel_tol=1e-10, abs_tol=1e-10)
         )
-        if actual.dimension != expected.dimension or not same_value:
+        if actual.dimension != expected.dimension or (
+            not same_value and not actual.stochastic and not expected.stochastic
+        ):
             raise ExpressionError('Inconsistent snapshot value: ' + name)
     raw = _fold_assignments(
         text,
@@ -781,8 +814,6 @@ def plan_batch_snapshot(
         if name in raw:
             expr = raw[name]
             value = evaluate(expr, values, native_function)
-            if value.dimension not in (SCALAR, LENGTH, ANGLE, TEXT):
-                raise ExpressionError('Unsupported resulting dimension')
             if name in snapshot and snapshot[name].quantity.dimension != value.dimension:
                 raise ExpressionError('Cannot change existing parameter type or dimension: ' + name)
             unit = (
@@ -791,7 +822,11 @@ def plan_batch_snapshot(
                 else (
                     'deg'
                     if value.dimension == ANGLE
-                    else ('Text' if value.dimension == TEXT else '')
+                    else (
+                        'Text'
+                        if value.dimension == TEXT
+                        else dimension_unit(value.dimension, default_unit)
+                    )
                 )
             )
             if name not in snapshot:

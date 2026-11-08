@@ -358,3 +358,14 @@ def test_variant_identity_survives_compatible_model_unit_changes(model):
     assert not adapter._variants_state(design)['variants'][0]['parameters'][0]['missing']
     params[0].unit = 'deg'
     assert adapter._variants_state(design)['variants'][0]['parameters'][0]['missing']
+
+
+def test_random_variant_matches_its_expression_after_recompute(model):
+    adapter, design, params, _ = model
+    params[0].expression = 'random()*10 mm'
+    entry = adapter._variant_entry(params[0])
+    variant = {'id': 'sample', 'name': 'Random', 'parameters': [entry]}
+    params[0].value = 123.0
+    assert adapter._variant_matches(design, variant)
+    params[0].expression = 'random()*20 mm'
+    assert not adapter._variant_matches(design, variant)

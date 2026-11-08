@@ -45,6 +45,7 @@ export interface PreviewItem {
   value?: string | number;
   unit?: string;
   status: 'New' | 'Update' | 'Error' | 'Warning';
+  estimated?: boolean;
   previous?: string;
   message?: string;
 }

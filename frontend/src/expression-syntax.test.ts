@@ -30,3 +30,11 @@ it('preserves escaped quotes while scanning command delimiters', () => {
     "'a\\'this' + old",
   );
 });
+
+it('treats native inch and foot suffixes as units while preserving quoted text', () => {
+  expect(hasDefinitionSeparator('size=1";other=2')).toBe(true);
+  expect(hasDefinitionSeparator("size=1';other=2")).toBe(true);
+  expect(inString('size=1"')).toBe(false);
+  expect(inString("size=1'")).toBe(false);
+  expect(inString('caption="1')).toBe(true);
+});
