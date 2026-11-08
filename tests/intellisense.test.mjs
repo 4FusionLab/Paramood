@@ -129,3 +129,71 @@ test('supports Cyrillic hierarchical names in completion and expressions', () =>
   assert.equal(suggestCompletions('корпус.ш', 8, index).options[0].label, 'ширина');
   assert.equal(compileExpression('корпус.ширина', index).expression, 'корпус_ширина');
 });
+
+// Catalog-driven coverage makes newly documented builtins part of the contract.
+const { fusionFunctions, fusionConstants } = await import('../src/expression-catalog.ts');
+const { expressionTokens, signatureContext, expressionDiagnostics, statementStart } =
+  await import('../src/expression-language.ts');
+for (const f of fusionFunctions) {
+  test(`Fusion catalog and signature: ${f.name}`, () => {
+    assert.equal(f.arity, f.arguments.length);
+    assert.equal(f.signature, `${f.name}(${f.arguments.map((a) => a.name).join('; ')})`);
+    assert.ok(f.description && f.example && f.returns);
+    const text = `${f.name}(`;
+    assert.equal(signatureContext(text, text.length)?.fn.name, f.name);
+    assert.equal(signatureContext(text, text.length)?.argument, 0);
+    assert.deepEqual(expressionDiagnostics(f.example, new Map()), []);
+  });
+}
+for (const c of fusionConstants) {
+  test(`Fusion constant: ${c.name}`, () => {
+    assert.ok(c.description && c.example && c.dimension);
+    assert.ok(Number.isFinite(c.value));
+    assert.equal(expressionTokens(c.name)[0].kind, 'identifier');
+    assert.deepEqual(expressionDiagnostics(c.example, new Map()), []);
+  });
+}
+test('nested signatures follow the nearest open call and skip grouping and strings', () => {
+  const text = 'pow(2; max(3; 4))';
+  assert.equal(signatureContext(text, text.indexOf('3'))?.fn.name, 'max');
+  assert.equal(signatureContext(text, text.indexOf('4'))?.argument, 1);
+  assert.equal(signatureContext(text, text.length - 1)?.fn.name, 'pow');
+  assert.equal(signatureContext(text, text.length), null);
+  assert.equal(signatureContext('if(1<2; "a;b', 12), null);
+  assert.equal(signatureContext('pow((2+3', 8)?.fn.name, 'pow');
+  assert.equal(signatureContext('if(1<2; "a;b"; ', 15)?.argument, 2);
+});
+test('semicolons inside calls are not batch separators', () => {
+  const text = 'first=2; second=pow(2; max(3; ';
+  assert.equal(statementStart(text, text.length), 8);
+});
+test('diagnostics are conservative about incomplete input and precise about completed errors', () => {
+  for (const text of ['pow(', 'pow(2;', 'somePrefix', 'sin(3', '1e-3', 'if(1<2; "unterminated'])
+    assert.deepEqual(expressionDiagnostics(text, new Map()), [], text);
+  for (const [text, code] of [
+    ['unknown(2)', 'function'],
+    ['pow(2)', 'arity'],
+    ['sin(2 mm)', 'dimension'],
+    ['min(2 mm; 3 deg)', 'dimension'],
+    ['missing + 1', 'parameter'],
+    ['2 wrongUnit + 1', 'unit'],
+    ['pow(2,3)', 'separator'],
+    [')', 'parenthesis'],
+    ['PI()', 'constant'],
+    ['1 != 2', 'operator'],
+    ['if(1<2;1 mm;2 deg)', 'dimension'],
+  ])
+    assert.ok(
+      expressionDiagnostics(text, new Map()).some((d) => d.code === code),
+      text,
+    );
+  assert.deepEqual(expressionDiagnostics('box.size=2; width=box.size*2', new Map(), true), []);
+});
+
+const { incompleteExpression } = await import('../src/expression-language.ts');
+test('native preview waits for complete expressions', () => {
+  for (const input of ['probe=po', 'probe=pow()', 'pow(', 'pow(2;)', '1 +', 'if(1<2; "draft'])
+    assert.equal(incompleteExpression(input), true, input);
+  for (const input of ['probe=pow(2;3)', 'random()', 'PI', 'min(1;2)', '2+3'])
+    assert.equal(incompleteExpression(input), false, input);
+});

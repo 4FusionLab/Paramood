@@ -10,6 +10,8 @@ frontend/package-lock.json
 frontend/vite.config.ts
 frontend/tsconfig.json
 src/intellisense.ts
+src/expression-catalog.ts
+src/expression-language.ts
 scripts/build_release.py
 
 # The pure ParameterIndex engine is now imported by the shipped variant editor.

@@ -1,0 +1,644 @@
+{
+  "functions": [
+    {
+      "name": "sin",
+      "category": "Trigonometry",
+      "description": "Returns the sine of an angle.",
+      "signature": "sin(angle)",
+      "arguments": [
+        {
+          "name": "angle",
+          "description": "Angle to evaluate.",
+          "type": "angle",
+          "dimension": "angle"
+        }
+      ],
+      "arity": 1,
+      "returns": "unitless",
+      "example": "sin(30 deg)",
+      "restriction": "Use explicit deg or rad units. Bare arguments use Fusion angle preferences."
+    },
+    {
+      "name": "cos",
+      "category": "Trigonometry",
+      "description": "Returns the cosine of an angle.",
+      "signature": "cos(angle)",
+      "arguments": [
+        {
+          "name": "angle",
+          "description": "Angle to evaluate.",
+          "type": "angle",
+          "dimension": "angle"
+        }
+      ],
+      "arity": 1,
+      "returns": "unitless",
+      "example": "cos(30 deg)",
+      "restriction": "Use explicit deg or rad units. Bare arguments use Fusion angle preferences."
+    },
+    {
+      "name": "tan",
+      "category": "Trigonometry",
+      "description": "Returns the tangent of an angle.",
+      "signature": "tan(angle)",
+      "arguments": [
+        {
+          "name": "angle",
+          "description": "Angle to evaluate.",
+          "type": "angle",
+          "dimension": "angle"
+        }
+      ],
+      "arity": 1,
+      "returns": "unitless",
+      "example": "tan(30 deg)",
+      "restriction": "Use explicit deg or rad units. Bare arguments use Fusion angle preferences."
+    },
+    {
+      "name": "sinh",
+      "category": "Trigonometry",
+      "description": "Returns the hyperbolic sine of an angle.",
+      "signature": "sinh(angle)",
+      "arguments": [
+        {
+          "name": "angle",
+          "description": "Angle to evaluate.",
+          "type": "angle",
+          "dimension": "angle"
+        }
+      ],
+      "arity": 1,
+      "returns": "unitless",
+      "example": "sinh(30 deg)",
+      "restriction": "Use explicit deg or rad units. Bare arguments use Fusion angle preferences."
+    },
+    {
+      "name": "cosh",
+      "category": "Trigonometry",
+      "description": "Returns the hyperbolic cosine of an angle.",
+      "signature": "cosh(angle)",
+      "arguments": [
+        {
+          "name": "angle",
+          "description": "Angle to evaluate.",
+          "type": "angle",
+          "dimension": "angle"
+        }
+      ],
+      "arity": 1,
+      "returns": "unitless",
+      "example": "cosh(30 deg)",
+      "restriction": "Use explicit deg or rad units. Bare arguments use Fusion angle preferences."
+    },
+    {
+      "name": "tanh",
+      "category": "Trigonometry",
+      "description": "Returns the hyperbolic tangent of an angle.",
+      "signature": "tanh(angle)",
+      "arguments": [
+        {
+          "name": "angle",
+          "description": "Angle to evaluate.",
+          "type": "angle",
+          "dimension": "angle"
+        }
+      ],
+      "arity": 1,
+      "returns": "unitless",
+      "example": "tanh(30 deg)",
+      "restriction": "Use explicit deg or rad units. Bare arguments use Fusion angle preferences."
+    },
+    {
+      "name": "asin",
+      "category": "Trigonometry",
+      "description": "Returns the inverse sine as an angle.",
+      "signature": "asin(value)",
+      "arguments": [
+        {
+          "name": "value",
+          "description": "Unitless input value.",
+          "type": "unitless",
+          "dimension": "unitless"
+        }
+      ],
+      "arity": 1,
+      "returns": "angle",
+      "example": "asin(0.5)",
+      "restriction": "-1 <= value <= 1."
+    },
+    {
+      "name": "acos",
+      "category": "Trigonometry",
+      "description": "Returns the inverse cosine as an angle.",
+      "signature": "acos(value)",
+      "arguments": [
+        {
+          "name": "value",
+          "description": "Unitless input value.",
+          "type": "unitless",
+          "dimension": "unitless"
+        }
+      ],
+      "arity": 1,
+      "returns": "angle",
+      "example": "acos(0.5)",
+      "restriction": "-1 <= value <= 1."
+    },
+    {
+      "name": "atan",
+      "category": "Trigonometry",
+      "description": "Returns the inverse tangent as an angle.",
+      "signature": "atan(value)",
+      "arguments": [
+        {
+          "name": "value",
+          "description": "Unitless input value.",
+          "type": "unitless",
+          "dimension": "unitless"
+        }
+      ],
+      "arity": 1,
+      "returns": "angle",
+      "example": "atan(1)",
+      "restriction": ""
+    },
+    {
+      "name": "asinh",
+      "category": "Trigonometry",
+      "description": "Returns the inverse hyperbolic sine as an angle.",
+      "signature": "asinh(value)",
+      "arguments": [
+        {
+          "name": "value",
+          "description": "Unitless input value.",
+          "type": "unitless",
+          "dimension": "unitless"
+        }
+      ],
+      "arity": 1,
+      "returns": "angle",
+      "example": "asinh(1)",
+      "restriction": ""
+    },
+    {
+      "name": "acosh",
+      "category": "Trigonometry",
+      "description": "Returns the inverse hyperbolic cosine as an angle.",
+      "signature": "acosh(value)",
+      "arguments": [
+        {
+          "name": "value",
+          "description": "Unitless input value.",
+          "type": "unitless",
+          "dimension": "unitless"
+        }
+      ],
+      "arity": 1,
+      "returns": "angle",
+      "example": "acosh(2)",
+      "restriction": "value >= 1."
+    },
+    {
+      "name": "atanh",
+      "category": "Trigonometry",
+      "description": "Returns the inverse hyperbolic tangent as an angle.",
+      "signature": "atanh(value)",
+      "arguments": [
+        {
+          "name": "value",
+          "description": "Unitless input value.",
+          "type": "unitless",
+          "dimension": "unitless"
+        }
+      ],
+      "arity": 1,
+      "returns": "angle",
+      "example": "atanh(0.5)",
+      "restriction": "-1 < value < 1."
+    },
+    {
+      "name": "sqrt",
+      "category": "Mathematics",
+      "description": "Returns the square root.",
+      "signature": "sqrt(value)",
+      "arguments": [
+        {
+          "name": "value",
+          "description": "Value to evaluate.",
+          "type": "numeric",
+          "dimension": "numeric"
+        }
+      ],
+      "arity": 1,
+      "returns": "square root of input dimension",
+      "example": "sqrt(4)",
+      "restriction": "The input must be nonnegative; dimension powers must admit a square root."
+    },
+    {
+      "name": "abs",
+      "category": "Mathematics",
+      "description": "Returns the absolute value.",
+      "signature": "abs(value)",
+      "arguments": [
+        {
+          "name": "value",
+          "description": "Value to evaluate.",
+          "type": "numeric",
+          "dimension": "numeric"
+        }
+      ],
+      "arity": 1,
+      "returns": "same as input",
+      "example": "abs(-5 mm)",
+      "restriction": ""
+    },
+    {
+      "name": "floor",
+      "category": "Mathematics",
+      "description": "Rounds down to the nearest integer.",
+      "signature": "floor(value)",
+      "arguments": [
+        {
+          "name": "value",
+          "description": "Value to evaluate.",
+          "type": "unitless",
+          "dimension": "unitless"
+        }
+      ],
+      "arity": 1,
+      "returns": "unitless",
+      "example": "floor(-1.5)",
+      "restriction": ""
+    },
+    {
+      "name": "ceil",
+      "category": "Mathematics",
+      "description": "Rounds up to the nearest integer.",
+      "signature": "ceil(value)",
+      "arguments": [
+        {
+          "name": "value",
+          "description": "Value to evaluate.",
+          "type": "unitless",
+          "dimension": "unitless"
+        }
+      ],
+      "arity": 1,
+      "returns": "unitless",
+      "example": "ceil(1.5)",
+      "restriction": ""
+    },
+    {
+      "name": "round",
+      "category": "Mathematics",
+      "description": "Rounds to the nearest integer.",
+      "signature": "round(value)",
+      "arguments": [
+        {
+          "name": "value",
+          "description": "Value to evaluate.",
+          "type": "unitless",
+          "dimension": "unitless"
+        }
+      ],
+      "arity": 1,
+      "returns": "unitless",
+      "example": "round(-1.5)",
+      "restriction": "Halfway values round away from zero."
+    },
+    {
+      "name": "sign",
+      "category": "Mathematics",
+      "description": "Returns 1 for positive input and 0 otherwise.",
+      "signature": "sign(value)",
+      "arguments": [
+        {
+          "name": "value",
+          "description": "Value to evaluate.",
+          "type": "unitless",
+          "dimension": "unitless"
+        }
+      ],
+      "arity": 1,
+      "returns": "unitless",
+      "example": "sign(-2)",
+      "restriction": "Fusion sign is not the mathematical -1/0/1 signum."
+    },
+    {
+      "name": "exp",
+      "category": "Mathematics",
+      "description": "Returns e raised to the input power.",
+      "signature": "exp(value)",
+      "arguments": [
+        {
+          "name": "value",
+          "description": "Value to evaluate.",
+          "type": "unitless",
+          "dimension": "unitless"
+        }
+      ],
+      "arity": 1,
+      "returns": "unitless",
+      "example": "exp(2)",
+      "restriction": "The result must be finite."
+    },
+    {
+      "name": "ln",
+      "category": "Mathematics",
+      "description": "Returns the natural logarithm.",
+      "signature": "ln(value)",
+      "arguments": [
+        {
+          "name": "value",
+          "description": "Value to evaluate.",
+          "type": "unitless",
+          "dimension": "unitless"
+        }
+      ],
+      "arity": 1,
+      "returns": "unitless",
+      "example": "ln(E)",
+      "restriction": "value > 0."
+    },
+    {
+      "name": "log",
+      "category": "Mathematics",
+      "description": "Returns the base-10 logarithm.",
+      "signature": "log(value)",
+      "arguments": [
+        {
+          "name": "value",
+          "description": "Value to evaluate.",
+          "type": "unitless",
+          "dimension": "unitless"
+        }
+      ],
+      "arity": 1,
+      "returns": "unitless",
+      "example": "log(100)",
+      "restriction": "value > 0."
+    },
+    {
+      "name": "min",
+      "category": "Mathematics",
+      "description": "Returns the smaller of two values.",
+      "signature": "min(first; second)",
+      "arguments": [
+        {
+          "name": "first",
+          "description": "First value.",
+          "type": "numeric",
+          "dimension": "numeric"
+        },
+        {
+          "name": "second",
+          "description": "Second value, with the same dimension.",
+          "type": "same as first",
+          "dimension": "same as first"
+        }
+      ],
+      "arity": 2,
+      "returns": "same as input",
+      "example": "min(2 mm; 3 mm)",
+      "restriction": "Exactly two arguments; dimensions must match."
+    },
+    {
+      "name": "max",
+      "category": "Mathematics",
+      "description": "Returns the larger of two values.",
+      "signature": "max(first; second)",
+      "arguments": [
+        {
+          "name": "first",
+          "description": "First value.",
+          "type": "numeric",
+          "dimension": "numeric"
+        },
+        {
+          "name": "second",
+          "description": "Second value, with the same dimension.",
+          "type": "same as first",
+          "dimension": "same as first"
+        }
+      ],
+      "arity": 2,
+      "returns": "same as input",
+      "example": "max(2 mm; 3 mm)",
+      "restriction": "Exactly two arguments; dimensions must match."
+    },
+    {
+      "name": "pow",
+      "category": "Mathematics",
+      "description": "Raises a base to the specified exponent.",
+      "signature": "pow(base; exponent)",
+      "arguments": [
+        {
+          "name": "base",
+          "description": "Base value.",
+          "type": "numeric",
+          "dimension": "numeric"
+        },
+        {
+          "name": "exponent",
+          "description": "Exponent value.",
+          "type": "unitless",
+          "dimension": "unitless"
+        }
+      ],
+      "arity": 2,
+      "returns": "base dimension raised to exponent",
+      "example": "pow(2; 3)",
+      "restriction": "Fusion rounds decimal powers at the eighth decimal place. The result must be real and finite."
+    },
+    {
+      "name": "random",
+      "category": "Mathematics",
+      "description": "Returns a nondeterministic unitless random value.",
+      "signature": "random()",
+      "arguments": [],
+      "arity": 0,
+      "returns": "unitless",
+      "example": "random()",
+      "restriction": "Changes when evaluated. Exact preview and batch application are unavailable; Quick Calculator uses native Fusion evaluation."
+    },
+    {
+      "name": "if",
+      "category": "Logic",
+      "description": "Returns one of two expressions according to a logical condition.",
+      "signature": "if(condition; whenTrue; whenFalse)",
+      "arguments": [
+        {
+          "name": "condition",
+          "description": "Logical test using comparisons, and, or, or not.",
+          "type": "boolean",
+          "dimension": "boolean"
+        },
+        {
+          "name": "whenTrue",
+          "description": "Value when the test is true.",
+          "type": "any",
+          "dimension": "any"
+        },
+        {
+          "name": "whenFalse",
+          "description": "Value when the test is false, with the same dimension and type.",
+          "type": "same as whenTrue",
+          "dimension": "same as whenTrue"
+        }
+      ],
+      "arity": 3,
+      "returns": "same as branches",
+      "example": "if(2 mm < 3 mm; 10 mm; 20 mm)",
+      "restriction": "Three arguments; both branches must have matching types and dimensions."
+    }
+  ],
+  "constants": [
+    {
+      "name": "PI",
+      "description": "Ratio of circumference to diameter.",
+      "value": 3.141592653589793,
+      "unit": "",
+      "dimension": "unitless",
+      "example": "2 * PI * 5 mm"
+    },
+    {
+      "name": "E",
+      "description": "Euler's number, the base of natural logarithms.",
+      "value": 2.718281828459045,
+      "unit": "",
+      "dimension": "unitless",
+      "example": "ln(E)"
+    },
+    {
+      "name": "Gravity",
+      "description": "Standard gravitational acceleration at Earth's surface.",
+      "value": 980.665,
+      "unit": "cm/s^2",
+      "dimension": "length / time^2",
+      "example": "Gravity / (1 mm / s^2)"
+    },
+    {
+      "name": "SpeedOfLight",
+      "description": "Speed of light in vacuum.",
+      "value": 29979245800,
+      "unit": "cm/s",
+      "dimension": "length / time",
+      "example": "SpeedOfLight / (1 mm / s)"
+    }
+  ],
+  "units": [
+    "rad",
+    "deg",
+    "grad",
+    "rpm",
+    "acre",
+    "circular_mil",
+    "farad",
+    "coulomb",
+    "S",
+    "mho",
+    "dol",
+    "A",
+    "J",
+    "erg",
+    "calorie",
+    "Btu",
+    "V",
+    "ccs",
+    "cis",
+    "cfm",
+    "cmh",
+    "gpm",
+    "lph",
+    "N",
+    "dyne",
+    "lbforce",
+    "ounceforce",
+    "tonforce",
+    "Hz",
+    "lx",
+    "H",
+    "mm",
+    "cm",
+    "m",
+    "hm",
+    "micron",
+    "in",
+    "ft",
+    "yd",
+    "mi",
+    "nauticalMile",
+    "mil",
+    "cd",
+    "EV",
+    "lm",
+    "Wb",
+    "maxwell",
+    "T",
+    "gamma",
+    "gauss",
+    "oersted",
+    "g",
+    "kg",
+    "slug",
+    "lbmass",
+    "ouncemass",
+    "tonmass",
+    "pcs",
+    "W",
+    "hp",
+    "Pa",
+    "psi",
+    "psf",
+    "ksi",
+    "bar",
+    "atm",
+    "inH2O",
+    "ftH2O",
+    "mH2O",
+    "mmHg",
+    "inHg",
+    "ohm",
+    "sr",
+    "mps",
+    "fps",
+    "mph",
+    "knots",
+    "mmpm",
+    "mpm",
+    "inpm",
+    "ftpm",
+    "mole",
+    "K",
+    "C",
+    "F",
+    "R",
+    "s",
+    "min",
+    "hr",
+    "poise",
+    "l",
+    "gal",
+    "qt",
+    "pt",
+    "cup",
+    "fl_oz"
+  ],
+  "operators": [
+    "+",
+    "-",
+    "*",
+    "/",
+    "%",
+    "^",
+    ">",
+    "<",
+    ">=",
+    "<=",
+    "==",
+    "<>",
+    "and",
+    "or",
+    "not"
+  ]
+}

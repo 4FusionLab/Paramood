@@ -521,3 +521,108 @@ it('completes Cyrillic hierarchical parameter names', () => {
   );
   expect(result?.options.map((option) => option.label)).toContain('ширина');
 });
+
+import { fusionFunctions, fusionConstants } from '../../src/expression-catalog';
+import { expressionSignatureHelp } from './expression-codemirror';
+
+describe('Fusion builtin editor integration', () => {
+  it.each(fusionFunctions)(
+    'completes, inserts and highlights $name from the shared catalog',
+    (fn) => {
+      const text = `probe=${fn.name.slice(0, 2)}`;
+      const { view } = mount({ text });
+      const result = completions(new CompletionContext(view.state, text.length, true), [], true)!;
+      const completion = result.options.find((c) => c.label === fn.name)!;
+      expect(completion.detail).toBe(fn.signature);
+      expect(completion.info).toContain(fn.description);
+      expect(typeof completion.apply).toBe('function');
+      const apply = completion.apply;
+      if (typeof apply === 'function') act(() => apply(view, completion, result.from, text.length));
+      expect(view.state.doc.toString()).toBe(`probe=${fn.name}()`);
+      expect(view.state.selection.main.head).toBe(`probe=${fn.name}(`.length);
+      expect(host.querySelector('.token-function')?.textContent).toBe(fn.name);
+      const tooltip = view.state.field(expressionSignatureHelp)[0];
+      expect(tooltip.create(view).dom.textContent).toContain(fn.description);
+      expect(tooltip.create(view).dom.textContent).toContain(fn.example);
+    },
+  );
+  it.each(fusionConstants)(
+    'completes and highlights $name without making it an inline parameter',
+    (constant) => {
+      const text = `probe=${constant.name}`;
+      const { view } = mount({ text });
+      const result = completions(new CompletionContext(view.state, text.length, true), [], true)!;
+      const option = result.options.find((c) => c.label === constant.name)!;
+      expect(option.type).toBe('constant');
+      expect(option.info).toContain(constant.description);
+      expect(host.querySelector('.token-constant')?.textContent).toBe(constant.name);
+    },
+  );
+  it.each(['pow(2; 3)', 'pow (2; 3)'])('reuses the existing parenthesis in %s', (input) => {
+    const { view } = mount({ text: `probe=${input}` });
+    const from = 6,
+      to = 9;
+    const result = completions(new CompletionContext(view.state, to, true), [], true)!;
+    const completion = result.options.find((c) => c.label === 'pow')!;
+    const apply = completion.apply;
+    if (typeof apply === 'function') act(() => apply(view, completion, from, to));
+    expect(view.state.doc.toString()).toBe(`probe=${input}`);
+    expect(view.state.selection.main.head).toBe(view.state.doc.toString().indexOf('(') + 1);
+  });
+  it('keeps expression context after a semicolon inside a nested batch call', () => {
+    const text = 'probe=pow(2; ma';
+    const options = completions(
+      new CompletionContext(EditorState.create({ doc: text }), text.length, false),
+      [],
+      true,
+    )!;
+    expect(options.options.map((c) => c.label)).toContain('max');
+  });
+  it.each(['po', 'probe=po'])(
+    'suppresses builtins in assignment targets and strings: %s',
+    (text) => {
+      const pos = text.indexOf('=') < 0 ? text.length : 2;
+      const options = completions(
+        new CompletionContext(EditorState.create({ doc: text }), pos, true),
+        [],
+        true,
+      );
+      expect(options?.options.some((c) => c.type === 'function')).toBe(false);
+      const quoted = 'probe="pow';
+      expect(
+        completions(
+          new CompletionContext(EditorState.create({ doc: quoted }), quoted.length, true),
+          [],
+          true,
+        ),
+      ).toBeNull();
+    },
+  );
+  it('updates nested signature help and active arguments when the cursor moves', () => {
+    const text = 'probe=pow(2; max(3; 4))';
+    const { view } = mount({ text });
+    const tooltipAt = (pos: number) => {
+      act(() => view.dispatch({ selection: { anchor: pos } }));
+      return view.state.field(expressionSignatureHelp)[0]?.create(view).dom;
+    };
+    let dom = tooltipAt(text.indexOf('4'))!;
+    expect(dom.querySelector('.expression-signature-label')?.textContent).toBe(
+      'max(first; second)',
+    );
+    expect(dom.querySelector('strong')?.textContent).toBe('second');
+    dom = tooltipAt(text.length - 1)!;
+    expect(dom.querySelector('strong')?.textContent).toBe('exponent');
+    expect(tooltipAt(text.length)).toBeUndefined();
+  });
+  it('marks confirmed diagnostic ranges and preserves scientific notation', () => {
+    mount({ text: 'probe=pow(2, 3) + 1e-3' });
+    expect(
+      Array.from(host.querySelectorAll('.token-error')).some((token) =>
+        token.getAttribute('title')?.includes('semicolon'),
+      ),
+    ).toBe(true);
+    expect(Array.from(host.querySelectorAll('.token-number')).map((n) => n.textContent)).toContain(
+      '1e-3',
+    );
+  });
+});

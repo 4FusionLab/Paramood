@@ -22,6 +22,9 @@ def test_release_package_is_self_contained_and_reproducible(tmp_path):
         assert 'Paramood/Paramood.py' in names
         assert 'Paramood/Paramood.manifest' in names
         assert 'Paramood/core/expressions.py' in names
+        assert 'Paramood/core/expression_catalog.json' in names
+        catalog = json.loads(archive.read('Paramood/core/expression_catalog.json'))
+        assert len(catalog['functions']) == 26 and len(catalog['constants']) == 4
         assert 'Paramood/frontend/dist/index.html' in names
         assert any(
             name.startswith('Paramood/frontend/dist/assets/') and name.endswith('.js')

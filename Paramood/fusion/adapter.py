@@ -11,6 +11,7 @@ import adsk.fusion
 
 from ..core.expressions import (
     ANGLE,
+    ExpressionError,
     LENGTH,
     SCALAR,
     TextValue,
@@ -18,6 +19,7 @@ from ..core.expressions import (
     ParameterSnapshot,
     Quantity,
     dependency_closure,
+    dimension_unit,
     evaluate,
     normalize_expression,
     plan_batch,
@@ -445,11 +447,17 @@ class FusionAdapter(VariantsMixin):
                 name: item for name, item in snapshot.items() if name not in isolated
             }
             ops = plan_batch_snapshot(
-                text, planned_snapshot, design.fusionUnitsManager.defaultLengthUnits
+                text,
+                planned_snapshot,
+                design.fusionUnitsManager.defaultLengthUnits,
+                self._native_function(design),
             )
         else:
             ops = plan_batch(
-                text, self._quantities(design), design.fusionUnitsManager.defaultLengthUnits
+                text,
+                self._quantities(design),
+                design.fusionUnitsManager.defaultLengthUnits,
+                self._native_function(design),
             )
         for op in ops:
             if op.status != 'New':
@@ -513,6 +521,25 @@ class FusionAdapter(VariantsMixin):
                 created_names.append(op.name)
             self._verify_value(created, op)
         return {'created': created_names, 'updated': updated_names}
+
+    def _native_function(self, design):
+        """Evaluate preference-sensitive calls only on an explicit bridge request."""
+
+        def evaluate_call(name, arguments, dimension):
+            # This callback currently handles unitless arguments and unitless results.
+            # It never creates temporary parameters or changes the active document.
+            if dimension != SCALAR or any(arg.dimension != SCALAR for arg in arguments):
+                raise ExpressionError('Unsupported native function dimension')
+            expression = name + '(' + ';'.join(format(arg.value, '.17g') for arg in arguments) + ')'
+            manager = design.fusionUnitsManager
+            if not manager.isValidExpression(expression, ''):
+                raise ExpressionError('Fusion cannot validate function: ' + name)
+            value = manager.evaluateExpression(expression, '')
+            if not math.isfinite(value):
+                raise ExpressionError('Fusion returned a non-finite result')
+            return Quantity(value, dimension)
+
+        return evaluate_call
 
     def _verify_value(self, parameter, op):
         unit = parameter.unit
@@ -850,16 +877,19 @@ class FusionAdapter(VariantsMixin):
                 raise BridgeError('BAD_REQUEST', 'Expression is missing or too long.')
             quantities = self._quantities(design)
             expression = normalize_expression(expression, quantities)
-            quantity = evaluate(expression, quantities)
+            quantity = evaluate(
+                expression, quantities, self._native_function(design), allow_nondeterministic=True
+            )
             if isinstance(quantity, TextValue):
                 return {'value': quantity.value, 'unit': 'Text', 'formatted': quantity.value}
             unit = {
                 LENGTH: design.fusionUnitsManager.defaultLengthUnits,
                 ANGLE: 'deg',
                 SCALAR: '',
-            }.get(quantity.dimension)
-            if unit is None:
-                raise BridgeError('UNSUPPORTED', 'This result dimension is not supported yet.')
+            }.get(
+                quantity.dimension,
+                dimension_unit(quantity.dimension, design.fusionUnitsManager.defaultLengthUnits),
+            )
             manager = design.fusionUnitsManager
             if not manager.isValidExpression(expression, unit):
                 raise BridgeError('INVALID_EXPRESSION', 'Fusion cannot validate this expression.')
@@ -868,7 +898,7 @@ class FusionAdapter(VariantsMixin):
             display_value = (
                 value
                 if not unit
-                else manager.convert(value, 'cm' if quantity.dimension == LENGTH else 'rad', unit)
+                else manager.convert(value, dimension_unit(quantity.dimension, 'cm'), unit)
             )
             return {'value': display_value, 'unit': unit, 'formatted': formatted}
         if action == 'cleanup.analyze':

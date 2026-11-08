@@ -1,3 +1,4 @@
+import { incompleteExpression } from '../../src/expression-language';
 import { render, type ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Calculator, Copy, History, ListTree, PanelBottom, X } from 'lucide-preact';
@@ -203,7 +204,17 @@ export function App() {
     const gen = ++previewGen.current;
     setPreview(null);
     setPreviewError('');
-    if (!available || !text.trim() || !assignment || !model?.documentId) return;
+    if (
+      !available ||
+      !text.trim() ||
+      !assignment ||
+      !model?.documentId ||
+      incompleteExpression(
+        text,
+        model.parameters.flatMap((p) => [p.name, p.name.replace(/_/g, '.')]),
+      )
+    )
+      return;
     const id = model.documentId;
     const timer = window.setTimeout(() => {
       void request<Preview>('parameters.preview', { text }, id)
@@ -224,7 +235,17 @@ export function App() {
     const gen = ++calcGen.current;
     setResult(null);
     setCalcError('');
-    if (!available || !expression.trim() || assignment || !model?.documentId) return;
+    if (
+      !available ||
+      !expression.trim() ||
+      assignment ||
+      !model?.documentId ||
+      incompleteExpression(
+        expression,
+        model.parameters.flatMap((p) => [p.name, p.name.replace(/_/g, '.')]),
+      )
+    )
+      return;
     const id = model.documentId;
     const timer = window.setTimeout(() => {
       void request<Calculation>('calculator.evaluate', { expression }, id)

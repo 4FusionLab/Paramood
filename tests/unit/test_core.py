@@ -205,12 +205,12 @@ def test_snapshot_plan_uses_recalculated_value_before_division():
     assert operations[-1].quantity.value == 0.5
 
 
-def test_snapshot_plan_rejects_unsupported_existing_expression():
+def test_snapshot_plan_supports_existing_power_expression():
     from Paramood.core.expressions import ParameterSnapshot, plan_batch_snapshot
 
     snapshot = {'a': ParameterSnapshot('2^3', '', Quantity(8), set())}
-    with pytest.raises(ExpressionError):
-        plan_batch_snapshot('x=2', snapshot, 'mm')
+    operations = plan_batch_snapshot('x=a*2', snapshot, 'mm')
+    assert operations[0].quantity.value == 16
 
 
 def test_snapshot_plan_numeric_existing_expression_uses_its_unit():
