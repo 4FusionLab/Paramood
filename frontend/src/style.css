@@ -1459,3 +1459,40 @@ body > .cm-tooltip {
 .preview-row .formula {
   overflow-wrap: anywhere;
 }
+
+.parameter-context-menu {
+  position: fixed;
+  z-index: 1000;
+  max-width: calc(100vw - 8px);
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 3px 12px #0003;
+}
+.parameter-context-menu button {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  text-align: left;
+}
+.parameter-context-menu small {
+  display: block;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+/* Notifications must not resize the scrollable parameter list. */
+main > .notice {
+  position: fixed;
+  z-index: 100;
+  top: 42px;
+  inset-inline: 8px;
+  max-height: calc(100dvh - 50px);
+  overflow: auto;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: 0 3px 12px #0003;
+}

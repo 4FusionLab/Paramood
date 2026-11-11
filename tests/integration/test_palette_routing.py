@@ -20,6 +20,7 @@ def entry(monkeypatch):
         'WorkspaceEventHandler',
         'UserInterfaceGeneralEventHandler',
         'ApplicationCommandEventHandler',
+        'CustomEventHandler',
     ):
         setattr(core, name, type(name, (), {}))
     adsk.core, adsk.fusion = core, fusion
@@ -121,6 +122,53 @@ def test_apply_reports_pending_request_separately(entry, monkeypatch):
     assert entry._pending == {'requestId': 'previous'}
 
 
+@pytest.mark.parametrize('command', ['AnyThirdPartyCommand', 'AnotherUnknownCommand'])
+@pytest.mark.parametrize('success', [True, False])
+def test_direct_apply_restores_selection_without_knowing_command_inputs(
+    entry, monkeypatch, command, success
+):
+    entities = [SimpleNamespace(isValid=True, index=i) for i in range(2)]
+    selected = list(entities)
+
+    class Selections:
+        @property
+        def count(self):
+            return len(selected)
+
+        def item(self, index):
+            return SimpleNamespace(entity=selected[index])
+
+        def add(self, entity):
+            assert entity not in selected
+            selected.append(entity)
+            return True
+
+    monkeypatch.setattr(entry, '_app', SimpleNamespace(activeDocument=object(), log=pytest.fail))
+    monkeypatch.setattr(
+        entry, '_ui', SimpleNamespace(activeCommand=command, activeSelections=Selections())
+    )
+    monkeypatch.setattr(
+        entry, '_adapter', SimpleNamespace(document_id='doc', in_direct_apply=False)
+    )
+    monkeypatch.setattr(entry, '_pending', None)
+    monkeypatch.setattr(entry, '_send', lambda *args: None)
+    monkeypatch.setattr(entry, '_broadcast', lambda *args: None)
+
+    def dispatch(adapter, message):
+        selected.clear()  # Fusion clears selections when persistent data changes.
+        return {'requestId': 'selection-test', 'ok': success}
+
+    monkeypatch.setattr(entry, 'dispatch', dispatch)
+    args = SimpleNamespace(
+        action='request',
+        data=json.dumps({'requestId': 'selection-test', 'action': 'parameters.apply'}),
+        returnData='',
+    )
+    entry.HtmlHandler('parameters').notify(args)
+    assert args.returnData == 'OK'
+    assert selected == entities
+
+
 def test_idle_apply_starts_transactional_command(entry, monkeypatch):
     started = []
     definition = SimpleNamespace(execute=lambda: started.append(True) or True)
@@ -144,6 +192,161 @@ def test_idle_apply_starts_transactional_command(entry, monkeypatch):
     assert started == [True]
     assert entry._pending['requestId'] == 'r'
     assert entry._pending_palette == 'parameters'
+
+
+def test_idle_apply_captures_selection_before_command_and_restores_after_destroy(
+    entry, monkeypatch
+):
+    selected = [SimpleNamespace(isValid=True)]
+    original = selected[0]
+    queued = []
+
+    class Selections:
+        @property
+        def count(self):
+            return len(selected)
+
+        def item(self, index):
+            return SimpleNamespace(entity=selected[index])
+
+        def add(self, entity):
+            selected.append(entity)
+            return True
+
+    def execute():
+        selected.clear()
+        return True
+
+    monkeypatch.setattr(
+        entry,
+        '_app',
+        SimpleNamespace(activeDocument=object(), log=pytest.fail, fireCustomEvent=queued.append),
+    )
+    monkeypatch.setattr(
+        entry,
+        '_ui',
+        SimpleNamespace(
+            activeCommand='SelectCommand',
+            activeSelections=Selections(),
+            commandDefinitions=SimpleNamespace(
+                itemById=lambda _id: SimpleNamespace(execute=execute)
+            ),
+            terminateActiveCommand=lambda: True,
+        ),
+    )
+    monkeypatch.setattr(
+        entry, '_adapter', SimpleNamespace(document_id='doc', is_sketch_edit=lambda: False)
+    )
+    monkeypatch.setattr(entry, '_pending', None)
+    monkeypatch.setattr(entry, '_result', {'requestId': 'r', 'ok': True})
+    monkeypatch.setattr(entry, '_send', lambda *args: None)
+    monkeypatch.setattr(entry, '_broadcast', lambda *args: None)
+    entry.HtmlHandler('parameters').notify(
+        SimpleNamespace(
+            action='request',
+            data=json.dumps({'requestId': 'r', 'action': 'parameters.apply'}),
+            returnData='',
+        )
+    )
+    entry.ApplyDestroy().notify(None)
+    assert queued
+    entry.RestoreSelection().notify(None)
+    assert selected == [original]
+
+
+@pytest.mark.parametrize('started', [True, False])
+def test_inaccessible_selection_starts_transaction_instead_of_blocking(entry, monkeypatch, started):
+    commands = []
+
+    def execute():
+        assert commands == ['terminated']
+        commands.append(True)
+        return started
+
+    def terminate():
+        commands.append('terminated')
+        return True
+
+    monkeypatch.setattr(entry, '_app', SimpleNamespace(activeDocument=object(), log=pytest.fail))
+    monkeypatch.setattr(
+        entry,
+        '_ui',
+        SimpleNamespace(
+            activeCommand='UnknownPreviewCommand',
+            activeSelections=SimpleNamespace(
+                count=1, item=lambda index: SimpleNamespace(entity=None)
+            ),
+            commandDefinitions=SimpleNamespace(
+                itemById=lambda _id: SimpleNamespace(execute=execute)
+            ),
+            terminateActiveCommand=terminate,
+        ),
+    )
+    monkeypatch.setattr(entry, '_adapter', SimpleNamespace(document_id='doc'))
+    monkeypatch.setattr(entry, '_pending', None)
+
+    def preview_only(adapter, message):
+        assert message['action'] == 'parameters.preview'
+        return {'ok': True, 'data': {'snapshotToken': 'before', 'items': []}}
+
+    monkeypatch.setattr(entry, 'dispatch', preview_only)
+    responses = []
+    monkeypatch.setattr(entry, '_send', lambda mode, action, data: responses.append(data))
+    args = SimpleNamespace(
+        action='request',
+        data=json.dumps(
+            {
+                'requestId': 'blocked',
+                'action': 'parameters.apply',
+                'payload': {'text': 'newValue=1 mm', 'snapshotToken': 'before'},
+            }
+        ),
+        returnData='',
+    )
+    entry.HtmlHandler('parameters').notify(args)
+    assert args.returnData == 'OK'
+    assert commands == ['terminated', True]
+    if started:
+        assert responses == []
+        assert entry._pending['requestId'] == 'blocked'
+    else:
+        assert responses[0]['error']['code'] == 'COMMAND_FAILED'
+        assert entry._pending is None
+
+
+@pytest.mark.parametrize('changed', [False, True])
+def test_command_reset_revalidates_plan_before_using_new_snapshot(entry, monkeypatch, changed):
+    entry._adapter = SimpleNamespace(document_id='doc', in_command=False)
+    entry._pending = {
+        'requestId': 'r',
+        'action': 'parameters.apply',
+        'payload': {'text': 'a=1 mm', 'snapshotToken': 'before'},
+    }
+    entry._pending_preview = {'items': [{'name': 'a', 'expression': '1 mm', 'value': 1}]}
+    applied = []
+
+    def dispatch(adapter, message):
+        if message['action'] == 'parameters.preview':
+            return {
+                'ok': True,
+                'data': {
+                    'snapshotToken': 'after',
+                    'items': [{'name': 'a', 'expression': '1 mm', 'value': 2 if changed else 1}],
+                },
+            }
+        applied.append(message)
+        return {'requestId': 'r', 'ok': True}
+
+    monkeypatch.setattr(entry, 'dispatch', dispatch)
+    args = SimpleNamespace(executeFailed=False, executeFailedMessage='')
+    entry.ApplyExecute().notify(args)
+    if changed:
+        assert applied == []
+        assert args.executeFailed
+        assert entry._result['error']['code'] == 'STALE_PREVIEW'
+    else:
+        assert applied[0]['payload']['snapshotToken'] == 'after'
+        assert entry._result['ok']
 
 
 def test_same_request_id_routes_to_origin(entry, monkeypatch):

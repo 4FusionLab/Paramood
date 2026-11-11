@@ -218,3 +218,13 @@ test('native quote and symbol units do not start text literals', () => {
   assert.deepEqual(expressionDiagnostics('if(1<2;1 mm;2)', new Map()), []);
   assert.deepEqual(expressionDiagnostics('floor(1 mm)', new Map()), []);
 });
+
+test('unit completion waits for a typed unit prefix after a value', async () => {
+  const { unitCompletionFrom } = await import('../src/expression-language.ts');
+  for (const text of ['25', '25 ', 'test=25', 'test=25 ', '.5', '1e-3', '(2+3)', '(2+3) ']) {
+    assert.equal(unitCompletionFrom(text, text.length), null, text);
+  }
+  for (const text of ['25m', '25 m', 'test=25m', 'test=25 m', '.5 m', '1e-3 m', '(2+3) m']) {
+    assert.equal(unitCompletionFrom(text, text.length), text.length - 1, text);
+  }
+});

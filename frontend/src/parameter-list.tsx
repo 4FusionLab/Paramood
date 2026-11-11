@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 import {
   ChevronDown,
@@ -75,7 +75,7 @@ function Branch({
   const parameter = node.parameter;
   return (
     <div class="tree-node">
-      <div class="tree-row">
+      <div class="tree-row" data-parameter-name={parameter?.name}>
         {node.children.size > 0 ? (
           <button
             class="icon tree-toggle"
@@ -228,11 +228,13 @@ export function ParameterList({
   onDelete,
   onRename,
   onFavorite,
+  onCopyReference,
   busy,
   editingName,
   editor,
 }: {
   parameters: Parameter[];
+  onCopyReference?: (name: string) => void;
   onFavorite?: (parameter: Parameter) => void;
   busy?: boolean;
   onEdit: (parameter: Parameter) => void;
@@ -241,6 +243,41 @@ export function ParameterList({
   editingName?: string;
   editor?: ComponentChildren;
 }) {
+  const [context, setContext] = useState<{ name: string; x: number; y: number } | null>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const origin = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    if (!context || !menu.current) return;
+    const element = menu.current;
+    const bounds = element.getBoundingClientRect();
+    element.style.left = `${Math.max(4, Math.min(context.x, innerWidth - bounds.width - 4))}px`;
+    element.style.top = `${Math.max(4, Math.min(context.y, innerHeight - bounds.height - 4))}px`;
+    element.querySelector('button')?.focus({ preventScroll: true });
+    const close = () => setContext(null);
+    const outside = (event: PointerEvent) => {
+      if (!element.contains(event.target as globalThis.Node)) close();
+    };
+    const key = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        close();
+        origin.current?.focus({ preventScroll: true });
+      } else if (event.key === 'Tab') close();
+    };
+    document.addEventListener('pointerdown', outside, true);
+    document.addEventListener('keydown', key, true);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    window.addEventListener('blur', close);
+    return () => {
+      document.removeEventListener('pointerdown', outside, true);
+      document.removeEventListener('keydown', key, true);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+      window.removeEventListener('blur', close);
+    };
+  }, [context]);
+  useEffect(() => setContext(null), [parameters]);
   const [expansion, setExpansion] = useState({ open: false, version: 0 });
   const [featuredOpen, setFeaturedOpen] = useState(false);
   const [modelsOpen, setModelsOpen] = useState(false);
@@ -274,7 +311,36 @@ export function ParameterList({
       />
     ));
   return (
-    <section class="parameter-list" aria-label="Parameters list">
+    <section
+      class="parameter-list"
+      aria-label="Parameters list"
+      onContextMenu={(event) => {
+        if (!(event.target instanceof Element)) return;
+        if (event.target.closest('input, textarea, [contenteditable="true"]')) return;
+        const row = event.target.closest<HTMLElement>('[data-parameter-name]');
+        const name = row?.dataset.parameterName;
+        if (!name || !row || !onCopyReference) return;
+        event.preventDefault();
+        origin.current = row.querySelector<HTMLElement>('button') || null;
+        setContext({ name, x: event.clientX, y: event.clientY });
+      }}
+    >
+      {context && (
+        <div ref={menu} class="parameter-context-menu" role="menu" aria-label="Parameter actions">
+          <button
+            role="menuitem"
+            onClick={() => {
+              // Use the native name rather than the shortened label or dotted display path.
+              onCopyReference?.(context.name);
+              setContext(null);
+              origin.current?.focus({ preventScroll: true });
+            }}
+          >
+            Copy parameter reference
+            <small>{context.name}</small>
+          </button>
+        </div>
+      )}
       <div class="section-body">
         <div class="featured-parameters">
           <button

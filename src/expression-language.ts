@@ -54,18 +54,17 @@ export function expressionTokens(text: string): ExpressionToken[] {
 /** Units suffix a numeric value; an identifier being entered is never itself a value. */
 export function unitCompletionFrom(text: string, pos: number): number | null {
   const tokens = expressionTokens(text.slice(0, pos));
-  let from = pos;
   const last = tokens.at(-1);
-  if (last?.kind === 'identifier' && last.to === pos) {
-    if (
-      !/^[A-Za-zµ°][A-Za-z_0-9µ°]*$/.test(last.value) ||
-      text.slice(last.from, last.to) !== last.value
-    )
-      return null;
-    from = last.from;
-    tokens.pop();
-    if (/^[eE]$/.test(last.value) && tokens.at(-1)?.to === from) return null;
-  }
+  // A bare value (or trailing whitespace) must not open the unit catalog.
+  if (last?.kind !== 'identifier' || last.to !== pos) return null;
+  if (
+    !/^[A-Za-zµ°][A-Za-z_0-9µ°]*$/.test(last.value) ||
+    text.slice(last.from, last.to) !== last.value
+  )
+    return null;
+  const from = last.from;
+  tokens.pop();
+  if (/^[eE]$/.test(last.value) && tokens.at(-1)?.to === from) return null;
   const value = tokens.at(-1);
   return value &&
     (value.kind === 'number' || value.value === ')') &&

@@ -63,6 +63,7 @@ def test_packaged_addin_imports_under_its_release_name(tmp_path, monkeypatch):
         'WorkspaceEventHandler',
         'UserInterfaceGeneralEventHandler',
         'ApplicationCommandEventHandler',
+        'CustomEventHandler',
     ):
         setattr(core, name, type(name, (), {}))
     adsk.core, adsk.fusion = core, fusion

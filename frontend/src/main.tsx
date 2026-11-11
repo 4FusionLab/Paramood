@@ -473,11 +473,11 @@ export function App() {
       setBusy(false);
     }
   }
-  async function copy(value: string) {
+  async function copy(value: string, rememberExpression = true) {
     try {
       await copyText(value);
       showNotice('Copied to clipboard.');
-      if (expression.trim())
+      if (rememberExpression && expression.trim())
         setHistory((h) => [expression, ...h.filter((x) => x !== expression)].slice(0, 20));
     } catch (e) {
       setProblem(message(e));
@@ -651,7 +651,7 @@ export function App() {
         </div>
       )}
       {mode === 'parameters' && (
-        <div class={`palette-layout view-${view}`}>
+        <div key="parameters-layout" class={`palette-layout view-${view}`}>
           <div class="editor-pane">
             {(!feedbackDismissed || view !== 'hybrid') &&
               (showHistory || (assignment ? !!preview || !!previewError : !!text.trim())) && (
@@ -837,6 +837,7 @@ export function App() {
             <ParameterList
               parameters={model?.parameters || []}
               onDelete={(parameter) => void deleteParameter(parameter)}
+              onCopyReference={(name) => void copy(name, false)}
               onRename={renameParameter}
               onFavorite={(parameter) => void toggleFavorite(parameter)}
               busy={busy}
@@ -887,7 +888,7 @@ export function App() {
         </div>
       )}
       {mode === 'cleanup' && (
-        <div id="cleanup-section">
+        <div key="cleanup-layout" id="cleanup-section">
           <Section title="Paramood-Cleanup">
             <p class="helper">Analyze current parameters. Deletion is not available yet.</p>
             <button disabled={!available || busy} onClick={() => void analyze()}>

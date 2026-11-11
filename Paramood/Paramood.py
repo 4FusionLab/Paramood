@@ -11,6 +11,7 @@ import adsk.fusion
 
 from .bridge.protocol import dispatch
 from .fusion.adapter import FusionAdapter
+from .fusion.selection import SelectionSnapshot, SelectionUnavailable
 
 _app = None
 _ui = None
@@ -23,6 +24,10 @@ _pending = None
 _result = None
 _pending_prefill = None
 _pending_palette = None
+_pending_selection = None
+_pending_preview = None
+_selection_restores = []
+_SELECTION_EVENT = 'ParamoodRestoreSelection'
 _ready_modes = set()
 _desired_visibility = {'parameters': True, 'cleanup': False}
 
@@ -53,7 +58,7 @@ class HtmlHandler(adsk.core.HTMLEventHandler):
         self.mode = mode
 
     def notify(self, args):
-        global _pending, _pending_palette, _pending_prefill
+        global _pending, _pending_palette, _pending_prefill, _pending_selection
         try:
             if args.action != 'request':
                 return
@@ -155,35 +160,15 @@ class HtmlHandler(adsk.core.HTMLEventHandler):
                             'documentId': _adapter.document_id,
                         },
                     )
-                elif active_command != 'SelectCommand' or _adapter.is_sketch_edit():
-                    _pending = message
-                    _adapter.in_direct_apply = True
-                    try:
-                        result = dispatch(_adapter, message)
-                    finally:
-                        _adapter.in_direct_apply = False
-                        _pending = None
-                    _send(self.mode, 'response', result)
-                    _broadcast('state.changed', {})
                 else:
-                    _pending = message
-                    _pending_palette = self.mode
-                    if not _ui.commandDefinitions.itemById('ParamoodApply').execute():
-                        _pending = None
-                        _pending_palette = None
-                        _send(
-                            self.mode,
-                            'response',
-                            {
-                                'requestId': message.get('requestId'),
-                                'ok': False,
-                                'error': {
-                                    'code': 'COMMAND_FAILED',
-                                    'message': 'Fusion could not start the command.',
-                                },
-                                'documentId': _adapter.document_id,
-                            },
-                        )
+                    try:
+                        selection = SelectionSnapshot(_app, _ui)
+                    except SelectionUnavailable:
+                        # A preview can hide the selected entities from the API.
+                        # Starting our transaction ends that command, rather than
+                        # attempting an unsafe direct edit or blocking the request.
+                        selection = None
+                    self._apply(message, active_command, selection)
             else:
                 _respond(self.mode, message)
                 if action == 'state.get':
@@ -199,12 +184,133 @@ class HtmlHandler(adsk.core.HTMLEventHandler):
             if _app:
                 _app.log(traceback.format_exc())
 
+    def _apply(self, message, active_command, selection):
+        global _pending, _pending_palette, _pending_selection, _pending_preview
+        _pending_preview = None
+        if selection is None and message.get('action') == 'parameters.apply':
+            preview = dispatch(
+                _adapter,
+                {
+                    **message,
+                    'action': 'parameters.preview',
+                    'payload': {'text': message.get('payload', {}).get('text')},
+                },
+            )
+            if not preview['ok']:
+                _send(self.mode, 'response', preview)
+                return
+            if preview['data']['snapshotToken'] != message.get('payload', {}).get('snapshotToken'):
+                _send(
+                    self.mode,
+                    'response',
+                    {
+                        'requestId': message.get('requestId'),
+                        'ok': False,
+                        'error': {
+                            'code': 'STALE_PREVIEW',
+                            'message': 'Refresh the parameter preview and try again.',
+                        },
+                        'documentId': _adapter.document_id,
+                    },
+                )
+                return
+            _pending_preview = preview['data']
+        if selection is None and active_command != 'SelectCommand':
+            if not _ui.terminateActiveCommand():
+                _pending_preview = None
+                _send(
+                    self.mode,
+                    'response',
+                    {
+                        'requestId': message.get('requestId'),
+                        'ok': False,
+                        'error': {
+                            'code': 'COMMAND_FAILED',
+                            'message': 'Fusion could not end the active command.',
+                        },
+                        'documentId': _adapter.document_id,
+                    },
+                )
+                return
+        if selection is not None and (
+            active_command != 'SelectCommand' or _adapter.is_sketch_edit()
+        ):
+            _pending = message
+            _adapter.in_direct_apply = True
+            try:
+                result = dispatch(_adapter, message)
+            finally:
+                if selection is not None:
+                    selection.restore()
+                _adapter.in_direct_apply = False
+                _pending = None
+            _send(self.mode, 'response', result)
+            _broadcast('state.changed', {})
+        else:
+            _pending = message
+            _pending_palette = self.mode
+            _pending_selection = selection
+            if not _ui.commandDefinitions.itemById('ParamoodApply').execute():
+                _pending = None
+                _pending_palette = None
+                _pending_selection = None
+                _pending_preview = None
+                if selection is not None:
+                    selection.restore()
+                _send(
+                    self.mode,
+                    'response',
+                    {
+                        'requestId': message.get('requestId'),
+                        'ok': False,
+                        'error': {
+                            'code': 'COMMAND_FAILED',
+                            'message': 'Fusion could not start the command.',
+                        },
+                        'documentId': _adapter.document_id,
+                    },
+                )
+
 
 class ApplyExecute(adsk.core.CommandEventHandler):
     def notify(self, args):
-        global _result
+        global _result, _pending
+        _result = None
         _adapter.in_command = True
         try:
+            if _pending_preview is not None:
+                preview = dispatch(
+                    _adapter,
+                    {
+                        **_pending,
+                        'action': 'parameters.preview',
+                        'payload': {'text': _pending['payload']['text']},
+                    },
+                )
+                if not preview['ok']:
+                    _result = preview
+                elif _preview_items(preview['data']) != _preview_items(_pending_preview):
+                    _result = {
+                        'requestId': _pending['requestId'],
+                        'ok': False,
+                        'error': {
+                            'code': 'STALE_PREVIEW',
+                            'message': 'The command ended and the parameter preview changed. Refresh and try again.',
+                        },
+                        'documentId': _adapter.document_id,
+                    }
+                else:
+                    _pending = {
+                        **_pending,
+                        'payload': {
+                            **_pending['payload'],
+                            'snapshotToken': preview['data']['snapshotToken'],
+                        },
+                    }
+                if _result is not None:
+                    args.executeFailed = True
+                    args.executeFailedMessage = _result['error']['message']
+                    return
             _result = dispatch(_adapter, _pending)
             if not _result['ok']:
                 args.executeFailed = True
@@ -227,7 +333,7 @@ class ApplyExecute(adsk.core.CommandEventHandler):
 
 class ApplyDestroy(adsk.core.CommandEventHandler):
     def notify(self, args):
-        global _pending, _result, _pending_palette
+        global _pending, _result, _pending_palette, _pending_selection, _pending_preview
         if _pending is not None:
             result = _result or {
                 'requestId': _pending.get('requestId'),
@@ -239,8 +345,30 @@ class ApplyDestroy(adsk.core.CommandEventHandler):
             _pending = None
             _result = None
             _pending_palette = None
+            _pending_preview = None
+            if _pending_selection is not None:
+                _selection_restores.append(_pending_selection)
+                _pending_selection = None
+                if _app:
+                    _app.fireCustomEvent(_SELECTION_EVENT)
             _send(mode, 'response', result)
             _broadcast('state.changed', {})
+
+
+class RestoreSelection(adsk.core.CustomEventHandler):
+    def notify(self, args):
+        snapshots = list(_selection_restores)
+        _selection_restores.clear()
+        for snapshot in snapshots:
+            snapshot.restore()
+
+
+def _preview_items(preview):
+    # Sample values may differ for random(), but the planned operation must not.
+    return [
+        {key: value for key, value in item.items() if key != 'value' or not item.get('estimated')}
+        for item in preview['items']
+    ]
 
 
 class ApplyCreated(adsk.core.CommandCreatedEventHandler):
@@ -392,6 +520,7 @@ def run(context):
         _app = adsk.core.Application.get()
         _ui = _app.userInterface
         _adapter = FusionAdapter(_app)
+        _listen(_app.registerCustomEvent(_SELECTION_EVENT), RestoreSelection())
         _definition('ParamoodApply', 'Apply Paramood Parameter', ApplyCreated())
         show = _definition('ParamoodShow', 'Paramood', ShowCreated('parameters'))
         panel = _ui.allToolbarPanels.itemById('SolidScriptsAddinsPanel')
@@ -422,13 +551,24 @@ def run(context):
 
 
 def stop(context):
-    global _pending, _result, _pending_palette, _pending_prefill
+    global \
+        _pending, \
+        _result, \
+        _pending_palette, \
+        _pending_prefill, \
+        _pending_selection, \
+        _pending_preview
     for event, handler in reversed(_handlers):
         try:
             event.remove(handler)
         except Exception:
             pass
     _handlers.clear()
+    if _app:
+        _app.unregisterCustomEvent(_SELECTION_EVENT)
+    _selection_restores.clear()
+    _pending_selection = None
+    _pending_preview = None
     for control in _controls:
         try:
             control.deleteMe()

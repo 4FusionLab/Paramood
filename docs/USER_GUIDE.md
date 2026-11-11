@@ -12,7 +12,11 @@ Enter `2+3` to calculate without writing to the model. Enter `width=30mm; height
 
 Names separated by underscores form virtual groups: `box_wall_thickness` appears as `box.wall.thickness`. Both forms work in input. `dN` dimensions appear under **Model parameters**. Driven sketch dimensions are read-only. Click an editable value to edit it; **Enter** validates and applies, and **Escape** cancels. Renaming an editable parameter updates references without changing matching words inside quoted text.
 
+Right-click a parameter row and choose **Copy parameter reference** to copy its full native name, such as `box_wall_thickness`, for pasting into Fusion expression fields. Virtual groups are not parameters and have no copy action. Text editors retain their standard context menu.
+
 IntelliSense offers model dimensions such as `d1` only when the current token is exactly `d` or `D`, on either side of an assignment. Typing `de`, `d1`, or a number hides those suggestions; existing dimension names remain valid in expressions.
+
+Unit suggestions appear only after you start typing a unit after a value (for example, `25m` or `25 m`); a number or trailing space alone does not open the unit list.
 
 In an inline numeric edit, use `+=5`, `-=5`, `*=2`, or `/=2` to update the existing expression. Addition and subtraction use the parameter's unit for a bare number; multiplication and division use a dimensionless number. Existing formula dependencies are preserved.
 
@@ -83,6 +87,7 @@ A text result is limited to 65,536 characters. The projected text across a plann
 - Only parameters of the active design are edited; externally linked components are not modified.
 - Fusion may prevent edits or deletion. Driven dimensions remain read-only.
 - Existing-parameter updates can use the supported direct path while a Fusion command is active; creating and linking a new parameter can require finishing the command or sketch first.
+- Parameter changes preserve valid objects exposed by Fusion's current selection set without inspecting command names or input fields. Ordinary selections are captured before starting the parameter transaction and restored after it ends. Restoration stops if the active document or command changes; invalid objects and unrelated new selections are left alone. If Fusion does not expose selected entities during a preview, Paramood ends the active command and applies the request in its own transaction. Parameter creation is re-evaluated after the preview rolls back and continues only when the planned operations still match the original preview. Both the nonzero-distance preview fallback and ordinary body-selection restoration have been checked on macOS; other native commands are not fully validated.
 - Automatic unused-parameter cleanup is unavailable.
 - Automated checks and temporary-design Fusion checks are different from a complete installed-palette acceptance test. Native Windows validation remains outstanding; see the release's validation notes for its tested scope.
 

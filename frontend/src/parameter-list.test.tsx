@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import { ParameterList, expressionWithoutUnit } from './parameter-list';
@@ -277,4 +277,102 @@ it('shows computed text while preserving its source expression for edits', () =>
     'Computed body',
   );
   expect(host.querySelector('.tree-unit')?.textContent).toBe('');
+});
+
+it('copies the full native reference from a nested row without editing the parameter', () => {
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const copy = vi.fn();
+  const edit = vi.fn();
+  act(() =>
+    render(
+      <ParameterList
+        parameters={[
+          { name: 'box_inner_width', expression: '10 mm', value: 10, unit: 'mm' },
+          { name: 'box_inner', expression: '5 mm', value: 5, unit: 'mm' },
+        ]}
+        onEdit={edit}
+        onDelete={() => {}}
+        onCopyReference={copy}
+      />,
+      host,
+    ),
+  );
+  act(() => host.querySelector<HTMLButtonElement>('[aria-label="Expand all groups"]')!.click());
+  const group = host.querySelector('[aria-label="Collapse box"]')!;
+  const groupEvent = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+  act(() => void group.dispatchEvent(groupEvent));
+  expect(groupEvent.defaultPrevented).toBe(false);
+  expect(host.querySelector('[role="menu"]')).toBeNull();
+  const row = host.querySelector('[data-parameter-name="box_inner_width"] .tree-name')!;
+  const event = new MouseEvent('contextmenu', {
+    bubbles: true,
+    cancelable: true,
+    clientX: 1020,
+    clientY: 760,
+  });
+  act(() => void row.dispatchEvent(event));
+  expect(event.defaultPrevented).toBe(true);
+  expect(host.querySelector('[role="menu"]')?.textContent).toContain('box_inner_width');
+  act(() => host.querySelector<HTMLButtonElement>('[role="menuitem"]')!.click());
+  expect(copy).toHaveBeenCalledWith('box_inner_width');
+  expect(edit).not.toHaveBeenCalled();
+  expect(host.querySelector('[role="menu"]')).toBeNull();
+  const parent = host.querySelector('[data-parameter-name="box_inner"] .tree-name')!;
+  act(
+    () =>
+      void parent.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+  );
+  act(() => host.querySelector<HTMLButtonElement>('[role="menuitem"]')!.click());
+  expect(copy).toHaveBeenLastCalledWith('box_inner');
+  act(() => render(null, host));
+});
+
+it('dismisses the reference menu and preserves the text editor context menu', () => {
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const copy = vi.fn();
+  act(() =>
+    render(
+      <ParameterList
+        parameters={[
+          { name: 'd12', expression: '10 mm', value: 10, unit: 'mm', kind: 'model', driven: true },
+          { name: 'width', expression: '10 mm', value: 10, unit: 'mm' },
+        ]}
+        onEdit={() => {}}
+        onDelete={() => {}}
+        onCopyReference={copy}
+        editingName="width"
+        editor={<input aria-label="Inline expression" />}
+      />,
+      host,
+    ),
+  );
+  act(() => host.querySelector<HTMLButtonElement>('[aria-label="Expand all groups"]')!.click());
+  const row = host.querySelector('[data-parameter-name="d12"] .tree-name')!;
+  const open = () =>
+    act(
+      () =>
+        void row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+    );
+  open();
+  act(
+    () =>
+      void document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })),
+  );
+  expect(host.querySelector('[role="menu"]')).toBeNull();
+  open();
+  act(() => void document.body.dispatchEvent(new Event('pointerdown', { bubbles: true })));
+  expect(host.querySelector('[role="menu"]')).toBeNull();
+  open();
+  act(() => void host.dispatchEvent(new Event('scroll')));
+  expect(host.querySelector('[role="menu"]')).toBeNull();
+  const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+  act(() => void host.querySelector('input')!.dispatchEvent(event));
+  expect(event.defaultPrevented).toBe(false);
+  expect(host.querySelector('[role="menu"]')).toBeNull();
+  open();
+  act(() => host.querySelector<HTMLButtonElement>('[role="menuitem"]')!.click());
+  expect(copy).toHaveBeenCalledWith('d12');
+  act(() => render(null, host));
 });

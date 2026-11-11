@@ -621,18 +621,28 @@ describe('Fusion builtin editor integration', () => {
       );
     },
   );
-  it.each(['mm', 'probe=mm', 'probe=2+mm', 'probe=max(mm', 'width12mm', '1e'])(
-    'does not suggest units without a preceding value: %s',
-    (text) => {
-      const result = completions(
-        new CompletionContext(EditorState.create({ doc: text }), text.length, true),
-        [],
-        false,
-      );
-      expect(result?.options.some((c) => c.detail === 'Fusion unit')).not.toBe(true);
-    },
-  );
-  it.each(['10 ', '10 m', '10m', '.5 m', '1e-3 m', 'probe=10 m', '(2+3) m'])(
+  it.each([
+    'mm',
+    'probe=mm',
+    'probe=2+mm',
+    'probe=max(mm',
+    'width12mm',
+    '1e',
+    '25',
+    '25 ',
+    'test=25',
+    'test=25 ',
+    '(2+3)',
+    '(2+3) ',
+  ])('does not suggest units without both a value and a unit prefix: %s', (text) => {
+    const result = completions(
+      new CompletionContext(EditorState.create({ doc: text }), text.length, true),
+      [],
+      false,
+    );
+    expect(result?.options.some((c) => c.detail === 'Fusion unit')).not.toBe(true);
+  });
+  it.each(['10 m', '10m', '.5 m', '1e-3 m', 'probe=10 m', '(2+3) m'])(
     'suggests units after a numeric value: %s',
     (text) => {
       const result = completions(

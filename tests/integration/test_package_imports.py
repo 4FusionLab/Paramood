@@ -18,6 +18,7 @@ def test_fusion_entry_import_ignores_other_addins_common_module_names(monkeypatc
         'WorkspaceEventHandler',
         'UserInterfaceGeneralEventHandler',
         'ApplicationCommandEventHandler',
+        'CustomEventHandler',
     ):
         setattr(core, name, type(name, (), {}))
     adsk.core, adsk.fusion = core, fusion

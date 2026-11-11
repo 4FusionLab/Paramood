@@ -5,7 +5,7 @@ import { act } from 'preact/test-utils';
 import { EditorView } from '@codemirror/view';
 import { currentCompletions, startCompletion } from '@codemirror/autocomplete';
 import { App } from './main';
-import type { Preview } from './bridge';
+import type { Parameter, Preview } from './bridge';
 let host: HTMLDivElement;
 afterEach(() => {
   if (host) act(() => render(null, host));
@@ -13,7 +13,12 @@ afterEach(() => {
   delete window.adsk;
   window.location.hash = '';
 });
-function mount(hash: string, sampledPreview = false, previewItems?: Preview['items']) {
+function mount(
+  hash: string,
+  sampledPreview = false,
+  previewItems?: Preview['items'],
+  parameters: Parameter[] = [],
+) {
   window.location.hash = hash;
   const calls: { action: string; payload: Record<string, unknown> }[] = [];
   window.adsk = {
@@ -22,7 +27,7 @@ function mount(hash: string, sampledPreview = false, previewItems?: Preview['ite
       calls.push(data);
       const response =
         data.action === 'state.get'
-          ? { documentId: 'doc', documentName: 'Design', parameters: [] }
+          ? { documentId: 'doc', documentName: 'Design', parameters }
           : data.action === 'parameters.preview'
             ? previewItems
               ? { valid: true, snapshotToken: 'test-preview', items: previewItems }
@@ -938,4 +943,65 @@ it('shows sampled previews and applies the original random expression', async ()
       ),
     ).toBe(true),
   );
+});
+
+it('preserves expanded parameter rows through reference menu and toast appearance and dismissal', async () => {
+  Object.defineProperty(document, 'execCommand', { configurable: true, value: () => true });
+  try {
+    mount('#parameters', false, undefined, [
+      { name: 'box_inner_width', expression: '10 mm', value: 10, unit: 'mm' },
+    ]);
+    await vi.waitFor(() => expect(host.querySelector('[aria-label="Expand box"]')).toBeTruthy());
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    act(() => host.querySelector<HTMLButtonElement>('[aria-label="Expand box"]')!.click());
+    act(() => host.querySelector<HTMLButtonElement>('[aria-label="Expand box.inner"]')!.click());
+    const leaf = host.querySelector('[data-parameter-name="box_inner_width"]')!;
+    const layout = host.querySelector('.palette-layout');
+    const pane = host.querySelector<HTMLElement>('.list-pane')!;
+    pane.scrollTop = 140;
+    const editor = host.querySelector('.cm-content');
+    const sort = host.querySelector<HTMLSelectElement>('[aria-label="Sort named parameters by"]')!;
+    act(() => {
+      sort.value = 'value';
+      sort.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    const assertPreserved = () => {
+      expect(host.querySelector('.palette-layout')).toBe(layout);
+      expect(host.querySelector('.list-pane')).toBe(pane);
+      expect(pane.scrollTop).toBe(140);
+      expect(host.querySelector('.cm-content')).toBe(editor);
+      expect(sort.value).toBe('value');
+      expect(host.querySelector('[data-parameter-name="box_inner_width"]')).toBe(leaf);
+      expect(host.querySelector('[aria-label="Collapse box.inner"]')).toBeTruthy();
+    };
+    act(() => {
+      leaf.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    });
+    assertPreserved();
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>('[role="menuitem"]')!.click();
+      await Promise.resolve();
+    });
+    expect(host.querySelector('.notice')?.textContent).toContain('Copied to clipboard.');
+    assertPreserved();
+    act(() => host.querySelector<HTMLButtonElement>('.notice button')!.click());
+    expect(host.querySelector('.notice')).toBeNull();
+    assertPreserved();
+    act(() => {
+      leaf.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    });
+    vi.useFakeTimers();
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>('[role="menuitem"]')!.click();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3600);
+    });
+    expect(host.querySelector('.notice')).toBeNull();
+    assertPreserved();
+  } finally {
+    vi.useRealTimers();
+    Reflect.deleteProperty(document, 'execCommand');
+  }
 });
