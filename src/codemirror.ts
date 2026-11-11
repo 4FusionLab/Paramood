@@ -5,8 +5,9 @@ import type { Extension } from '@codemirror/state';
 import {
   builtinCompletions,
   expressionSignatureHelp,
+  unitCompletions,
 } from '../frontend/src/expression-codemirror.ts';
-import { statementStart } from './expression-language.ts';
+import { statementStart, unitCompletionFrom } from './expression-language.ts';
 import { ParameterIndex, suggestCompletions } from './intellisense.js';
 
 export function parameterCompletionSource(
@@ -14,6 +15,13 @@ export function parameterCompletionSource(
   batch = false,
 ): CompletionSource {
   return (context) => {
+    const text = context.state.doc.toString();
+    const start = statementStart(text, context.pos);
+    const before = text.slice(start, context.pos);
+    const nameContext =
+      !before.includes('=') && (batch || /(?<![<>=])=(?!=)/.test(text.slice(start)));
+    const unitFrom = !nameContext ? unitCompletionFrom(text, context.pos) : null;
+    if (unitFrom !== null) return { from: unitFrom, options: unitCompletions() };
     const result = suggestCompletions(
       context.state.doc.toString(),
       context.pos,
@@ -21,11 +29,6 @@ export function parameterCompletionSource(
       context.explicit,
     );
     if (!result) return null;
-    const text = context.state.doc.toString();
-    const start = statementStart(text, context.pos);
-    const before = text.slice(start, context.pos);
-    const nameContext =
-      !before.includes('=') && (batch || /(?<![<>=])=(?!=)/.test(text.slice(start)));
     const memberContext = text[result.from - 1] === '.';
     return {
       from: result.from,

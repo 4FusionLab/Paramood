@@ -5,6 +5,7 @@ import { act } from 'preact/test-utils';
 import { EditorView } from '@codemirror/view';
 import { currentCompletions, startCompletion } from '@codemirror/autocomplete';
 import { App } from './main';
+import type { Preview } from './bridge';
 let host: HTMLDivElement;
 afterEach(() => {
   if (host) act(() => render(null, host));
@@ -12,7 +13,7 @@ afterEach(() => {
   delete window.adsk;
   window.location.hash = '';
 });
-function mount(hash: string, sampledPreview = false) {
+function mount(hash: string, sampledPreview = false, previewItems?: Preview['items']) {
   window.location.hash = hash;
   const calls: { action: string; payload: Record<string, unknown> }[] = [];
   window.adsk = {
@@ -23,24 +24,26 @@ function mount(hash: string, sampledPreview = false) {
         data.action === 'state.get'
           ? { documentId: 'doc', documentName: 'Design', parameters: [] }
           : data.action === 'parameters.preview'
-            ? sampledPreview
-              ? {
-                  valid: true,
-                  snapshotToken: 'sample-preview',
-                  items: [
-                    {
-                      name: 'roll',
-                      expression: 'random()',
-                      value: 0.25,
-                      unit: '',
-                      status: 'New',
-                      estimated: true,
-                      message:
-                        'Sample value. Fusion will evaluate this expression again when applied.',
-                    },
-                  ],
-                }
-              : { valid: false, items: [] }
+            ? previewItems
+              ? { valid: true, snapshotToken: 'test-preview', items: previewItems }
+              : sampledPreview
+                ? {
+                    valid: true,
+                    snapshotToken: 'sample-preview',
+                    items: [
+                      {
+                        name: 'roll',
+                        expression: 'random()',
+                        value: 0.25,
+                        unit: '',
+                        status: 'New',
+                        estimated: true,
+                        message:
+                          'Sample value. Fusion will evaluate this expression again when applied.',
+                      },
+                    ],
+                  }
+                : { valid: false, items: [] }
             : data.action === 'calculator.evaluate'
               ? { value: 5, formatted: '5' }
               : {};
@@ -56,6 +59,32 @@ function mount(hash: string, sampledPreview = false) {
   return calls;
 }
 describe('separate palette views', () => {
+  it('formats preview numbers without floating-point noise and preserves text values', async () => {
+    const values = [3.0000000000000004, 1e-18, 1.23456789012345, '3.0000000000000004'];
+    mount(
+      '#parameters',
+      false,
+      values.map((value, index) => ({
+        name: `probe_${index}`,
+        expression: String(value),
+        value,
+        unit: typeof value === 'number' ? 'mm' : 'Text',
+        status: 'New',
+      })),
+    );
+    await vi.waitFor(() => expect(host.textContent).toContain('Design'));
+    const editor = EditorView.findFromDOM(host.querySelector<HTMLElement>('.cm-content')!)!;
+    act(() => editor.dispatch({ changes: { from: 0, insert: 'd.max.offset=3' } }));
+    await vi.waitFor(() => expect(host.querySelectorAll('.preview-row')).toHaveLength(4));
+    const displayed = Array.from(host.querySelectorAll('.preview-row .row-end > span:first-child'));
+    expect(displayed.map((item) => item.textContent?.trim())).toEqual([
+      '3 mm',
+      '1e-18 mm',
+      '1.23456789012345 mm',
+      '3.0000000000000004 Text',
+    ]);
+    expect(editor.state.doc.toString()).toBe('d.max.offset=3');
+  });
   it('routes a calculation and then an assignment through one editor', async () => {
     const calls = mount('#parameters');
     await vi.waitFor(() => expect(host.textContent).toContain('Design'));

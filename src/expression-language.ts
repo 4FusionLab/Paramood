@@ -51,6 +51,28 @@ export function expressionTokens(text: string): ExpressionToken[] {
   }
   return result;
 }
+/** Units suffix a numeric value; an identifier being entered is never itself a value. */
+export function unitCompletionFrom(text: string, pos: number): number | null {
+  const tokens = expressionTokens(text.slice(0, pos));
+  let from = pos;
+  const last = tokens.at(-1);
+  if (last?.kind === 'identifier' && last.to === pos) {
+    if (
+      !/^[A-Za-zµ°][A-Za-z_0-9µ°]*$/.test(last.value) ||
+      text.slice(last.from, last.to) !== last.value
+    )
+      return null;
+    from = last.from;
+    tokens.pop();
+    if (/^[eE]$/.test(last.value) && tokens.at(-1)?.to === from) return null;
+  }
+  const value = tokens.at(-1);
+  return value &&
+    (value.kind === 'number' || value.value === ')') &&
+    /^[ \t]*$/.test(text.slice(value.to, from))
+    ? from
+    : null;
+}
 export function normalizeUnitSymbols(text: string): string {
   let result = '',
     start = 0;

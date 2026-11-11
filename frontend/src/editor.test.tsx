@@ -12,6 +12,8 @@ import {
 } from '@codemirror/autocomplete';
 import { completions, ExpressionEditor } from './editor';
 import { EditorState } from '@codemirror/state';
+import { undo } from '@codemirror/commands';
+import { unitCompletionFrom } from '../../src/expression-language';
 
 let host: HTMLDivElement;
 beforeEach(() => {
@@ -23,6 +25,7 @@ beforeEach(() => {
     Range.prototype.getBoundingClientRect = () => new DOMRect();
 });
 afterEach(() => {
+  vi.restoreAllMocks();
   act(() => render(null, host));
   host.remove();
 });
@@ -55,6 +58,91 @@ function key(content: HTMLElement, key: string, shiftKey = false) {
   );
 }
 describe('ExpressionEditor keyboard interaction', () => {
+  it.each(['d.max.', 'box.inner.size.', 'корпус.ширина.', 'a=1; d.max.', 'a=1\nd.max.'])(
+    'replaces the final path dot with an assignment in %s',
+    (text) => {
+      const { view, content, onChange } = mount({ text });
+      view.dispatch({ selection: { anchor: text.length } });
+      act(() => key(content, '='));
+      expect(view.state.doc.toString()).toBe(text.slice(0, -1) + '=');
+      expect(view.state.selection.main.head).toBe(text.length);
+      expect(onChange).toHaveBeenLastCalledWith(text.slice(0, -1) + '=');
+      act(() => {
+        undo(view);
+      });
+      expect(view.state.doc.toString()).toBe(text);
+    },
+  );
+  it.each(['width=d.max.', '3.', 'width=3.', 'd..', 'label="d.max.', 'max(d.max.'])(
+    'does not intercept equals outside an assignment target: %s',
+    (text) => {
+      const { view, content } = mount({ text });
+      view.dispatch({ selection: { anchor: text.length } });
+      const event = new KeyboardEvent('keydown', { key: '=', bubbles: true, cancelable: true });
+      act(() => {
+        content.dispatchEvent(event);
+      });
+      expect(event.defaultPrevented).toBe(false);
+      expect(view.state.doc.toString()).toBe(text);
+    },
+  );
+  it.each([
+    { text: 'd.max', from: 5, to: 5, insert: '=', cursor: 6 },
+    { text: 'a.b', from: 2, to: 3, insert: '', cursor: 2 },
+  ])('resets a stale native caret when editing $text', ({ text, from, to, insert, cursor }) => {
+    const { view } = mount({ text });
+    view.focus();
+    view.dispatch({ selection: { anchor: text.length } });
+    const selection = document.getSelection()!;
+    // Fusion can report the right DOM selection while still displaying the old native caret.
+    // Model that separate visible position: only resetting the native selection redraws it.
+    let visibleCaret = text.length;
+    let cleared = false;
+    const clear = selection.removeAllRanges.bind(selection);
+    const set = selection.setBaseAndExtent.bind(selection);
+    vi.spyOn(selection, 'removeAllRanges').mockImplementation(() => {
+      cleared = true;
+      clear();
+    });
+    vi.spyOn(selection, 'setBaseAndExtent').mockImplementation(
+      (anchor, offset, head, headOffset) => {
+        set(anchor, offset, head, headOffset);
+        if (cleared) visibleCaret = view.posAtDOM(head, headOffset);
+      },
+    );
+    act(() => view.dispatch({ changes: { from, to, insert }, selection: { anchor: cursor } }));
+    expect(view.posAtDOM(selection.focusNode!, selection.focusOffset)).toBe(cursor);
+    expect(visibleCaret).toBe(cursor);
+    expect(selection.isCollapsed).toBe(true);
+  });
+
+  it('keeps backward selections and does not take focus from another field', () => {
+    const { view } = mount({ text: 'a.b' });
+    view.focus();
+    act(() =>
+      view.dispatch({ changes: { from: 3, insert: '=1' }, selection: { anchor: 5, head: 2 } }),
+    );
+    const selection = document.getSelection()!;
+    expect(view.posAtDOM(selection.anchorNode!, selection.anchorOffset)).toBe(5);
+    expect(view.posAtDOM(selection.focusNode!, selection.focusOffset)).toBe(2);
+    const input = document.createElement('input');
+    host.appendChild(input);
+    input.focus();
+    const reset = vi.spyOn(selection, 'removeAllRanges');
+    act(() => view.dispatch({ changes: { from: 5, insert: '0' } }));
+    expect(document.activeElement).toBe(input);
+    expect(reset).not.toHaveBeenCalled();
+  });
+
+  it('does not reset the native selection during IME composition', () => {
+    const { view } = mount({ text: 'a.b' });
+    view.focus();
+    vi.spyOn(view, 'composing', 'get').mockReturnValue(true);
+    const reset = vi.spyOn(document.getSelection()!, 'removeAllRanges');
+    act(() => view.dispatch({ changes: { from: 3, insert: 'c' } }));
+    expect(reset).not.toHaveBeenCalled();
+  });
+
   it('keeps the smart-search editor on one line, including pasted text', () => {
     const { view } = mount({ singleLine: true, text: 'width=30' });
     act(() =>
@@ -461,13 +549,12 @@ describe('model dimension completion', () => {
       );
     }
     for (const text of ['25', 'width=25']) {
-      expect(
-        completions(
-          new CompletionContext(EditorState.create({ doc: text }), text.length, true),
-          parameters,
-          true,
-        ),
-      ).toBeNull();
+      const result = completions(
+        new CompletionContext(EditorState.create({ doc: text }), text.length, true),
+        parameters,
+        true,
+      );
+      expect(result?.options.some((option) => option.type === 'variable')).not.toBe(true);
     }
     const result = completions(
       new CompletionContext(EditorState.create({ doc: 'de' }), 2, false),
@@ -526,6 +613,38 @@ import { fusionFunctions, fusionConstants } from '../../src/expression-catalog';
 import { expressionSignatureHelp } from './expression-codemirror';
 
 describe('Fusion builtin editor integration', () => {
+  it.each(['mm', '10m', 'probe=mm', 'probe=10 m', 'probe="10 mm', 'box.mm'])(
+    'shares unit context with the reusable adapter: %s',
+    (text) => {
+      expect(unitCompletionFrom(text, text.length) !== null).toBe(
+        text.includes('10') && !text.includes('"'),
+      );
+    },
+  );
+  it.each(['mm', 'probe=mm', 'probe=2+mm', 'probe=max(mm', 'width12mm', '1e'])(
+    'does not suggest units without a preceding value: %s',
+    (text) => {
+      const result = completions(
+        new CompletionContext(EditorState.create({ doc: text }), text.length, true),
+        [],
+        false,
+      );
+      expect(result?.options.some((c) => c.detail === 'Fusion unit')).not.toBe(true);
+    },
+  );
+  it.each(['10 ', '10 m', '10m', '.5 m', '1e-3 m', 'probe=10 m', '(2+3) m'])(
+    'suggests units after a numeric value: %s',
+    (text) => {
+      const result = completions(
+        new CompletionContext(EditorState.create({ doc: text }), text.length, false),
+        [],
+        text.includes('='),
+      );
+      expect(result?.options.find((c) => c.label === 'mm')?.detail).toBe('Fusion unit');
+      expect(result?.options.some((c) => c.type === 'function')).not.toBe(true);
+      expect(text.slice(0, result!.from) + 'mm').toBe(text.replace(/m?$/, 'mm'));
+    },
+  );
   it.each(fusionFunctions)(
     'completes, inserts and highlights $name from the shared catalog',
     (fn) => {

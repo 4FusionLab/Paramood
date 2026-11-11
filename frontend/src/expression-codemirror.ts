@@ -11,6 +11,13 @@ import {
 } from '../../src/expression-catalog.ts';
 import { signatureContext } from '../../src/expression-language.ts';
 
+export function unitCompletions(): Completion[] {
+  return fusionUnits.map((label): Completion => ({
+    label,
+    type: 'keyword',
+    detail: label === 'n' ? 'Paramood unitless suffix' : 'Fusion unit',
+  }));
+}
 export function builtinCompletions(): Completion[] {
   return [
     ...fusionFunctions.map((f): Completion => ({
@@ -37,11 +44,6 @@ export function builtinCompletions(): Completion[] {
     ...fusionOperators
       .filter((operator) => /^[a-z]+$/.test(operator))
       .map((label): Completion => ({ label, type: 'keyword', detail: 'Logical operator' })),
-    ...fusionUnits.map((label): Completion => ({
-      label,
-      type: 'keyword',
-      detail: label === 'n' ? 'Paramood unitless suffix' : 'Fusion unit',
-    })),
   ];
 }
 export const expressionSignatureHelp = StateField.define<readonly Tooltip[]>({

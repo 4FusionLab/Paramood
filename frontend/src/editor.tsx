@@ -31,11 +31,16 @@ import {
   fusionUnits,
   fusionOperators,
 } from '../../src/expression-catalog';
-import { builtinCompletions, expressionSignatureHelp } from './expression-codemirror';
+import {
+  builtinCompletions,
+  expressionSignatureHelp,
+  unitCompletions,
+} from './expression-codemirror';
 import {
   expressionTokens,
   expressionDiagnostics,
   statementStart,
+  unitCompletionFrom,
 } from '../../src/expression-language';
 function declaredNames(text: string): string[] {
   return Array.from(
@@ -57,9 +62,13 @@ export function completions(
   currentTarget?: string,
 ) {
   if (inString(context.state.sliceDoc(0, context.pos))) return null;
+  const text = context.state.doc.toString();
+  const left = text.slice(statementStart(text, context.pos), context.pos);
+  const nameContext = batch && !left.includes('=');
+  const unitFrom = !nameContext ? unitCompletionFrom(text, context.pos) : null;
+  if (unitFrom !== null) return { from: unitFrom, options: unitCompletions() };
   const word = context.matchBefore(/[A-Za-zА-Яа-яЁё_0-9]*/);
   if (!word) return null;
-  const text = context.state.doc.toString();
   const path = text
     .slice(0, word.from)
     .match(
@@ -68,8 +77,6 @@ export function completions(
   if (word.from === word.to && !context.explicit && !path) return null;
   if (!path && /^\d/.test(word.text)) return null;
   const showModelDimensions = !path && /^d$/i.test(word.text);
-  const left = text.slice(statementStart(text, context.pos), context.pos);
-  const nameContext = batch && !left.includes('=');
   const target =
     batch && !nameContext ? assignmentTarget(left) : !batch ? currentTarget : undefined;
   const earlierNames = batch ? declaredNames(text.slice(0, context.pos - left.length)) : [];
@@ -228,12 +235,28 @@ function highlighting(
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet;
+      restoreSelection = false;
       constructor(view: EditorView) {
         this.decorations = decorate(view);
       }
       update(update: ViewUpdate) {
+        this.restoreSelection ||= update.docChanged;
         if (update.docChanged || update.viewportChanged || update.transactions.length)
           this.decorations = decorate(update.view);
+      }
+      docViewUpdate(view: EditorView) {
+        if (!this.restoreSelection) return;
+        this.restoreSelection = false;
+        if (!view.hasFocus || view.composing) return;
+        const selection = view.contentDOM.ownerDocument.getSelection();
+        if (!selection) return;
+        const range = view.state.selection.main;
+        const anchor = view.domAtPos(range.anchor);
+        const head = view.domAtPos(range.head);
+        // Fusion's WebView can report the expected selection while displaying a stale caret
+        // after token spans split. Clear it first to force a native selection update.
+        selection.removeAllRanges();
+        selection.setBaseAndExtent(anchor.node, anchor.offset, head.node, head.offset);
       }
     },
     { decorations: (v) => v.decorations },
@@ -329,6 +352,29 @@ export function ExpressionEditor(props: Props) {
             return null;
           }),
           keymap.of([
+            {
+              key: '=',
+              run: (v) => {
+                if (v.state.readOnly || v.composing || latest.current.currentTarget) return false;
+                const cursor = v.state.selection.main;
+                if (!cursor.empty || v.state.selection.ranges.length !== 1) return false;
+                const text = v.state.doc.toString();
+                const left = text.slice(statementStart(text, cursor.from), cursor.from);
+                if (
+                  !/^\s*[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*(?:\.[A-Za-zА-Яа-яЁё_0-9]+)*\.$/.test(
+                    left,
+                  )
+                )
+                  return false;
+                closeCompletion(v);
+                v.dispatch({
+                  changes: { from: cursor.from - 1, to: cursor.from, insert: '=' },
+                  selection: { anchor: cursor.from },
+                  userEvent: 'input.type',
+                });
+                return true;
+              },
+            },
             { key: 'Tab', run: acceptCompletion },
             {
               key: 'Escape',

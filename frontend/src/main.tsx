@@ -32,6 +32,10 @@ function Section({ title, children }: { title: string; children: ComponentChildr
 function message(e: unknown) {
   return e instanceof Error ? e.message : String(e);
 }
+function previewValue(value: string | number | undefined): string | number {
+  // Suppress binary conversion noise without changing the value sent back to Fusion.
+  return typeof value === 'number' ? Number(value.toPrecision(15)) : (value ?? '');
+}
 export function App() {
   const [model, setModel] = useState<ModelState | null>(null),
     [loading, setLoading] = useState(true),
@@ -693,7 +697,7 @@ export function App() {
                             <span>
                               {item.previous ? `${item.previous} → ` : ''}
                               {item.estimated ? '≈ ' : ''}
-                              {item.value ?? ''} {item.unit ?? ''}
+                              {previewValue(item.value)} {item.unit ?? ''}
                             </span>
                             <span class={`badge ${item.status.toLowerCase()}`}>{item.status}</span>
                           </div>
