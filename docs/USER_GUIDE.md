@@ -12,6 +12,8 @@ Enter `2+3` to calculate without writing to the model. Enter `width=30mm; height
 
 Names separated by underscores form virtual groups: `box_wall_thickness` appears as `box.wall.thickness`. Both forms work in input. `dN` dimensions appear under **Model parameters**. Driven sketch dimensions are read-only. Click an editable value to edit it; **Enter** validates and applies, and **Escape** cancels. Renaming an editable parameter updates references without changing matching words inside quoted text.
 
+Drag an editable parameter by its name onto an existing virtual group to move it there. The drop preview shows the resulting native name: moving `box_width` into `tray.inner` renames it to `tray_inner_width`. Drop onto **Named parameters** to return it to the root (`width`). Only the dragged parameter is renamed. A conflicting name blocks the move; **Escape** or releasing outside a group cancels. Clicking the name still opens manual renaming.
+
 Right-click a parameter row and choose **Copy parameter reference** to copy its full native name, such as `box_wall_thickness`, for pasting into Fusion expression fields. Virtual groups are not parameters and have no copy action. Text editors retain their standard context menu.
 
 IntelliSense offers model dimensions such as `d1` only when the current token is exactly `d` or `D`, on either side of an assignment. Typing `de`, `d1`, or a number hides those suggestions; existing dimension names remain valid in expressions.

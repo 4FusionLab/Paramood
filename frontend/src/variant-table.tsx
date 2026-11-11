@@ -10,6 +10,7 @@ import {
 } from './bridge';
 import { VariantParameterTree } from './variant-parameter-tree';
 import { ExpressionEditor } from './editor';
+import { motionAllowed } from './motion';
 import { prepareInlineEdit } from './inline-edit';
 import { hasAssignment } from './expression-syntax';
 import type { Parameter } from './bridge';
@@ -79,6 +80,11 @@ export function VariantTable({ model, create, disabled, error, onSave, onClose }
   const originalName = useRef(create ? draft.rows[draft.rows.length - 1]?.name : '');
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const dialog = useRef<HTMLDivElement>(null);
+  const reorderPositions = useRef<Map<HTMLElement, DOMRect> | null>(null);
+  const reorderAnimations = useRef<Animation[]>([]);
+  const knownRows = useRef(
+    new Set((create ? draft.rows.slice(0, -1) : draft.rows).map((row) => row.id ?? row.key)),
+  );
   const drag = useRef<{
     axis: Axis;
     index: number;
@@ -345,13 +351,67 @@ export function VariantTable({ model, create, disabled, error, onSave, onClose }
     setCellError('');
   }
   function reorder(axis: Axis, from: number, to: number) {
-    if (unavailable) return;
+    if (unavailable || from === to) return;
+    if (motionAllowed(dialog.current)) {
+      const selector =
+        axis === 'rows'
+          ? 'tr[data-variant-id]'
+          : 'thead th[data-reorder-columns], tbody tr[data-variant-id] > td';
+      reorderPositions.current = new Map(
+        Array.from(dialog.current.querySelectorAll<HTMLElement>(selector)).map((element) => [
+          element,
+          element.getBoundingClientRect(),
+        ]),
+      );
+    }
     if (axis === 'rows') change({ ...draft, rows: moveItem(draft.rows, from, to) });
     else change({ ...draft, columns: moveItem(draft.columns, from, to) });
     setAnnouncement(
       `${axis === 'rows' ? 'Variant' : 'Parameter or feature'} moved to position ${to + 1}.`,
     );
   }
+  useLayoutEffect(() => {
+    const current = new Set(draft.rows.map((row) => row.id ?? row.key));
+    if (motionAllowed(dialog.current)) {
+      for (const row of Array.from(
+        dialog.current.querySelectorAll<HTMLElement>('tr[data-variant-id]'),
+      )) {
+        if (knownRows.current.has(row.dataset.variantId!)) continue;
+        reorderAnimations.current.push(
+          row.animate(
+            [
+              { opacity: 0, transform: 'translateY(4px)' },
+              { opacity: 1, transform: 'translateY(0)' },
+            ],
+            { duration: 180, easing: 'ease-out' },
+          ),
+        );
+      }
+    }
+    knownRows.current = current;
+  }, [draft.rows]);
+  useLayoutEffect(() => {
+    const previous = reorderPositions.current;
+    reorderPositions.current = null;
+    if (!previous || !motionAllowed(dialog.current)) return;
+    reorderAnimations.current.forEach((animation) => animation.cancel());
+    reorderAnimations.current = [];
+    // Animate the committed order; drag hit-testing always uses the actual table layout.
+    for (const [element, before] of previous) {
+      if (!element.isConnected) continue;
+      const after = element.getBoundingClientRect();
+      const x = before.left - after.left;
+      const y = before.top - after.top;
+      if (Math.abs(x) < 1 && Math.abs(y) < 1) continue;
+      reorderAnimations.current.push(
+        element.animate(
+          [{ transform: `translate(${x}px, ${y}px)` }, { transform: 'translate(0, 0)' }],
+          { duration: 180, easing: 'cubic-bezier(0.2, 0, 0, 1)' },
+        ),
+      );
+    }
+  }, [draft.rows, draft.columns]);
+  useEffect(() => () => reorderAnimations.current.forEach((animation) => animation.cancel()), []);
   useLayoutEffect(() => {
     function cancelDrag() {
       drag.current = null;
@@ -418,7 +478,10 @@ export function VariantTable({ model, create, disabled, error, onSave, onClose }
   function dropProps(axis: Axis, index: number) {
     return {
       [`data-reorder-${axis}`]: index,
-      class: dropTarget === `${axis}:${index}` ? 'table-drop-target' : '',
+      class:
+        dropTarget === `${axis}:${index}`
+          ? `table-drop-target${axis === 'columns' ? ' table-column-drop-target' : ''}`
+          : '',
     };
   }
   function handle(axis: Axis, index: number, name: string) {
@@ -434,6 +497,8 @@ export function VariantTable({ model, create, disabled, error, onSave, onClose }
         onPointerDown={(event) => {
           if (unavailable || event.button !== 0 || event.isPrimary === false) return;
           event.preventDefault();
+          reorderAnimations.current.forEach((animation) => animation.cancel());
+          reorderAnimations.current = [];
           drag.current = {
             axis,
             index,
@@ -461,14 +526,18 @@ export function VariantTable({ model, create, disabled, error, onSave, onClose }
       </button>
     );
   }
-  function cell(r: TableRow, column: VariantColumn) {
+  function cell(r: TableRow, column: VariantColumn, index: number) {
     const parameter = r.parameters.find((p) => p.entityToken === column.entityToken);
     const feature = r.features?.find((f) => f.entityToken === column.entityToken);
     const missingCell = column.kind === 'parameter' ? !parameter : !feature;
     return (
       <td
         key={`${r.key}:${columnKey(column)}`}
-        class={column.kind === 'feature' ? 'variant-feature-cell' : ''}
+        class={[
+          column.kind === 'feature' ? 'variant-feature-cell' : '',
+          dropTarget === `columns:${index}` ? 'table-drop-target table-column-drop-target' : '',
+          r.key === draft.rows[draft.rows.length - 1]?.key ? 'variant-last-row-cell' : '',
+        ].join(' ')}
       >
         {column.missing || parameter?.missing || feature?.missing ? (
           <span class="error">Missing from model</span>
@@ -903,7 +972,7 @@ export function VariantTable({ model, create, disabled, error, onSave, onClose }
                 <Fragment key={r.key}>
                   <tr data-variant-id={r.id ?? r.key} {...dropProps('rows', index)}>
                     <th scope="row">{variantHeader(r, index)}</th>
-                    {draft.columns.map((column) => cell(r, column))}
+                    {draft.columns.map((column, index) => cell(r, column, index))}
                   </tr>
                   {deleteKey === r.key && (
                     <tr class="variant-delete-row">

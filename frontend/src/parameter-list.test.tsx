@@ -219,6 +219,32 @@ it('sorts named parameters within each group by name or numeric value in either 
   expect(labels()).toEqual(['z', 'm', 'a']);
 });
 
+it('only shows the featured section while at least one parameter is featured', () => {
+  const host = document.createElement('div');
+  const update = (favorite: boolean | undefined) =>
+    act(() =>
+      render(
+        <ParameterList
+          parameters={[{ name: 'width', expression: '10', value: '10', unit: '', favorite }]}
+          onEdit={() => {}}
+          onDelete={() => {}}
+        />,
+        host,
+      ),
+    );
+  update(undefined);
+  expect(host.querySelector('.featured-parameters')).toBeNull();
+  update(false);
+  expect(host.textContent).not.toContain('Featured parameters');
+  update(true);
+  expect(host.querySelector('.featured-parameters')?.textContent).toContain(
+    'Featured parameters (1)',
+  );
+  update(false);
+  expect(host.querySelector('.featured-parameters')).toBeNull();
+  expect(host.querySelector('[aria-label="Edit value width"]')).not.toBeNull();
+});
+
 it('shows and toggles native favorites and collapses all groups', () => {
   const host = document.createElement('div');
   const selected: string[] = [];

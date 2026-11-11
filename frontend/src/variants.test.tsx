@@ -13,6 +13,8 @@ afterEach(() => {
   if (host) act(() => render(null, host));
   document.body.innerHTML = '';
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  delete (HTMLElement.prototype as unknown as Record<string, unknown>).animate;
   delete window.adsk;
 });
 const parameter = {
@@ -128,6 +130,80 @@ async function save() {
 }
 
 describe('global variant table', () => {
+  it('opens a fresh table when reopened before the discarded draft finishes fading', () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: true }));
+    Object.defineProperty(HTMLElement.prototype, 'animate', {
+      configurable: true,
+      value: vi.fn(() => ({ onfinish: null, cancel: vi.fn() })),
+    });
+    mount();
+    open();
+    click('Duplicate Compact');
+    click('Cancel');
+    click('Discard changes');
+    expect(host.querySelector('.motion-presence[inert] [role="dialog"]')).toBeTruthy();
+    open();
+    expect(host.querySelectorAll('tr[data-variant-id]')).toHaveLength(1);
+    expect(host.textContent).not.toContain('Discard unsaved table');
+    expect(host.textContent).not.toContain('Unsaved changes');
+  });
+  it('does not let a delayed save completion close a newly opened table', async () => {
+    let finishSave!: (ok: boolean) => void;
+    const action = mount(
+      model,
+      vi.fn(
+        () =>
+          new Promise<boolean>((resolve) => {
+            finishSave = resolve;
+          }),
+      ),
+    );
+    open();
+    click('Duplicate Compact');
+    click('Save');
+    await act(async () => {});
+    expect(action).toHaveBeenCalledOnce();
+    click('Cancel');
+    click('Discard changes');
+    open();
+    await act(async () => finishSave(true));
+    expect(host.querySelector('[role="dialog"]')).toBeTruthy();
+  });
+  it('does not send a deferred cell Save after the table has been discarded', async () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: true, addListener() {}, removeListener() {} }));
+    Object.defineProperty(HTMLElement.prototype, 'animate', {
+      configurable: true,
+      value: vi.fn(() => ({ onfinish: null, cancel: vi.fn() })),
+    });
+    let respond!: () => void;
+    window.adsk = {
+      fusionSendData: (_action, raw) => {
+        const message = JSON.parse(raw);
+        respond = () =>
+          window.fusionJavaScriptHandler!.handle(
+            'response',
+            JSON.stringify({
+              requestId: message.requestId,
+              ok: true,
+              documentId: 'model',
+              data: { expression: '40 mm', newParameters: [] },
+            }),
+          );
+      },
+    };
+    const action = mount();
+    open();
+    input('Compact / width', '40 mm');
+    click('Save');
+    await act(async () => {});
+    expect(respond).toBeTypeOf('function');
+    click('Cancel');
+    click('Discard changes');
+    await act(async () => respond());
+    expect(action).not.toHaveBeenCalled();
+    open();
+    expect(cellValue('Compact / width')).toBe('10 mm');
+  });
   it('shows shared counts and one table editor entry in the switcher header', () => {
     mount();
     click('Variants: Free');
@@ -439,9 +515,17 @@ describe('global variant table', () => {
       act(() => {
         window.dispatchEvent(pointer('pointermove', 60, 60));
       });
+      if (source === 'width') {
+        const highlighted = host.querySelectorAll('.table-column-drop-target');
+        expect(highlighted).toHaveLength(3);
+        expect(highlighted[0].tagName).toBe('TH');
+        expect(highlighted[1].classList.contains('variant-feature-cell')).toBe(true);
+        expect(highlighted[2].classList.contains('variant-last-row-cell')).toBe(true);
+      }
       act(() => {
         window.dispatchEvent(pointer('pointerup', 60, 60));
       });
+      expect(host.querySelector('.table-column-drop-target')).toBeNull();
     }
     expect(host.querySelector('[data-reorder-rows="0"]')?.textContent).toContain('Garden');
     await save();

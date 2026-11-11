@@ -14,9 +14,13 @@
   --muted: #667580;
   --accent: #087bbd;
   --error: #a42f2f;
+  --change-highlight: #d9effb;
 }
 * {
   box-sizing: border-box;
+}
+.motion-presence {
+  display: contents;
 }
 html,
 body,
@@ -347,6 +351,7 @@ kbd {
     --muted: #aebbc3;
     --accent: #42a9df;
     --error: #ff9b91;
+    --change-highlight: #285369;
   }
   .alert {
     background: #542c2b;
@@ -530,6 +535,29 @@ kbd {
   color: inherit;
   padding: 0;
   text-align: left;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.tree-name-button:active {
+  cursor: grabbing;
+}
+.parameter-drop-target {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: var(--subtle);
+}
+.parameter-move-status {
+  position: fixed;
+  z-index: 110;
+  bottom: 8px;
+  inset-inline: 8px;
+  padding: 6px 8px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  pointer-events: none;
 }
 .tree-value {
   margin-left: auto;
@@ -637,6 +665,10 @@ kbd {
   padding: 3px;
 }
 
+.featured-reveal {
+  /* Keep the section's bottom spacing inside its animated height. */
+  display: flow-root;
+}
 .featured-parameters {
   border-bottom: 1px solid var(--border);
   margin-bottom: 8px;
@@ -938,6 +970,44 @@ kbd {
 .table-drop-target {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
+}
+.variant-config-table tr.table-drop-target {
+  outline: none;
+}
+.variant-config-table tr.table-drop-target > * {
+  box-shadow:
+    inset 0 2px var(--accent),
+    inset 0 -2px var(--accent);
+}
+.variant-config-table tr.table-drop-target > :first-child {
+  box-shadow:
+    inset 2px 0 var(--accent),
+    inset 0 2px var(--accent),
+    inset 0 -2px var(--accent);
+}
+.variant-config-table tr.table-drop-target > :last-child {
+  box-shadow:
+    inset -2px 0 var(--accent),
+    inset 0 2px var(--accent),
+    inset 0 -2px var(--accent);
+}
+.variant-config-table .table-column-drop-target {
+  outline: none;
+  box-shadow:
+    inset 2px 0 var(--accent),
+    inset -2px 0 var(--accent);
+}
+.variant-config-table thead .table-column-drop-target {
+  box-shadow:
+    inset 2px 0 var(--accent),
+    inset -2px 0 var(--accent),
+    inset 0 2px var(--accent);
+}
+.variant-config-table .table-column-drop-target.variant-last-row-cell {
+  box-shadow:
+    inset 2px 0 var(--accent),
+    inset -2px 0 var(--accent),
+    inset 0 -2px var(--accent);
 }
 .variant-table-name {
   border: 0;
@@ -1495,4 +1565,96 @@ main > .notice {
   border: 1px solid var(--border);
   border-radius: 4px;
   box-shadow: 0 3px 12px #0003;
+}
+
+.tree-toggle[aria-expanded='true'] > svg,
+.featured-heading[aria-expanded='true'] > svg {
+  transform: rotate(90deg);
+}
+
+/* Opt in to motion so reduced-motion preferences also cover embedded Fusion views. */
+@media (prefers-reduced-motion: no-preference) {
+  :root {
+    --motion-fast: 120ms;
+    --motion-enter: 180ms;
+    --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  button,
+  .expression-editor,
+  .variant-config-table input:not([type='checkbox']),
+  .variant-parameter,
+  .dot {
+    transition:
+      background-color var(--motion-fast) ease-out,
+      border-color var(--motion-fast) ease-out,
+      color var(--motion-fast) ease-out,
+      opacity var(--motion-fast) ease-out;
+  }
+
+  .variant-trigger > svg,
+  .tree-toggle > svg,
+  .featured-heading > svg {
+    transition: transform var(--motion-fast) var(--motion-ease);
+  }
+
+  .variant-trigger[aria-expanded='true'] > svg {
+    transform: rotate(180deg);
+  }
+
+  /* Opacity keeps fixed menus and editor tooltips in their original coordinate space. */
+  .overlay,
+  .variant-backdrop,
+  .variants-menu,
+  .parameter-context-menu,
+  .variant-table-picker,
+  .variant-inline-confirm,
+  .variant-delete-confirm,
+  main > .alert {
+    animation: paramood-fade-in var(--motion-fast) ease-out;
+  }
+
+  .dialog,
+  .variant-dialog {
+    animation: paramood-fade-in var(--motion-enter) ease-out;
+  }
+
+  .view-hybrid .feedback-sheet {
+    animation: paramood-sheet-in var(--motion-enter) var(--motion-ease);
+  }
+
+  main > .notice {
+    animation: paramood-notice-in var(--motion-enter) var(--motion-ease);
+  }
+
+  @keyframes paramood-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes paramood-sheet-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes paramood-notice-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 }

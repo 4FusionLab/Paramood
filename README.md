@@ -64,7 +64,7 @@ Screenshots show Paramood 2.0 running in Fusion on macOS.
 
 ## Paramood 2.0 capabilities
 
-Download [Paramood 2.0.0](https://github.com/4FusionLab/Paramood/releases/tag/v2.0.0) from GitHub Releases.
+Download the latest [Paramood release](https://github.com/4FusionLab/Paramood/releases/latest) from GitHub Releases.
 
 | Area | Capability |
 | --- | --- |
@@ -73,7 +73,7 @@ Download [Paramood 2.0.0](https://github.com/4FusionLab/Paramood/releases/tag/v2
 | **IntelliSense** | CodeMirror completion for parameters, virtual paths, all 26 Fusion functions and four constants; nested Signature Help, active arguments, and conservative diagnostics. [Expression reference](docs/EXPRESSION_REFERENCE.md). |
 | **Parameter browser** | A collapsible, hierarchical list of named parameters and Fusion-generated model parameters, with displayed values and units. |
 | **Inline editing** | Click a value to edit with IntelliSense. Press **Enter** to validate and apply or **Escape** to cancel. |
-| **Naming and dependencies** | Click an editable parameter name to rename it. A model value such as `20 (d_min)` shows its expression; driven sketch dimensions are displayed in parentheses and are read-only. |
+| **Naming and dependencies** | Click an editable parameter name to rename it, or drag the name into an existing virtual group. A model value such as `20 (d_min)` shows its expression; driven sketch dimensions are displayed in parentheses and are read-only. |
 | **Create while editing** | Enter a new name, `name=25`, or a supported equation such as `-name/5=50` in an editable value to create and link a new parameter. |
 | **Parameter removal** | Delete individual parameters from the list when Fusion permits it; failed or unsupported deletions return an error. |
 | **Model awareness** | Refresh on document changes; show indicators for known sketch, feature, or other parameter links. |

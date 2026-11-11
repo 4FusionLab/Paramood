@@ -1,6 +1,7 @@
 import { useState } from 'preact/hooks';
-import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from 'lucide-preact';
+import { ChevronRight, ChevronsDownUp, ChevronsUpDown } from 'lucide-preact';
 import type { VariantParameter } from './bridge';
+import { Collapsible } from './collapsible';
 import { parameterTree, sortedParameterChildren, type ParameterNode } from './parameter-tree';
 
 type Row = VariantParameter & { kind?: 'user' | 'model' };
@@ -54,7 +55,7 @@ export function VariantParameterTree({
                 aria-expanded={open}
                 onClick={() => toggle(path, open)}
               >
-                {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                <ChevronRight size={14} />
               </button>
             ) : (
               <span class="tree-spacer" />
@@ -108,12 +109,12 @@ export function VariantParameterTree({
               </span>
             ))}
         </div>
-        {open && node.children.size > 0 && (
-          <div class="variant-tree-children">
+        {node.children.size > 0 && (
+          <Collapsible open={open} class="variant-tree-children">
             {sortedParameterChildren(node, { by: 'name', descending: false }).map(
               ([child, value]) => branch(child, value, `${path}.${child}`),
             )}
-          </div>
+          </Collapsible>
         )}
       </div>
     );
@@ -156,10 +157,11 @@ export function VariantParameterTree({
             aria-expanded={modelsOpen}
             onClick={() => toggle('$models', modelsOpen)}
           >
-            {modelsOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />} Model parameters
+            <ChevronRight size={14} /> Model parameters
           </button>
-          {modelsOpen &&
-            sortedParameterChildren(models).map(([name, node]) => branch(name, node, name))}
+          <Collapsible open={modelsOpen}>
+            {sortedParameterChildren(models).map(([name, node]) => branch(name, node, name))}
+          </Collapsible>
         </div>
       )}
     </>

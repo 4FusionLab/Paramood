@@ -2,14 +2,22 @@ export type ParameterNode<T extends { name: string }> = {
   children: Map<string, ParameterNode<T>>;
   parameter?: T;
 };
+const virtualName = /^[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9]*(?:_[A-Za-zА-Яа-яЁё0-9]+)+$/;
+
+export function nameInParameterGroup(name: string, group: string): string {
+  const leaf = virtualName.test(name) ? name.slice(name.lastIndexOf('_') + 1) : name;
+  const result = group ? `${group.replaceAll('.', '_')}_${leaf}` : leaf;
+  if (
+    !/^[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё_0-9]*$/.test(result) ||
+    (group && !virtualName.test(result))
+  )
+    throw new Error('This parameter name cannot be placed in that group.');
+  return result;
+}
 export function parameterTree<T extends { name: string }>(parameters: T[]): ParameterNode<T> {
   const root: ParameterNode<T> = { children: new Map() };
   for (const parameter of parameters) {
-    const parts = /^[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9]*(?:_[A-Za-zА-Яа-яЁё0-9]+)+$/.test(
-      parameter.name,
-    )
-      ? parameter.name.split('_')
-      : [parameter.name];
+    const parts = virtualName.test(parameter.name) ? parameter.name.split('_') : [parameter.name];
     let node = root;
     for (const part of parts) {
       if (!node.children.has(part)) node.children.set(part, { children: new Map() });

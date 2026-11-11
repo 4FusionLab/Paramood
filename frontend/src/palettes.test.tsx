@@ -64,6 +64,48 @@ function mount(
   return calls;
 }
 describe('separate palette views', () => {
+  it.each(['doc', 'other'])(
+    'keeps name editing only in the same document during animated refresh: %s',
+    async (documentId) => {
+      vi.stubGlobal('matchMedia', () => ({ matches: true, addListener() {}, removeListener() {} }));
+      Object.defineProperty(HTMLElement.prototype, 'animate', {
+        configurable: true,
+        value: vi.fn(() => ({ onfinish: null, cancel: vi.fn() })),
+      });
+      try {
+        const parameters = [
+          { name: 'width', expression: '10 mm', value: 10, unit: 'mm', entityToken: 'width' },
+        ];
+        mount('#parameters', false, undefined, parameters);
+        await vi.waitFor(() => expect(host.textContent).toContain('Design'));
+        act(() => host.querySelector<HTMLButtonElement>('[aria-label="Rename width"]')!.click());
+        expect(host.querySelector('input.tree-name')).toBeTruthy();
+        window.adsk = {
+          fusionSendData: (_action, raw) => {
+            const data = JSON.parse(raw);
+            window.fusionJavaScriptHandler!.handle(
+              'response',
+              JSON.stringify({
+                requestId: data.requestId,
+                ok: true,
+                documentId,
+                data: { documentId, documentName: 'Other design', parameters },
+              }),
+            );
+          },
+        };
+        await act(async () => {
+          window.fusionJavaScriptHandler!.handle('state.changed', '{}');
+        });
+        await vi.waitFor(() => expect(host.textContent).toContain('Other design'));
+        expect(!!host.querySelector('input.tree-name')).toBe(documentId === 'doc');
+      } finally {
+        act(() => render(null, host));
+        vi.unstubAllGlobals();
+        delete (HTMLElement.prototype as unknown as Record<string, unknown>).animate;
+      }
+    },
+  );
   it('formats preview numbers without floating-point noise and preserves text values', async () => {
     const values = [3.0000000000000004, 1e-18, 1.23456789012345, '3.0000000000000004'];
     mount(

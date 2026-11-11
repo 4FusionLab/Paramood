@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 import {
-  ChevronDown,
   ChevronRight,
   Link2,
   X,
@@ -15,6 +14,10 @@ import {
   Table2,
 } from 'lucide-preact';
 import type { Parameter } from './bridge';
+import { Collapsible } from './collapsible';
+import { AnimatedList, Presence } from './presence';
+import { favoriteFeedback, useChangeMotion, valueHighlight } from './motion';
+import { useParameterDrag } from './parameter-drag';
 
 export function expressionWithoutUnit(parameter: Parameter): string {
   if (parameter.valueType === 'text' || parameter.unit === 'Text') return parameter.expression;
@@ -54,12 +57,16 @@ function Branch({
   onFavorite,
   busy,
   expansion,
+  dropGroup,
+  revealGroup,
 }: {
   name: string;
   sort?: Sort;
   onFavorite?: (parameter: Parameter) => void;
   busy?: boolean;
   expansion: { open: boolean; version: number };
+  dropGroup?: string | null;
+  revealGroup?: { path: string } | null;
   node: Node;
   path: string;
   onEdit: (parameter: Parameter) => void;
@@ -70,25 +77,42 @@ function Branch({
 }) {
   const [open, setOpen] = useState(expansion.open);
   useEffect(() => setOpen(expansion.open), [expansion.version]);
+  useEffect(() => {
+    if (revealGroup && (revealGroup.path === path || revealGroup.path.startsWith(`${path}.`)))
+      setOpen(true);
+  }, [revealGroup]);
   const [renaming, setRenaming] = useState(false);
   const [newName, setNewName] = useState('');
   const parameter = node.parameter;
+  const changed = useChangeMotion(
+    JSON.stringify([parameter?.value, parameter?.expression, parameter?.unit]),
+    valueHighlight,
+    650,
+  );
+  const favorite = useChangeMotion<HTMLButtonElement>(!!parameter?.favorite, favoriteFeedback, 220);
   return (
     <div class="tree-node">
-      <div class="tree-row" data-parameter-name={parameter?.name}>
+      <div
+        ref={changed}
+        class={`tree-row ${node.children.size > 0 && dropGroup === path ? 'parameter-drop-target' : ''}`}
+        data-parameter-name={parameter?.name}
+        data-parameter-group={node.children.size > 0 ? path : undefined}
+      >
         {node.children.size > 0 ? (
           <button
             class="icon tree-toggle"
             aria-label={`${open ? 'Collapse' : 'Expand'} ${path}`}
+            aria-expanded={open}
             onClick={() => setOpen(!open)}
           >
-            {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            <ChevronRight size={14} />
           </button>
         ) : (
           <span class="tree-spacer" />
         )}
         {parameter && onFavorite && (
           <button
+            ref={favorite}
             class={`icon favorite ${parameter.favorite ? 'is-favorite' : ''}`}
             disabled={busy || typeof parameter.favorite !== 'boolean'}
             aria-label={`${parameter.favorite ? 'Remove from' : 'Add to'} featured ${parameter.name}`}
@@ -119,7 +143,9 @@ function Branch({
         ) : parameter && !parameter.driven && onRename ? (
           <button
             class="tree-name tree-name-button"
-            title={parameter.name}
+            title={`${parameter.name} — Click to rename; drag into a group`}
+            draggable={false}
+            onDragStart={(event) => event.preventDefault()}
             aria-label={`Rename ${parameter.name}`}
             onClick={() => {
               setNewName(parameter.name);
@@ -198,12 +224,14 @@ function Branch({
           </>
         )}
       </div>
-      {open && node.children.size > 0 && (
-        <div class="tree-children">
-          {sortedChildren(node, sort).map(([child, value]) => (
+      <Collapsible open={open && node.children.size > 0} class="tree-children">
+        <AnimatedList items={sortedChildren(node, sort)} itemKey={([child]) => child}>
+          {([child, value]) => (
             <Branch
               key={child}
               sort={sort}
+              dropGroup={dropGroup}
+              revealGroup={revealGroup}
               expansion={expansion}
               onFavorite={onFavorite}
               busy={busy}
@@ -216,9 +244,9 @@ function Branch({
               editingName={editingName}
               editor={editor}
             />
-          ))}
-        </div>
-      )}
+          )}
+        </AnimatedList>
+      </Collapsible>
     </div>
   );
 }
@@ -244,6 +272,7 @@ export function ParameterList({
   editor?: ComponentChildren;
 }) {
   const [context, setContext] = useState<{ name: string; x: number; y: number } | null>(null);
+  const moving = useParameterDrag(parameters, onRename, busy, editor);
   const menu = useRef<HTMLDivElement>(null);
   const origin = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
@@ -289,31 +318,39 @@ export function ParameterList({
   const featured = parameters.filter((p) => p.favorite);
   const users = tree(parameters.filter((p) => p.kind !== 'model' || !/^d\d+$/i.test(p.name)));
   const models = tree(parameters.filter((p) => p.kind === 'model' && /^d\d+$/i.test(p.name)));
-  const renderNodes = (root: Node, order?: Sort) =>
-    sortedChildren(root, order).map(([name, node]) => (
-      <Branch
-        key={name}
-        sort={order}
-        expansion={expansion}
-        onFavorite={onFavorite}
-        busy={busy}
-        name={name}
-        path={name}
-        node={node}
-        onEdit={(parameter) => {
-          setEditInFeatured(false);
-          onEdit(parameter);
-        }}
-        onDelete={onDelete}
-        onRename={onRename}
-        editingName={editInFeatured ? undefined : editingName}
-        editor={editor}
-      />
-    ));
+  const renderNodes = (root: Node, order?: Sort) => (
+    <AnimatedList items={sortedChildren(root, order)} itemKey={([name]) => name}>
+      {([name, node]) => (
+        <Branch
+          key={name}
+          sort={order}
+          dropGroup={moving.preview?.error ? null : moving.preview?.group}
+          revealGroup={moving.revealGroup}
+          expansion={expansion}
+          onFavorite={onFavorite}
+          busy={busy}
+          name={name}
+          path={name}
+          node={node}
+          onEdit={(parameter) => {
+            setEditInFeatured(false);
+            onEdit(parameter);
+          }}
+          onDelete={onDelete}
+          onRename={onRename}
+          editingName={editInFeatured ? undefined : editingName}
+          editor={editor}
+        />
+      )}
+    </AnimatedList>
+  );
   return (
     <section
+      ref={moving.root}
       class="parameter-list"
       aria-label="Parameters list"
+      onPointerDown={moving.pointerDown}
+      onClickCapture={moving.click}
       onContextMenu={(event) => {
         if (!(event.target instanceof Element)) return;
         if (event.target.closest('input, textarea, [contenteditable="true"]')) return;
@@ -325,58 +362,81 @@ export function ParameterList({
         setContext({ name, x: event.clientX, y: event.clientY });
       }}
     >
-      {context && (
-        <div ref={menu} class="parameter-context-menu" role="menu" aria-label="Parameter actions">
-          <button
-            role="menuitem"
-            onClick={() => {
-              // Use the native name rather than the shortened label or dotted display path.
-              onCopyReference?.(context.name);
-              setContext(null);
-              origin.current?.focus({ preventScroll: true });
-            }}
-          >
-            Copy parameter reference
-            <small>{context.name}</small>
-          </button>
-        </div>
-      )}
+      <Presence show={!!context}>
+        {context && (
+          <div ref={menu} class="parameter-context-menu" role="menu" aria-label="Parameter actions">
+            <button
+              role="menuitem"
+              onClick={() => {
+                // Use the native name rather than the shortened label or dotted display path.
+                onCopyReference?.(context.name);
+                setContext(null);
+                origin.current?.focus({ preventScroll: true });
+              }}
+            >
+              Copy parameter reference
+              <small>{context.name}</small>
+            </button>
+          </div>
+        )}
+      </Presence>
       <div class="section-body">
-        <div class="featured-parameters">
-          <button
-            class="featured-heading"
-            aria-expanded={featuredOpen}
-            onClick={() => setFeaturedOpen(!featuredOpen)}
-          >
-            {featuredOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />} Featured
-            parameters ({featured.length})
-          </button>
-          {featuredOpen &&
-            (featured.length ? (
-              featured.map((parameter) => (
-                <Branch
-                  key={parameter.name}
-                  name={parameter.name}
-                  path={parameter.name}
-                  node={{ children: new Map(), parameter }}
-                  expansion={expansion}
-                  onFavorite={onFavorite}
-                  busy={busy}
-                  onEdit={(item) => {
-                    setEditInFeatured(true);
-                    onEdit(item);
-                  }}
-                  onDelete={onDelete}
-                  onRename={onRename}
-                  editingName={editInFeatured ? editingName : undefined}
-                  editor={editor}
-                />
-              ))
-            ) : (
-              <p class="helper">No featured parameters</p>
-            ))}
-        </div>
-        <div class="parameter-list-header">
+        {moving.error && (
+          <p class="error" role="alert">
+            {moving.error}
+          </p>
+        )}
+        {moving.preview && (
+          <div class="parameter-move-status" role="status">
+            {moving.preview.error ||
+              (moving.preview.name
+                ? moving.preview.name === moving.preview.source
+                  ? 'Already in this group'
+                  : `${moving.preview.source} → ${moving.preview.name}`
+                : 'Drop on a group or Named parameters')}
+          </div>
+        )}
+        <Collapsible open={featured.length > 0} class="featured-reveal">
+          <div class="featured-parameters">
+            <button
+              class="featured-heading"
+              aria-expanded={featuredOpen}
+              onClick={() => setFeaturedOpen(!featuredOpen)}
+            >
+              <ChevronRight size={14} /> Featured parameters ({featured.length})
+            </button>
+            <Collapsible open={featuredOpen}>
+              <AnimatedList
+                items={featured}
+                itemKey={(parameter) => parameter.name}
+                class="featured-entry"
+              >
+                {(parameter) => (
+                  <Branch
+                    name={parameter.name}
+                    path={parameter.name}
+                    node={{ children: new Map(), parameter }}
+                    expansion={expansion}
+                    onFavorite={onFavorite}
+                    busy={busy}
+                    onEdit={(item) => {
+                      setEditInFeatured(true);
+                      onEdit(item);
+                    }}
+                    onDelete={onDelete}
+                    onRename={onRename}
+                    editingName={editInFeatured ? editingName : undefined}
+                    editor={editor}
+                  />
+                )}
+              </AnimatedList>
+            </Collapsible>
+          </div>
+        </Collapsible>
+        <div
+          class={`parameter-list-header ${moving.preview?.group === '' && !moving.preview.error ? 'parameter-drop-target' : ''}`}
+          data-parameter-group=""
+        >
           <div class="minor-label">Named parameters</div>
           <button
             class="icon"
@@ -419,10 +479,12 @@ export function ParameterList({
             aria-expanded={modelsOpen}
             onClick={() => setModelsOpen(!modelsOpen)}
           >
-            {modelsOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />} Model parameters
+            <ChevronRight size={14} /> Model parameters
           </button>
-          {modelsOpen && renderNodes(models)}
-          {modelsOpen && !models.children.size && <p class="helper">No model parameters</p>}
+          <Collapsible open={modelsOpen}>
+            {renderNodes(models)}
+            {!models.children.size && <p class="helper">No model parameters</p>}
+          </Collapsible>
         </div>
       </div>
     </section>

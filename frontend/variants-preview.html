@@ -142,6 +142,26 @@
             };
           }
           if (r.action === 'document.units') model.defaultLengthUnit = p.unit;
+          if (r.action === 'parameters.favorite') {
+            const parameter = parameters.find((item) => item.entityToken === p.entityToken);
+            if (parameter) parameter.favorite = p.favorite;
+          }
+          if (r.action === 'parameters.delete') {
+            const index = parameters.findIndex((item) => item.entityToken === p.entityToken);
+            if (index >= 0) parameters.splice(index, 1);
+          }
+          if (r.action === 'parameters.rename') {
+            const parameter = parameters.find((item) => item.entityToken === p.entityToken);
+            if (parameter) {
+              parameter.name = p.newName;
+              for (const column of model.variantColumns)
+                if (column.entityToken === p.entityToken) column.name = p.newName;
+              for (const variant of model.variants)
+                for (const entry of variant.parameters)
+                  if (entry.entityToken === p.entityToken) entry.name = p.newName;
+              data = { renamed: p.newName };
+            }
+          }
           if (r.action === 'calculator.evaluate') {
             const arithmetic = p.expression
               .trim()

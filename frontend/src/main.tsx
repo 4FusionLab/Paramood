@@ -21,6 +21,9 @@ import { canApplyPreview } from './guards';
 import { VariantsControl } from './variants';
 import { copyText } from './clipboard';
 import { hasAssignment } from './expression-syntax';
+import { Notice } from './notice';
+import { Presence } from './presence';
+import { useChangeMotion, valueHighlight } from './motion';
 const CLEANUP_ENABLED: boolean = false;
 function Section({ title, children }: { title: string; children: ComponentChildren }) {
   return (
@@ -55,11 +58,6 @@ export function App() {
     setNotice(value);
     setNoticeVersion((version) => version + 1);
   }
-  useEffect(() => {
-    if (!notice) return;
-    const timer = window.setTimeout(() => setNotice(''), 3500);
-    return () => window.clearTimeout(timer);
-  }, [notice, noticeVersion]);
   useEffect(() => setFeedbackDismissed(false), [text]);
   const [editing, setEditing] = useState<Parameter | null>(null);
   const [editText, setEditText] = useState('');
@@ -69,6 +67,7 @@ export function App() {
   const assignment = hasAssignment(text);
   const [result, setResult] = useState<Calculation | null>(null),
     [calcError, setCalcError] = useState('');
+  const resultFeedback = useChangeMotion(result?.formatted ?? '', valueHighlight, 500);
   const [history, setHistory] = useState<string[]>([]),
     [showHistory, setShowHistory] = useState(false);
   const mode = CLEANUP_ENABLED && window.location.hash === '#cleanup' ? 'cleanup' : 'parameters';
@@ -642,14 +641,7 @@ export function App() {
           </button>
         </div>
       )}
-      {notice && (
-        <div class="notice" role="status">
-          {notice}
-          <button class="icon" aria-label="Dismiss" onClick={() => setNotice('')}>
-            <X size={13} />
-          </button>
-        </div>
-      )}
+      {notice && <Notice key={noticeVersion} text={notice} onDismiss={() => setNotice('')} />}
       {mode === 'parameters' && (
         <div key="parameters-layout" class={`palette-layout view-${view}`}>
           <div class="editor-pane">
@@ -733,7 +725,9 @@ export function App() {
                       <div class="result">
                         <div>
                           <span class="minor-label">Result</span>
-                          <div class="result-value">{result?.formatted ?? '—'}</div>
+                          <div ref={resultFeedback} class="result-value">
+                            {result?.formatted ?? '—'}
+                          </div>
                         </div>
                         <button
                           class="icon"
@@ -835,6 +829,7 @@ export function App() {
           </div>
           <div class="list-pane">
             <ParameterList
+              key={lastDocument.current}
               parameters={model?.parameters || []}
               onDelete={(parameter) => void deleteParameter(parameter)}
               onCopyReference={(name) => void copy(name, false)}
@@ -962,42 +957,46 @@ export function App() {
           </Section>
         </div>
       )}
-      {confirmPrefill && (
-        <div class="overlay">
-          <div role="dialog" aria-modal="true" aria-labelledby="replace-title" class="dialog">
-            <h2 id="replace-title">Replace your current input?</h2>
-            <p>
-              Paramood already contains text. Replace it with the expression from Paramood-Calc?
-            </p>
-            <div class="actions">
-              <button onClick={() => setConfirmPrefill(null)}>Keep current input</button>
-              <button
-                class="primary"
-                onClick={() => {
-                  if (doc.current === confirmPrefill.documentId) setText(confirmPrefill.text);
-                  setConfirmPrefill(null);
-                }}
-              >
-                Replace input
-              </button>
+      <Presence show={!!confirmPrefill}>
+        {confirmPrefill && (
+          <div class="overlay">
+            <div role="dialog" aria-modal="true" aria-labelledby="replace-title" class="dialog">
+              <h2 id="replace-title">Replace your current input?</h2>
+              <p>
+                Paramood already contains text. Replace it with the expression from Paramood-Calc?
+              </p>
+              <div class="actions">
+                <button onClick={() => setConfirmPrefill(null)}>Keep current input</button>
+                <button
+                  class="primary"
+                  onClick={() => {
+                    if (doc.current === confirmPrefill.documentId) setText(confirmPrefill.text);
+                    setConfirmPrefill(null);
+                  }}
+                >
+                  Replace input
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-      {confirm && (
-        <div class="overlay">
-          <div role="dialog" aria-modal="true" aria-labelledby="confirm-title" class="dialog">
-            <h2 id="confirm-title">Delete {selected} parameters?</h2>
-            <p>Dependencies will be checked again before deletion.</p>
-            <div class="actions">
-              <button onClick={() => setConfirm(false)}>Cancel</button>
-              <button class="danger" disabled={busy} onClick={() => void removeSelected()}>
-                Delete parameters
-              </button>
+        )}
+      </Presence>
+      <Presence show={confirm}>
+        {confirm && (
+          <div class="overlay">
+            <div role="dialog" aria-modal="true" aria-labelledby="confirm-title" class="dialog">
+              <h2 id="confirm-title">Delete {selected} parameters?</h2>
+              <p>Dependencies will be checked again before deletion.</p>
+              <div class="actions">
+                <button onClick={() => setConfirm(false)}>Cancel</button>
+                <button class="danger" disabled={busy} onClick={() => void removeSelected()}>
+                  Delete parameters
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Presence>
     </main>
   );
 }
