@@ -226,7 +226,7 @@ class VariantTableMixin:
             raise BridgeError('BAD_REQUEST', 'A table needs columns and variants.')
         old, _ = self._read_variant_table(design)
         pending, new_operations = self._new_variant_parameters(design, payload)
-        if new_operations and not self.in_command:
+        if new_operations and not self.in_command and not self._validating_mutation:
             raise BridgeError(
                 'TRANSACTION_REQUIRED',
                 'Finish the active Fusion command or sketch before creating and linking parameters.',
@@ -340,6 +340,7 @@ class VariantTableMixin:
             raise BridgeError(
                 'STALE_DOCUMENT', 'The active document changed. Refresh and try again.'
             )
+        self._before_mutation()
         # The Fusion command transaction owns creation rollback if applying/storing later fails.
         # No global parameter is created during cell preview or before the complete table validates.
         if new_operations:

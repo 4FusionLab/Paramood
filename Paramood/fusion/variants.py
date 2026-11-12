@@ -217,8 +217,7 @@ class VariantsMixin(VariantTableMixin):
         }
 
     def _request_variant(self, action, payload):
-        if not self.in_command and not self.in_direct_apply:
-            raise BridgeError('BAD_CONTEXT', 'Changes require a Fusion command.')
+        self._require_mutation_context()
         design = self._design()
         variants, token = self._read_variants(design)
         if payload.get('variantsToken') != token or payload.get(
@@ -228,6 +227,7 @@ class VariantsMixin(VariantTableMixin):
         identity = payload.get('id')
         variant = next((v for v in variants if v['id'] == identity), None)
         if action == 'variants.free':
+            self._before_mutation()
             self._variant_sessions[self._draft_id] = None
             return {'activeVariantId': None}
         if action == 'variants.table.save':
@@ -235,6 +235,7 @@ class VariantsMixin(VariantTableMixin):
         if not variant:
             raise BridgeError('CONFLICT', 'This variant no longer exists.')
         if action == 'variants.delete':
+            self._before_mutation()
             self._write_variants(design, [v for v in variants if v['id'] != identity])
             if self._variant_sessions.get(self._draft_id) == identity:
                 self._variant_sessions[self._draft_id] = None
@@ -278,6 +279,7 @@ class VariantsMixin(VariantTableMixin):
             if not feature:
                 raise BridgeError('MISSING_FEATURE', 'Feature unavailable: ' + entry['name'])
             feature_states.append((feature, entry['enabled']))
+        self._before_mutation()
         old_states = [(feature, not feature.isSuppressed) for feature, _ in feature_states]
         old_expressions = [p.expression for p in parameters]
         values = [adsk.core.ValueInput.createByString(e) for e in expressions]

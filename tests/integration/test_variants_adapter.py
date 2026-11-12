@@ -94,7 +94,11 @@ def model(monkeypatch):
         findEntityByToken=lambda token: [p for p in params if p.entityToken == token],
         modifyParameters=modify,
     )
-    app = SimpleNamespace(activeDocument=SimpleNamespace(name='Temporary'), activeProduct=design)
+    app = SimpleNamespace(
+        activeDocument=SimpleNamespace(name='Temporary'),
+        activeProduct=design,
+        userInterface=SimpleNamespace(activeCommand='SelectCommand'),
+    )
     adapter = module.FusionAdapter(app)
     adapter.in_command = True
     adapter._design()

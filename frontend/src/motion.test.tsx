@@ -226,3 +226,51 @@ it.each([true, false])('keeps rapid add/remove/re-add consistent with motion=%s'
   expect(host.querySelectorAll('button')).toHaveLength(1);
   expect(host.querySelector('[inert]')).toBeNull();
 });
+
+it('settles filtered rows immediately without remounting matches, then resumes ordinary motion', () => {
+  const { animate, animations } = setup();
+  const update = (items: string[], motion = true) =>
+    act(() =>
+      render(
+        <AnimatedList items={items} itemKey={(item) => item} animate={motion}>
+          {(item) => <button>{item}</button>}
+        </AnimatedList>,
+        host,
+      ),
+    );
+  update(['width', 'height']);
+  const width = host.querySelector('button');
+  update(['width'], false);
+  expect(host.textContent).toBe('width');
+  expect(animate).not.toHaveBeenCalled();
+  update(['width', 'height'], false);
+  expect(host.querySelector('button')).toBe(width);
+  expect(host.textContent).toBe('widthheight');
+  expect(animate).not.toHaveBeenCalled();
+  update(['width', 'height']);
+  update(['width']);
+  expect(animate).toHaveBeenCalledOnce();
+  // Switching to a filter during an ordinary exit must cancel and settle it as well.
+  update(['width'], false);
+  expect(animations[0].cancel).toHaveBeenCalledOnce();
+  expect(host.textContent).toBe('width');
+});
+
+it('animates parameter search in and out while keeping closing input inert', () => {
+  const { animate, animations } = setup();
+  act(() => render(<ParameterList parameters={[]} onEdit={() => {}} onDelete={() => {}} />, host));
+  act(() => host.querySelector<HTMLButtonElement>('[aria-label="Show parameter search"]')!.click());
+  const reveal = animate.mock.contexts.findIndex(
+    (element) => (element as HTMLElement).className === 'parameter-search-reveal',
+  );
+  expect(reveal).toBeGreaterThanOrEqual(0);
+  expect(document.activeElement).toBe(host.querySelector('[aria-label="Search parameters"]'));
+  act(() => animations[reveal].onfinish?.());
+  act(() =>
+    host.querySelector<HTMLButtonElement>('[aria-label="Close parameter search"]')!.click(),
+  );
+  expect(host.querySelector('.parameter-search-reveal')?.hasAttribute('inert')).toBe(true);
+  expect(document.activeElement).toBe(host.querySelector('[aria-label="Show parameter search"]'));
+  act(() => animations[animations.length - 1].onfinish?.());
+  expect(host.querySelector('[role="search"]')).toBeNull();
+});

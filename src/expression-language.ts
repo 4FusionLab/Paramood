@@ -291,6 +291,15 @@ function unitDimension(unit?: string): string | undefined {
 /** Avoid native validation while a user is still assembling a call or token. */
 export function incompleteExpression(text: string, knownNames: readonly string[] = []): boolean {
   const tokens = expressionTokens(text);
+  let nesting = 0;
+  let assignment = false;
+  for (const token of tokens) {
+    if (token.value === '(') nesting++;
+    if (token.value === ')') nesting--;
+    if (token.value === '=' && nesting === 0) assignment = true;
+  }
+  // A trailing batch delimiter adds no definition; call argument delimiters still wait.
+  if (assignment && nesting === 0) while (tokens.at(-1)?.value === ';') tokens.pop();
   const last = tokens.at(-1);
   if (!last) return true;
   if (

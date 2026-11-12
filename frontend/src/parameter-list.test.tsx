@@ -235,10 +235,10 @@ it('only shows the featured section while at least one parameter is featured', (
   update(undefined);
   expect(host.querySelector('.featured-parameters')).toBeNull();
   update(false);
-  expect(host.textContent).not.toContain('Featured parameters');
+  expect(host.textContent).not.toContain('Favorite parameters');
   update(true);
   expect(host.querySelector('.featured-parameters')?.textContent).toContain(
-    'Featured parameters (1)',
+    'Favorite parameters (1)',
   );
   update(false);
   expect(host.querySelector('.featured-parameters')).toBeNull();
@@ -264,16 +264,16 @@ it('shows and toggles native favorites and collapses all groups', () => {
     ),
   );
   expect(host.querySelector('[aria-expanded="false"]')?.textContent).toContain(
-    'Featured parameters (1)',
+    'Favorite parameters (1)',
   );
   act(() => (host.querySelector('[aria-label="Expand all groups"]') as HTMLButtonElement).click());
   expect(host.querySelector('[aria-expanded="false"]')?.textContent).toContain(
-    'Featured parameters (1)',
+    'Favorite parameters (1)',
   );
   act(() => (host.querySelector('.featured-heading') as HTMLButtonElement).click());
-  expect(host.querySelectorAll('[aria-label="Remove from featured box_width"]')).toHaveLength(2);
+  expect(host.querySelectorAll('[aria-label="Remove from favorites box_width"]')).toHaveLength(2);
   act(() =>
-    (host.querySelector('[aria-label="Add to featured height"]') as HTMLButtonElement).click(),
+    (host.querySelector('[aria-label="Add to favorites height"]') as HTMLButtonElement).click(),
   );
   expect(selected).toEqual(['height']);
   act(() =>
@@ -281,7 +281,7 @@ it('shows and toggles native favorites and collapses all groups', () => {
   );
   expect(host.querySelector('[aria-label="Expand box"]')).not.toBeNull();
   expect(host.querySelector('[aria-expanded="true"]')?.textContent).toContain(
-    'Featured parameters (1)',
+    'Favorite parameters (1)',
   );
 });
 
@@ -302,7 +302,7 @@ it('shows computed text while preserving its source expression for edits', () =>
   expect(host.querySelector('[aria-label="Edit value caption"]')?.textContent).toBe(
     'Computed body',
   );
-  expect(host.querySelector('.tree-unit')?.textContent).toBe('');
+  expect(host.querySelector('.tree-unit')?.textContent).toBe('Text');
 });
 
 it('copies the full native reference from a nested row without editing the parameter', () => {
@@ -400,5 +400,109 @@ it('dismisses the reference menu and preserves the text editor context menu', ()
   open();
   act(() => host.querySelector<HTMLButtonElement>('[role="menuitem"]')!.click());
   expect(copy).toHaveBeenCalledWith('d12');
+  act(() => render(null, host));
+});
+
+it('renames a virtual group without a value, including nested parameters', async () => {
+  const host = document.createElement('div');
+  const renameGroup = vi.fn().mockResolvedValue(true);
+  act(() =>
+    render(
+      <ParameterList
+        parameters={[
+          { name: 'box_width', expression: '10 mm', value: 10, unit: 'mm' },
+          { name: 'box_inner_depth', expression: 'box_width/2', value: 5, unit: 'mm' },
+        ]}
+        onEdit={() => {}}
+        onDelete={() => {}}
+        onRenameGroup={renameGroup}
+      />,
+      host,
+    ),
+  );
+  const button = host.querySelector<HTMLButtonElement>('button[aria-label="Rename group box"]');
+  expect(button).not.toBeNull();
+  act(() => button!.click());
+  const input = host.querySelector<HTMLInputElement>('input[aria-label="Rename group box"]')!;
+  expect(input.value).toBe('box');
+  act(() => {
+    input.value = 'case';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () => {
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  });
+  expect(renameGroup).toHaveBeenCalledWith('box', 'case');
+});
+
+it('closes the previous rename input when focus moves to another name, group or value', () => {
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const rename = vi.fn().mockResolvedValue(true);
+  act(() =>
+    render(
+      <ParameterList
+        parameters={[
+          { name: 'width', expression: '10 mm', value: 10, unit: 'mm' },
+          { name: 'height', expression: '20 mm', value: 20, unit: 'mm' },
+          { name: 'box_depth', expression: '5 mm', value: 5, unit: 'mm' },
+        ]}
+        onEdit={() => {}}
+        onDelete={() => {}}
+        onRename={rename}
+        onRenameGroup={rename}
+      />,
+      host,
+    ),
+  );
+  const open = (label: string) => {
+    act(() => {
+      const button = host.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
+      button.focus();
+      button.click();
+    });
+    const input = host.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
+    act(() => input.focus());
+    return input;
+  };
+  const first = open('Rename width');
+  act(() => {
+    first.value = 'unsaved';
+    first.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  open('Rename height');
+  expect(host.querySelector('input[aria-label="Rename width"]')).toBeNull();
+  expect(host.querySelectorAll('input.tree-name')).toHaveLength(1);
+  open('Rename group box');
+  expect(host.querySelector('input[aria-label="Rename height"]')).toBeNull();
+  expect(host.querySelectorAll('input.tree-name')).toHaveLength(1);
+  act(() => host.querySelector<HTMLButtonElement>('[aria-label="Edit value width"]')!.focus());
+  expect(host.querySelectorAll('input.tree-name')).toHaveLength(0);
+  expect(rename).not.toHaveBeenCalled();
+  act(() => render(null, host));
+});
+
+it('allows only one rename even when name buttons are clicked without moving focus first', () => {
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  act(() =>
+    render(
+      <ParameterList
+        parameters={[
+          { name: 'width', expression: '10 mm', value: 10, unit: 'mm' },
+          { name: 'height', expression: '20 mm', value: 20, unit: 'mm' },
+        ]}
+        onEdit={() => {}}
+        onDelete={() => {}}
+        onRename={async () => true}
+      />,
+      host,
+    ),
+  );
+  act(() => host.querySelector<HTMLButtonElement>('button[aria-label="Rename width"]')!.click());
+  expect(document.activeElement).toBe(host.querySelector('input[aria-label="Rename width"]'));
+  act(() => host.querySelector<HTMLButtonElement>('button[aria-label="Rename height"]')!.click());
+  expect(host.querySelectorAll('input.tree-name')).toHaveLength(1);
+  expect(document.activeElement).toBe(host.querySelector('input[aria-label="Rename height"]'));
   act(() => render(null, host));
 });

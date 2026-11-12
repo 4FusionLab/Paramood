@@ -1,0 +1,1903 @@
+{
+  "environment": {
+    "fusion": "2706.1.17",
+    "os": "macOS",
+    "nativeWindows": "NOT TESTED"
+  },
+  "snapshots": [
+    {
+      "label": "idle-after-command",
+      "command": "SelectCommand",
+      "editObjectType": "adsk::fusion::Component",
+      "parameters": [
+        [
+          "box",
+          "8 mm",
+          "needle корень",
+          false
+        ],
+        [
+          "box_width",
+          "box * 2",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_depth",
+          "4 mm",
+          "",
+          false
+        ],
+        [
+          "baseline",
+          "20 mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "",
+          false
+        ],
+        [
+          "idle_new",
+          "30 mm",
+          "",
+          false
+        ],
+        [
+          "idle_half",
+          "idle_new / 2",
+          "",
+          false
+        ]
+      ]
+    },
+    {
+      "label": "sketch-idle",
+      "command": "SelectCommand",
+      "editObjectType": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "box",
+          "8 mm",
+          "needle корень",
+          false
+        ],
+        [
+          "box_width",
+          "box * 2",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_depth",
+          "4 mm",
+          "",
+          false
+        ],
+        [
+          "baseline",
+          "20 mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "",
+          false
+        ],
+        [
+          "idle_new",
+          "30 mm",
+          "",
+          false
+        ],
+        [
+          "idle_half",
+          "idle_new / 2",
+          "",
+          false
+        ]
+      ]
+    },
+    {
+      "label": "mixed-after",
+      "command": "SelectCommand",
+      "editObjectType": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "box",
+          "8 mm",
+          "needle корень",
+          false
+        ],
+        [
+          "box_width",
+          "box * 2",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_depth",
+          "4 mm",
+          "",
+          false
+        ],
+        [
+          "baseline",
+          "40 mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "",
+          false
+        ],
+        [
+          "idle_new",
+          "30 mm",
+          "",
+          false
+        ],
+        [
+          "idle_half",
+          "idle_new / 2",
+          "",
+          false
+        ],
+        [
+          "circle_new",
+          "25 mm",
+          "",
+          false
+        ],
+        [
+          "circle_half",
+          "circle_new / 2",
+          "",
+          false
+        ]
+      ]
+    },
+    {
+      "label": "after-next-circle-escape",
+      "command": "CircleCenterRadius",
+      "editObjectType": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "box",
+          "8 mm",
+          "needle корень",
+          false
+        ],
+        [
+          "box_width",
+          "box * 2",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_depth",
+          "4 mm",
+          "",
+          false
+        ],
+        [
+          "baseline",
+          "40 mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "",
+          false
+        ],
+        [
+          "idle_new",
+          "30 mm",
+          "",
+          false
+        ],
+        [
+          "idle_half",
+          "idle_new / 2",
+          "",
+          false
+        ],
+        [
+          "circle_new",
+          "25 mm",
+          "",
+          false
+        ],
+        [
+          "circle_half",
+          "circle_new / 2",
+          "",
+          false
+        ]
+      ]
+    },
+    {
+      "label": "after-next-circle-terminate",
+      "command": "SelectCommand",
+      "editObjectType": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "box",
+          "8 mm",
+          "needle корень",
+          false
+        ],
+        [
+          "box_width",
+          "box * 2",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_depth",
+          "4 mm",
+          "",
+          false
+        ],
+        [
+          "baseline",
+          "40 mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "",
+          false
+        ],
+        [
+          "idle_new",
+          "30 mm",
+          "",
+          false
+        ],
+        [
+          "idle_half",
+          "idle_new / 2",
+          "",
+          false
+        ],
+        [
+          "circle_new",
+          "25 mm",
+          "",
+          false
+        ],
+        [
+          "circle_half",
+          "circle_new / 2",
+          "",
+          false
+        ]
+      ]
+    },
+    {
+      "label": "rename-during-circle",
+      "command": "CircleCenterRadius",
+      "editObjectType": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "box",
+          "8 mm",
+          "needle корень",
+          false
+        ],
+        [
+          "box_width",
+          "box * 2",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_height",
+          "4 mm",
+          "",
+          false
+        ],
+        [
+          "baseline",
+          "40 mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "",
+          false
+        ],
+        [
+          "idle_new",
+          "30 mm",
+          "",
+          false
+        ],
+        [
+          "idle_half",
+          "idle_new / 2",
+          "",
+          false
+        ],
+        [
+          "circle_new",
+          "25 mm",
+          "",
+          false
+        ],
+        [
+          "circle_half",
+          "circle_new / 2",
+          "",
+          false
+        ]
+      ]
+    },
+    {
+      "label": "rename-after-circle-termination",
+      "command": "SelectCommand",
+      "editObjectType": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "box",
+          "8 mm",
+          "needle корень",
+          false
+        ],
+        [
+          "box_width",
+          "box * 2",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_depth",
+          "4 mm",
+          "",
+          false
+        ],
+        [
+          "baseline",
+          "40 mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "",
+          false
+        ],
+        [
+          "idle_new",
+          "30 mm",
+          "",
+          false
+        ],
+        [
+          "idle_half",
+          "idle_new / 2",
+          "",
+          false
+        ],
+        [
+          "circle_new",
+          "25 mm",
+          "",
+          false
+        ],
+        [
+          "circle_half",
+          "circle_new / 2",
+          "",
+          false
+        ]
+      ]
+    },
+    {
+      "label": "favorite-during-circle",
+      "command": "CircleCenterRadius",
+      "editObjectType": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "box",
+          "8 mm",
+          "needle корень",
+          true
+        ],
+        [
+          "box_width",
+          "box * 2",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_depth",
+          "4 mm",
+          "",
+          false
+        ],
+        [
+          "baseline",
+          "40 mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "",
+          false
+        ],
+        [
+          "idle_new",
+          "30 mm",
+          "",
+          false
+        ],
+        [
+          "idle_half",
+          "idle_new / 2",
+          "",
+          false
+        ],
+        [
+          "circle_new",
+          "25 mm",
+          "",
+          false
+        ],
+        [
+          "circle_half",
+          "circle_new / 2",
+          "",
+          false
+        ]
+      ]
+    },
+    {
+      "label": "favorite-after-circle",
+      "command": "SelectCommand",
+      "editObjectType": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "box",
+          "8 mm",
+          "needle корень",
+          false
+        ],
+        [
+          "box_width",
+          "box * 2",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_depth",
+          "4 mm",
+          "",
+          false
+        ],
+        [
+          "baseline",
+          "40 mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "",
+          false
+        ],
+        [
+          "idle_new",
+          "30 mm",
+          "",
+          false
+        ],
+        [
+          "idle_half",
+          "idle_new / 2",
+          "",
+          false
+        ],
+        [
+          "circle_new",
+          "25 mm",
+          "",
+          false
+        ],
+        [
+          "circle_half",
+          "circle_new / 2",
+          "",
+          false
+        ]
+      ]
+    },
+    {
+      "label": "table-saved",
+      "command": "SelectCommand",
+      "editObjectType": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "box",
+          "8 mm",
+          "needle корень",
+          false
+        ],
+        [
+          "box_width",
+          "box * 2",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_depth",
+          "4 mm",
+          "",
+          false
+        ],
+        [
+          "baseline",
+          "40 mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "",
+          false
+        ],
+        [
+          "idle_new",
+          "30 mm",
+          "",
+          false
+        ],
+        [
+          "idle_half",
+          "idle_new / 2",
+          "",
+          false
+        ],
+        [
+          "circle_new",
+          "25 mm",
+          "",
+          false
+        ],
+        [
+          "circle_half",
+          "circle_new / 2",
+          "",
+          false
+        ]
+      ]
+    },
+    {
+      "label": "group-stale",
+      "command": "SelectCommand",
+      "editObjectType": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "box",
+          "8 mm",
+          "needle корень",
+          false
+        ],
+        [
+          "box_width",
+          "box * 2",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_depth",
+          "4 mm",
+          "",
+          false
+        ],
+        [
+          "baseline",
+          "40 mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "",
+          false
+        ],
+        [
+          "idle_new",
+          "30 mm",
+          "",
+          false
+        ],
+        [
+          "idle_half",
+          "idle_new / 2",
+          "",
+          false
+        ],
+        [
+          "circle_new",
+          "25 mm",
+          "",
+          false
+        ],
+        [
+          "circle_half",
+          "circle_new / 2",
+          "",
+          false
+        ]
+      ]
+    },
+    {
+      "label": "group-after",
+      "command": "SelectCommand",
+      "editObjectType": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "box",
+          "8 mm",
+          "needle корень",
+          false
+        ],
+        [
+          "box_width",
+          "box * 2",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_depth",
+          "4 mm",
+          "",
+          false
+        ],
+        [
+          "baseline",
+          "40 mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "",
+          false
+        ],
+        [
+          "idle_new",
+          "30 mm",
+          "",
+          false
+        ],
+        [
+          "idle_half",
+          "idle_new / 2",
+          "",
+          false
+        ],
+        [
+          "circle_new",
+          "25 mm",
+          "",
+          false
+        ],
+        [
+          "circle_half",
+          "circle_new / 2",
+          "",
+          false
+        ]
+      ]
+    },
+    {
+      "label": "group-valid-after",
+      "command": "SelectCommand",
+      "editObjectType": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "коробка",
+          "8 mm",
+          "needle корень",
+          false
+        ],
+        [
+          "коробка_width",
+          "коробка * 2",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_depth",
+          "4 mm",
+          "",
+          false
+        ],
+        [
+          "baseline",
+          "40 mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "",
+          false
+        ],
+        [
+          "idle_new",
+          "30 mm",
+          "",
+          false
+        ],
+        [
+          "idle_half",
+          "idle_new / 2",
+          "",
+          false
+        ],
+        [
+          "circle_new",
+          "25 mm",
+          "",
+          false
+        ],
+        [
+          "circle_half",
+          "circle_new / 2",
+          "",
+          false
+        ]
+      ]
+    },
+    {
+      "label": "group-undo",
+      "command": "SelectCommand",
+      "editObjectType": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "коробка",
+          "8 mm",
+          "needle корень",
+          false
+        ],
+        [
+          "коробка_width",
+          "коробка * 2",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_depth",
+          "4 mm",
+          "",
+          false
+        ],
+        [
+          "baseline",
+          "40 mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "",
+          false
+        ],
+        [
+          "idle_new",
+          "30 mm",
+          "",
+          false
+        ],
+        [
+          "idle_half",
+          "idle_new / 2",
+          "",
+          false
+        ],
+        [
+          "circle_new",
+          "25 mm",
+          "",
+          false
+        ],
+        [
+          "circle_half",
+          "circle_new / 2",
+          "",
+          false
+        ]
+      ]
+    },
+    {
+      "label": "native-undo-command",
+      "command": "SelectCommand",
+      "editObjectType": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "коробка",
+          "8 mm",
+          "needle корень",
+          false
+        ],
+        [
+          "коробка_width",
+          "коробка * 2",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_depth",
+          "4 mm",
+          "",
+          false
+        ],
+        [
+          "baseline",
+          "40 mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "",
+          false
+        ],
+        [
+          "idle_new",
+          "30 mm",
+          "",
+          false
+        ],
+        [
+          "idle_half",
+          "idle_new / 2",
+          "",
+          false
+        ],
+        [
+          "circle_new",
+          "25 mm",
+          "",
+          false
+        ],
+        [
+          "circle_half",
+          "circle_new / 2",
+          "",
+          false
+        ]
+      ]
+    },
+    {
+      "label": "outside-redo",
+      "command": "SelectCommand",
+      "editObjectType": "adsk::fusion::Component",
+      "parameters": [
+        [
+          "case",
+          "8 mm",
+          "needle корень",
+          false
+        ],
+        [
+          "case_width",
+          "case * 2",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_depth",
+          "4 mm",
+          "",
+          false
+        ],
+        [
+          "baseline",
+          "40 mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "",
+          false
+        ],
+        [
+          "idle_new",
+          "30 mm",
+          "",
+          false
+        ],
+        [
+          "idle_half",
+          "idle_new / 2",
+          "",
+          false
+        ],
+        [
+          "circle_new",
+          "25 mm",
+          "",
+          false
+        ],
+        [
+          "circle_half",
+          "circle_new / 2",
+          "",
+          false
+        ]
+      ]
+    },
+    {
+      "label": "injected-failure-after",
+      "command": "SelectCommand",
+      "editObjectType": "adsk::fusion::Component",
+      "parameters": [
+        [
+          "case",
+          "8 mm",
+          "needle корень",
+          false
+        ],
+        [
+          "case_width",
+          "case * 2",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_depth",
+          "4 mm",
+          "",
+          false
+        ],
+        [
+          "baseline",
+          "40 mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "",
+          false
+        ],
+        [
+          "idle_new",
+          "30 mm",
+          "",
+          false
+        ],
+        [
+          "idle_half",
+          "idle_new / 2",
+          "",
+          false
+        ],
+        [
+          "circle_new",
+          "25 mm",
+          "",
+          false
+        ],
+        [
+          "circle_half",
+          "circle_new / 2",
+          "",
+          false
+        ]
+      ]
+    },
+    {
+      "label": "only-updates-durable",
+      "command": "SelectCommand",
+      "editObjectType": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "case",
+          "8 mm",
+          "needle корень",
+          false
+        ],
+        [
+          "case_width",
+          "case * 2",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_depth",
+          "4 mm",
+          "",
+          false
+        ],
+        [
+          "baseline",
+          "45 mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Strict'",
+          "",
+          false
+        ],
+        [
+          "idle_new",
+          "30 mm",
+          "",
+          false
+        ],
+        [
+          "idle_half",
+          "idle_new / 2",
+          "",
+          false
+        ],
+        [
+          "circle_new",
+          "25 mm",
+          "",
+          false
+        ],
+        [
+          "circle_half",
+          "circle_new / 2",
+          "",
+          false
+        ],
+        [
+          "selection_guard",
+          "5 mm",
+          "",
+          false
+        ],
+        [
+          "only_new",
+          "18 mm",
+          "",
+          false
+        ],
+        [
+          "only_half",
+          "only_new / 2",
+          "",
+          false
+        ]
+      ]
+    },
+    {
+      "label": "full-ui-circle-apply",
+      "command": "SelectCommand",
+      "editObjectType": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "case",
+          "8 mm",
+          "needle корень",
+          false
+        ],
+        [
+          "case_width",
+          "case * 2",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_depth",
+          "4 mm",
+          "",
+          false
+        ],
+        [
+          "baseline",
+          "50 mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Strict'",
+          "",
+          false
+        ],
+        [
+          "idle_new",
+          "30 mm",
+          "",
+          false
+        ],
+        [
+          "idle_half",
+          "idle_new / 2",
+          "",
+          false
+        ],
+        [
+          "circle_new",
+          "25 mm",
+          "",
+          false
+        ],
+        [
+          "circle_half",
+          "circle_new / 2",
+          "",
+          false
+        ],
+        [
+          "selection_guard",
+          "5 mm",
+          "",
+          false
+        ],
+        [
+          "only_new",
+          "18 mm",
+          "",
+          false
+        ],
+        [
+          "only_half",
+          "only_new / 2",
+          "",
+          false
+        ],
+        [
+          "ui_new",
+          "11 mm",
+          "",
+          false
+        ],
+        [
+          "ui_half",
+          "ui_new / 2",
+          "",
+          false
+        ]
+      ]
+    },
+    {
+      "label": "full-ui-search-unintended-write",
+      "command": "SelectCommand",
+      "editObjectType": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "case",
+          "8 mm",
+          "needle корень",
+          false
+        ],
+        [
+          "case_width",
+          "case * 2",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_depth",
+          "4 mm",
+          "",
+          false
+        ],
+        [
+          "baseline",
+          "23 mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Strict'",
+          "",
+          false
+        ],
+        [
+          "idle_new",
+          "30 mm",
+          "",
+          false
+        ],
+        [
+          "idle_half",
+          "idle_new / 2",
+          "",
+          false
+        ],
+        [
+          "circle_new",
+          "25 mm",
+          "",
+          false
+        ],
+        [
+          "circle_half",
+          "circle_new / 2",
+          "",
+          false
+        ],
+        [
+          "selection_guard",
+          "5 mm",
+          "",
+          false
+        ],
+        [
+          "only_new",
+          "18 mm",
+          "",
+          false
+        ],
+        [
+          "only_half",
+          "only_new / 2",
+          "",
+          false
+        ],
+        [
+          "ui_new",
+          "11 mm",
+          "",
+          false
+        ],
+        [
+          "ui_half",
+          "ui_new / 2",
+          "",
+          false
+        ]
+      ]
+    },
+    {
+      "label": "full-ui-filtered-group-single-rename",
+      "command": "SelectCommand",
+      "editObjectType": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "casefiltered",
+          "8 mm",
+          "needle корень",
+          false
+        ],
+        [
+          "case_width",
+          "casefiltered * 2",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_depth",
+          "4 mm",
+          "",
+          false
+        ],
+        [
+          "baseline",
+          "23 mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Strict'",
+          "",
+          false
+        ],
+        [
+          "idle_new",
+          "30 mm",
+          "",
+          false
+        ],
+        [
+          "idle_half",
+          "idle_new / 2",
+          "",
+          false
+        ],
+        [
+          "circle_new",
+          "25 mm",
+          "",
+          false
+        ],
+        [
+          "circle_half",
+          "circle_new / 2",
+          "",
+          false
+        ],
+        [
+          "selection_guard",
+          "5 mm",
+          "",
+          false
+        ],
+        [
+          "only_new",
+          "18 mm",
+          "",
+          false
+        ],
+        [
+          "only_half",
+          "only_new / 2",
+          "",
+          false
+        ],
+        [
+          "ui_new",
+          "11 mm",
+          "",
+          false
+        ],
+        [
+          "ui_half",
+          "ui_new / 2",
+          "",
+          false
+        ]
+      ]
+    },
+    {
+      "label": "full-ui-batch-undo",
+      "command": "SelectCommand",
+      "editObjectType": "adsk::fusion::Component",
+      "parameters": [
+        [
+          "casefiltered",
+          "8 mm",
+          "needle корень",
+          false
+        ],
+        [
+          "case_width",
+          "casefiltered * 2",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "case_depth",
+          "4 mm",
+          "",
+          false
+        ],
+        [
+          "baseline",
+          "23 mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Strict'",
+          "",
+          false
+        ],
+        [
+          "idle_new",
+          "30 mm",
+          "",
+          false
+        ],
+        [
+          "idle_half",
+          "idle_new / 2",
+          "",
+          false
+        ],
+        [
+          "circle_new",
+          "25 mm",
+          "",
+          false
+        ],
+        [
+          "circle_half",
+          "circle_new / 2",
+          "",
+          false
+        ],
+        [
+          "selection_guard",
+          "5 mm",
+          "",
+          false
+        ],
+        [
+          "only_new",
+          "18 mm",
+          "",
+          false
+        ],
+        [
+          "only_half",
+          "only_new / 2",
+          "",
+          false
+        ],
+        [
+          "ui_new",
+          "11 mm",
+          "",
+          false
+        ],
+        [
+          "ui_half",
+          "ui_new / 2",
+          "",
+          false
+        ]
+      ]
+    },
+    {
+      "label": "full-ui-batch-redo",
+      "command": "SelectCommand",
+      "editObjectType": "adsk::fusion::Component",
+      "parameters": [
+        [
+          "casefiltered",
+          "8 mm",
+          "needle корень",
+          false
+        ],
+        [
+          "case_width",
+          "casefiltered * 2",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "case_depth",
+          "4 mm",
+          "",
+          false
+        ],
+        [
+          "baseline",
+          "23 mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Strict'",
+          "",
+          false
+        ],
+        [
+          "idle_new",
+          "30 mm",
+          "",
+          false
+        ],
+        [
+          "idle_half",
+          "idle_new / 2",
+          "",
+          false
+        ],
+        [
+          "circle_new",
+          "25 mm",
+          "",
+          false
+        ],
+        [
+          "circle_half",
+          "circle_new / 2",
+          "",
+          false
+        ],
+        [
+          "selection_guard",
+          "5 mm",
+          "",
+          false
+        ],
+        [
+          "only_new",
+          "18 mm",
+          "",
+          false
+        ],
+        [
+          "only_half",
+          "only_new / 2",
+          "",
+          false
+        ],
+        [
+          "ui_new",
+          "11 mm",
+          "",
+          false
+        ],
+        [
+          "ui_half",
+          "ui_new / 2",
+          "",
+          false
+        ],
+        [
+          "undo_probe",
+          "7 mm",
+          "",
+          false
+        ],
+        [
+          "undo_half",
+          "undo_probe / 2",
+          "",
+          false
+        ]
+      ]
+    }
+  ],
+  "responses": [
+    {
+      "requestId": "strict-idle",
+      "ok": true,
+      "data": {
+        "created": [
+          "idle_new",
+          "idle_half"
+        ],
+        "updated": []
+      }
+    },
+    {
+      "requestId": "strict-circle-mixed",
+      "ok": true,
+      "data": {
+        "created": [
+          "circle_new",
+          "circle_half"
+        ],
+        "updated": [
+          "baseline"
+        ]
+      }
+    },
+    {
+      "requestId": "strict-circle-rename",
+      "ok": true,
+      "data": {
+        "renamed": "tray_height"
+      }
+    },
+    {
+      "requestId": "strict-circle-favorite",
+      "ok": true,
+      "data": {
+        "favorite": true
+      }
+    },
+    {
+      "requestId": "strict-save-table",
+      "ok": true,
+      "data": {
+        "saved": 1
+      }
+    },
+    {
+      "requestId": "strict-group-rename",
+      "ok": false,
+      "error": {
+        "code": "BUSY",
+        "message": "Wait for the previous parameter operation to finish."
+      }
+    },
+    {
+      "requestId": "strict-group-stale",
+      "ok": false,
+      "error": {
+        "code": "OPERATION_FAILED",
+        "message": "A group parameter changed. Refresh and try again."
+      }
+    },
+    {
+      "requestId": "strict-group-valid",
+      "ok": true,
+      "data": {
+        "renamed": {
+          "box": "коробка",
+          "box_width": "коробка_width"
+        }
+      }
+    },
+    {
+      "requestId": "strict-group-outside",
+      "ok": true,
+      "data": {
+        "renamed": {
+          "коробка": "case",
+          "коробка_width": "case_width"
+        }
+      }
+    },
+    {
+      "requestId": "strict-group-injected-failure",
+      "ok": false,
+      "error": {
+        "code": "OPERATION_FAILED",
+        "message": "Fusion could not rename the group: STRICT_INJECTED_METADATA_FAILURE"
+      }
+    },
+    {
+      "requestId": "strict-selection",
+      "ok": true,
+      "data": {
+        "created": [
+          "selection_guard"
+        ],
+        "updated": []
+      }
+    },
+    {
+      "requestId": "strict-doc-switch",
+      "ok": false,
+      "error": {
+        "code": "STALE_DOCUMENT",
+        "message": "The active document changed. Refresh and try again."
+      }
+    },
+    {
+      "requestId": "strict-only-new",
+      "ok": true,
+      "data": {
+        "created": [
+          "only_new",
+          "only_half"
+        ],
+        "updated": []
+      }
+    },
+    {
+      "requestId": "strict-only-updates",
+      "ok": true,
+      "data": {
+        "created": [],
+        "updated": [
+          "baseline",
+          "caption"
+        ]
+      }
+    },
+    {
+      "requestId": "pm-mwcml7m8-ibrz8cwpey-47",
+      "ok": true,
+      "data": {
+        "created": [
+          "ui_new",
+          "ui_half"
+        ],
+        "updated": [
+          "baseline"
+        ]
+      }
+    },
+    {
+      "requestId": "pm-mwcml7m8-ibrz8cwpey-52",
+      "ok": true,
+      "data": {
+        "created": [],
+        "updated": [
+          "baseline"
+        ]
+      }
+    },
+    {
+      "requestId": "pm-mwcml7m8-ibrz8cwpey-55",
+      "ok": true,
+      "data": {
+        "renamed": "casefiltered"
+      }
+    },
+    {
+      "requestId": "pm-mwcml7m8-ibrz8cwpey-60",
+      "ok": true,
+      "data": {
+        "renamed": {
+          "case_width": "tray_case_width"
+        }
+      }
+    },
+    {
+      "requestId": "pm-mwcml7m8-ibrz8cwpey-63",
+      "ok": true,
+      "data": {
+        "renamed": {
+          "tray_case_width": "circle_case_width"
+        }
+      }
+    },
+    {
+      "requestId": "pm-mwcml7m8-ibrz8cwpey-66",
+      "ok": true,
+      "data": {
+        "renamed": {
+          "circle_case_width": "case_width"
+        }
+      }
+    },
+    {
+      "requestId": "pm-mwcml7m8-ibrz8cwpey-69",
+      "ok": true,
+      "data": {
+        "renamed": "case_depth"
+      }
+    },
+    {
+      "requestId": "pm-mwcml7m8-ibrz8cwpey-74",
+      "ok": true,
+      "data": {
+        "created": [
+          "undo_probe",
+          "undo_half"
+        ],
+        "updated": []
+      }
+    }
+  ],
+  "realHtmlRequests": [
+    {
+      "requestId": "pm-mwcml7m8-ibrz8cwpey-47",
+      "action": "parameters.apply",
+      "payload": {
+        "text": "ui_new=11mm;ui_half=ui_new/2;baseline=50mm;"
+      }
+    },
+    {
+      "requestId": "pm-mwcml7m8-ibrz8cwpey-52",
+      "action": "parameters.apply",
+      "payload": {
+        "text": "baseline=23 mm"
+      }
+    },
+    {
+      "requestId": "pm-mwcml7m8-ibrz8cwpey-55",
+      "action": "parameters.rename",
+      "payload": {
+        "name": "case",
+        "newName": "casefiltered",
+        "expression": "8 mm",
+        "unit": "mm"
+      }
+    },
+    {
+      "requestId": "pm-mwcml7m8-ibrz8cwpey-60",
+      "action": "parameters.renameGroup",
+      "payload": {
+        "group": "case",
+        "newGroup": "tray_case",
+        "parameterNames": [
+          "case_width"
+        ]
+      }
+    },
+    {
+      "requestId": "pm-mwcml7m8-ibrz8cwpey-63",
+      "action": "parameters.renameGroup",
+      "payload": {
+        "group": "tray_case",
+        "newGroup": "circle_case",
+        "parameterNames": [
+          "tray_case_width"
+        ]
+      }
+    },
+    {
+      "requestId": "pm-mwcml7m8-ibrz8cwpey-66",
+      "action": "parameters.renameGroup",
+      "payload": {
+        "group": "circle_case",
+        "newGroup": "case",
+        "parameterNames": [
+          "circle_case_width"
+        ]
+      }
+    },
+    {
+      "requestId": "pm-mwcml7m8-ibrz8cwpey-69",
+      "action": "parameters.rename",
+      "payload": {
+        "name": "tray_depth",
+        "newName": "case_depth",
+        "expression": "4 mm",
+        "unit": "mm"
+      }
+    },
+    {
+      "requestId": "pm-mwcml7m8-ibrz8cwpey-74",
+      "action": "parameters.apply",
+      "payload": {
+        "text": "undo_probe=7mm;undo_half=undo_probe/2;"
+      }
+    }
+  ],
+  "cleanup": {
+    "cleanup": {
+      "ownedDocumentModified": true,
+      "ownedParameterCount": 16
+    },
+    "originalDocuments": [
+      {
+        "document": 1,
+        "modified": true,
+        "sha256": "06c4a4895f1cd472eb29141e77b7f78335e13c64dcf9c82fe5310906947b9941",
+        "parameterCount": 16,
+        "timelineCount": 5
+      },
+      {
+        "document": 2,
+        "modified": true,
+        "sha256": "e4616117b57f464713374f44729b4c11dcd3aa3c0e51272b26ce118199bd1f37",
+        "parameterCount": 24,
+        "timelineCount": 9
+      },
+      {
+        "document": 3,
+        "modified": true,
+        "sha256": "27f61d135f2d192017a8b754409b0733d28055968ebae20ba218da323cc1c656",
+        "parameterCount": 6,
+        "timelineCount": 1
+      }
+    ],
+    "activeRestored": true
+  },
+  "browserFocusReproduction": {
+    "runs": 3,
+    "queryRequested": "box",
+    "queryActual": "b",
+    "expressionActual": "ox",
+    "activeElement": "Expression for box"
+  },
+  "browserDeleteLayout": {
+    "before": {
+      "x": 274.328125,
+      "y": 468.125,
+      "width": 15.671875,
+      "height": 23.390625
+    },
+    "after": {
+      "x": 274.328125,
+      "y": 468.125,
+      "width": 15.671875,
+      "height": 23.390625
+    },
+    "opacityBefore": "0",
+    "opacityAfter": "1"
+  }
+}

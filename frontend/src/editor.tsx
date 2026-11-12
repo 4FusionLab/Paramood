@@ -405,7 +405,13 @@ export function ExpressionEditor(props: Props) {
       }),
     });
     view.current = editor;
-    if (latest.current.autoFocus) {
+    // Mount effects can run after the user has moved to search or another control.
+    // A remounted filtered row must not reclaim that focus and submit search text.
+    const active = editor.dom.ownerDocument.activeElement;
+    if (
+      latest.current.autoFocus &&
+      (!active || active === editor.dom.ownerDocument.body || editor.dom.contains(active))
+    ) {
       editor.dispatch({ selection: { anchor: 0, head: editor.state.doc.length } });
       editor.focus();
     }

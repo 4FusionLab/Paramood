@@ -27,7 +27,10 @@ def dispatch(adapter, message):
             'parameters.apply',
             'parameters.delete',
             'parameters.rename',
+            'parameters.renameGroup',
             'parameters.favorite',
+            'parameters.references',
+            'parameters.references.select',
             'variants.table.save',
             'variants.selection.get',
             'variants.cell.preview',
@@ -47,10 +50,6 @@ def dispatch(adapter, message):
                 raise BridgeError(
                     'STALE_DOCUMENT', 'The active document changed. Refresh and try again.'
                 )
-        if action == 'cleanup.delete':
-            raise BridgeError(
-                'UNSUPPORTED', 'Deletion is disabled until dependency coverage is verified.'
-            )
         data = adapter.state() if action == 'state.get' else adapter.request(action, payload)
         return {
             'requestId': request_id,

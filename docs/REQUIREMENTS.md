@@ -1241,3 +1241,28 @@ The main chat should remain the orchestrator throughout the project.
 ## Text parameters — 7 November 2026
 
 Single- and double-quoted literals automatically create text parameters without a separate type selector. TextValue is used for display; editing and writing use the original expression, including references and formulas. Quoted contents and escaping are preserved exactly; incompatible changes to an existing parameter's type are rejected before writing. Text parameters do not by themselves block numeric changes in a mixed model, but graph completeness and consistency are still checked. Text parameters are included in saved variants and travel with F3D. See [Text parameters](TEXT_PARAMETERS.md).
+
+## Parameter tree — 11 November 2026
+
+- Search is collapsed by default and opened with a magnifying-glass button. Close/Escape restores the tree and returns focus to the button. Search the main tree by name, full native/virtual path, expression and comment, including Cyrillic. Keep ancestor groups, show an empty state and restore prior group expansion and scroll on clearing. Preserve inline editing, favorites, rename and drag workflows.
+- Show individual deletion only on row hover or keyboard focus, retaining its layout space and existing deletion rules. Touch devices keep the control visible.
+- Use **Favorites** / **Favorite parameters** consistently in user-facing labels, tooltips and accessibility text. Native `isFavorite` and internal contracts stay intact.
+- The desired individual-unit policy permits any supported type for a proven unused parameter and only dimension-compatible units for a used parameter. Usage includes real dependents, geometry and saved variants; uncertainty never means unused. Cross-dimension changes require an explicit expression/value preview and preserved entity identity, formulas and metadata.
+- Current API research confirms read-only `unit` and `valueType`, including compatible units and unused parameters. No safe in-place mutation is implemented. Per the subsequent user decision, the tree has no unit/type-change control, click action, tooltip disclaimer or disclosure. [The complete type matrix and assessed alternatives](PARAMETER_UNITS.md) remain a research record.
+
+## Acceptance corrections — 12 November 2026
+
+- Search must retain its focus through every typed character and must never submit a parameter edit. Keep the inline editor's draft and identity when the row remains visible; a returning editor must not reclaim focus from search or its close trigger.
+- Group identity comes from the complete parameter tree. Filtering descendants must not change a group rename or drag into a single-parameter operation. Group requests retain all original members; Favorites duplicates remain single-parameter rows.
+- All palette mutations during an active native command require read-only validation before ending its preview, followed by a separate Paramood transaction and revalidation of the active document, entities and source data. Invalid requests must not end the command. Changed targets, plans or snapshots must fail before writing. This includes Apply, rename, group rename, Favorites, delete, variant actions and document display units.
+- An ended native command is not resumed; unfinished preview geometry is discarded, completed geometry is preserved, and the sketch stays open. A successful response must describe a durable operation; failed transactional writes must abort together with their variant metadata. Preserve the established idle-sketch Apply path and ordinary selection restoration.
+
+### Find References and unused parameter markers
+
+Each parameter row offers **Find References**, including driven model parameters. Results group uses by timeline owner and distinguish explicit direct references, indirect parameter paths and the model parameter's own owner. Dependent user parameters are clickable searches with breadcrumb navigation. Selecting a result rechecks document and entity identity and current membership, expands its timeline group if needed, and refuses to interrupt an active command or sketch edit. Failed selection restores the previous selection and group state where available. No timeline rollback or parameter edit is requested.
+
+Dashed underlines identify user parameters only when the exposed native dependency graph is coherent and has no dependents, and saved variants neither configure nor reference them. Missing or inconsistent data suppresses unused markers. Unresolved timeline owners produce warnings. Popup entry, exit and result changes respect reduced-motion preferences.
+
+## Unused parameter cleanup — 12 November 2026
+
+The broom beside tree search opens a separate read-only candidate preview for the active design. Users can uncheck any candidate; its required dependencies remain. Favorites, geometry and saved variant formulas/targets are protected. Delete selected requires explicit confirmation, an unchanged document/entity/dependency snapshot and native deletion checks in one independent, undoable Fusion transaction. Unknown data blocks cleanup; a native refusal aborts the complete operation. Implementation and tested scope: [cleanup validation](validation/CLEANUP_2026-11-12.md).

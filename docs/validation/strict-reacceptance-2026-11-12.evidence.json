@@ -1,0 +1,1595 @@
+{
+  "nativeEnvironment": {
+    "fusion": "2706.1.17",
+    "platform": "macOS"
+  },
+  "snapshots": [
+    {
+      "label": "helpers-installed-and-RC01-no-write",
+      "command": "SelectCommand",
+      "edit": "adsk::fusion::Component",
+      "parameters": [
+        [
+          "baseline",
+          "50 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "box",
+          "8 mm",
+          "mm",
+          "needle корень",
+          false
+        ],
+        [
+          "box_width",
+          "box * 2",
+          "mm",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_depth",
+          "4 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "delete_probe",
+          "6 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "Text",
+          "",
+          false
+        ]
+      ],
+      "circles": 1
+    },
+    {
+      "label": "RC03-native-filtered-group-rename",
+      "command": "SelectCommand",
+      "edit": "adsk::fusion::Component",
+      "parameters": [
+        [
+          "baseline",
+          "50 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "case",
+          "8 mm",
+          "mm",
+          "needle корень",
+          false
+        ],
+        [
+          "case_width",
+          "case * 2",
+          "mm",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_depth",
+          "4 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "delete_probe",
+          "6 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "Text",
+          "",
+          false
+        ]
+      ],
+      "circles": 1
+    },
+    {
+      "label": "RC03-filtered-group-drag-root",
+      "command": "SelectCommand",
+      "edit": "adsk::fusion::Component",
+      "parameters": [
+        [
+          "baseline",
+          "50 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "case",
+          "8 mm",
+          "mm",
+          "needle корень",
+          false
+        ],
+        [
+          "case_width",
+          "case * 2",
+          "mm",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_depth",
+          "4 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "delete_probe",
+          "6 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "Text",
+          "",
+          false
+        ]
+      ],
+      "circles": 1
+    },
+    {
+      "label": "RC02-real-UI-rename-during-Circle",
+      "command": "SelectCommand",
+      "edit": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "baseline",
+          "50 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "case",
+          "8 mm",
+          "mm",
+          "needle корень",
+          false
+        ],
+        [
+          "case_width",
+          "case * 2",
+          "mm",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_height",
+          "4 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "delete_probe",
+          "6 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "Text",
+          "",
+          false
+        ]
+      ],
+      "circles": 1
+    },
+    {
+      "label": "RC02-rename-survived-next-Circle-Escape",
+      "command": "SelectCommand",
+      "edit": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "baseline",
+          "50 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "case",
+          "8 mm",
+          "mm",
+          "needle корень",
+          false
+        ],
+        [
+          "case_width",
+          "case * 2",
+          "mm",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_height",
+          "4 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "delete_probe",
+          "6 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "Text",
+          "",
+          false
+        ]
+      ],
+      "circles": 1
+    },
+    {
+      "label": "RC02-real-UI-favorite-during-Circle",
+      "command": "SelectCommand",
+      "edit": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "baseline",
+          "50 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "case",
+          "8 mm",
+          "mm",
+          "needle корень",
+          true
+        ],
+        [
+          "case_width",
+          "case * 2",
+          "mm",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_height",
+          "4 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "delete_probe",
+          "6 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "Text",
+          "",
+          false
+        ]
+      ],
+      "circles": 1
+    },
+    {
+      "label": "RC02-favorite-survived-next-Circle-Escape",
+      "command": "SelectCommand",
+      "edit": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "baseline",
+          "50 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "case",
+          "8 mm",
+          "mm",
+          "needle корень",
+          true
+        ],
+        [
+          "case_width",
+          "case * 2",
+          "mm",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_height",
+          "4 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "delete_probe",
+          "6 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "Text",
+          "",
+          false
+        ]
+      ],
+      "circles": 1
+    },
+    {
+      "label": "invalid-mutations-did-not-end-Circle",
+      "command": "CircleCenterRadius",
+      "edit": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "baseline",
+          "50 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "case",
+          "8 mm",
+          "mm",
+          "needle корень",
+          true
+        ],
+        [
+          "case_width",
+          "case * 2",
+          "mm",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_height",
+          "4 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "delete_probe",
+          "6 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "Text",
+          "",
+          false
+        ]
+      ],
+      "circles": 1
+    },
+    {
+      "label": "delete-durable-after-Circle",
+      "command": "SelectCommand",
+      "edit": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "baseline",
+          "50 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "case",
+          "8 mm",
+          "mm",
+          "needle корень",
+          true
+        ],
+        [
+          "case_width",
+          "case * 2",
+          "mm",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_height",
+          "4 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "Text",
+          "",
+          false
+        ]
+      ],
+      "circles": 1
+    },
+    {
+      "label": "variant-apply-and-delete-durable",
+      "command": "SelectCommand",
+      "edit": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "baseline",
+          "50 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "case",
+          "8 mm",
+          "mm",
+          "needle корень",
+          true
+        ],
+        [
+          "case_width",
+          "case * 2",
+          "mm",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_height",
+          "4 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Body'",
+          "Text",
+          "",
+          false
+        ]
+      ],
+      "circles": 1
+    },
+    {
+      "label": "variant-table-save-durable",
+      "command": "SelectCommand",
+      "edit": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "baseline",
+          "50 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "case",
+          "10 mm",
+          "mm",
+          "needle корень",
+          true
+        ],
+        [
+          "case_width",
+          "case * 2",
+          "mm",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_height",
+          "4 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Compact'",
+          "Text",
+          "",
+          false
+        ]
+      ],
+      "circles": 1
+    },
+    {
+      "label": "group-failure-fully-rolled-back",
+      "command": "SelectCommand",
+      "edit": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "baseline",
+          "50 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "case",
+          "10 mm",
+          "mm",
+          "needle корень",
+          true
+        ],
+        [
+          "case_width",
+          "case * 2",
+          "mm",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_height",
+          "4 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Compact'",
+          "Text",
+          "",
+          false
+        ]
+      ],
+      "circles": 1
+    },
+    {
+      "label": "variant-free-durable",
+      "command": "SelectCommand",
+      "edit": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "baseline",
+          "50 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "case",
+          "10 mm",
+          "mm",
+          "needle корень",
+          true
+        ],
+        [
+          "case_width",
+          "case * 2",
+          "mm",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_height",
+          "4 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Compact'",
+          "Text",
+          "",
+          false
+        ]
+      ],
+      "circles": 1
+    },
+    {
+      "label": "variant-delete-durable",
+      "command": "SelectCommand",
+      "edit": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "baseline",
+          "50 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "case",
+          "10 mm",
+          "mm",
+          "needle корень",
+          true
+        ],
+        [
+          "case_width",
+          "case * 2",
+          "mm",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_height",
+          "4 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Compact'",
+          "Text",
+          "",
+          false
+        ]
+      ],
+      "circles": 1
+    },
+    {
+      "label": "document-units-preserved-physical-values",
+      "command": "SelectCommand",
+      "edit": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "baseline",
+          "50 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "case",
+          "10 mm",
+          "mm",
+          "needle корень",
+          true
+        ],
+        [
+          "case_width",
+          "case * 2",
+          "mm",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_height",
+          "4 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Compact'",
+          "Text",
+          "",
+          false
+        ]
+      ],
+      "circles": 1
+    },
+    {
+      "label": "preview-rollback-conflict-no-write",
+      "command": "SelectCommand",
+      "edit": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "baseline",
+          "50 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "case",
+          "10 mm",
+          "mm",
+          "needle корень",
+          true
+        ],
+        [
+          "case_width",
+          "case * 2",
+          "mm",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_height",
+          "4 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Compact'",
+          "Text",
+          "",
+          false
+        ]
+      ],
+      "circles": 1
+    },
+    {
+      "label": "group-native-Undo-open-sketch",
+      "command": "SelectCommand",
+      "edit": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "baseline",
+          "50 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "case",
+          "10 mm",
+          "mm",
+          "needle корень",
+          true
+        ],
+        [
+          "case_width",
+          "case * 2",
+          "mm",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_height",
+          "4 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Compact'",
+          "Text",
+          "",
+          false
+        ]
+      ],
+      "circles": 1
+    },
+    {
+      "label": "group-native-menu-Redo-open-sketch",
+      "command": "SelectCommand",
+      "edit": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "baseline",
+          "50 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "корпус",
+          "10 mm",
+          "mm",
+          "needle корень",
+          true
+        ],
+        [
+          "корпус_width",
+          "корпус * 2",
+          "mm",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_height",
+          "4 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Compact'",
+          "Text",
+          "",
+          false
+        ]
+      ],
+      "circles": 1
+    },
+    {
+      "label": "full-UI-mixed-Apply-during-Circle",
+      "command": "SelectCommand",
+      "edit": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "baseline",
+          "40 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "корпус",
+          "10 mm",
+          "mm",
+          "needle корень",
+          true
+        ],
+        [
+          "корпус_width",
+          "корпус * 2",
+          "mm",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_height",
+          "4 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Verified'",
+          "Text",
+          "",
+          false
+        ],
+        [
+          "ui_new",
+          "25 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "ui_half",
+          "ui_new / 2",
+          "cm",
+          "",
+          false
+        ]
+      ],
+      "circles": 1
+    },
+    {
+      "label": "UI-Apply-survived-next-Circle-Escape",
+      "command": "SelectCommand",
+      "edit": "adsk::fusion::Sketch",
+      "parameters": [
+        [
+          "baseline",
+          "40 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "корпус",
+          "10 mm",
+          "mm",
+          "needle корень",
+          true
+        ],
+        [
+          "корпус_width",
+          "корпус * 2",
+          "mm",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_height",
+          "4 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Verified'",
+          "Text",
+          "",
+          false
+        ],
+        [
+          "ui_new",
+          "25 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "ui_half",
+          "ui_new / 2",
+          "cm",
+          "",
+          false
+        ]
+      ],
+      "circles": 1
+    },
+    {
+      "label": "UI-Apply-survived-Finish-Sketch",
+      "command": "SelectCommand",
+      "edit": "adsk::fusion::Component",
+      "parameters": [
+        [
+          "baseline",
+          "40 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "корпус",
+          "10 mm",
+          "mm",
+          "needle корень",
+          true
+        ],
+        [
+          "корпус_width",
+          "корпус * 2",
+          "mm",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_height",
+          "4 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Verified'",
+          "Text",
+          "",
+          false
+        ],
+        [
+          "ui_new",
+          "25 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "ui_half",
+          "ui_new / 2",
+          "cm",
+          "",
+          false
+        ]
+      ],
+      "circles": 1
+    },
+    {
+      "label": "selection-same-entity-retained",
+      "command": "SelectCommand",
+      "edit": "adsk::fusion::Component",
+      "parameters": [
+        [
+          "baseline",
+          "40 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "корпус",
+          "10 mm",
+          "mm",
+          "needle корень",
+          true
+        ],
+        [
+          "корпус_width",
+          "корпус * 2",
+          "mm",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_height",
+          "4 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Verified'",
+          "Text",
+          "",
+          false
+        ],
+        [
+          "ui_new",
+          "25 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "ui_half",
+          "ui_new / 2",
+          "cm",
+          "",
+          false
+        ],
+        [
+          "selected_probe",
+          "5 mm",
+          "mm",
+          "",
+          false
+        ]
+      ],
+      "circles": 1
+    },
+    {
+      "label": "stale-document-request-no-cross-write",
+      "command": "SelectCommand",
+      "edit": "adsk::fusion::Component",
+      "parameters": [
+        [
+          "baseline",
+          "40 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "корпус",
+          "10 mm",
+          "mm",
+          "needle корень",
+          true
+        ],
+        [
+          "корпус_width",
+          "корпус * 2",
+          "mm",
+          "Толщина стенки",
+          true
+        ],
+        [
+          "tray_height",
+          "4 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "caption",
+          "'Verified'",
+          "Text",
+          "",
+          false
+        ],
+        [
+          "ui_new",
+          "25 mm",
+          "mm",
+          "",
+          false
+        ],
+        [
+          "ui_half",
+          "ui_new / 2",
+          "cm",
+          "",
+          false
+        ],
+        [
+          "selected_probe",
+          "5 mm",
+          "mm",
+          "",
+          false
+        ]
+      ],
+      "circles": 1
+    }
+  ],
+  "responses": [
+    {
+      "requestId": "repeat-table-save",
+      "ok": true,
+      "data": {
+        "saved": 1
+      }
+    },
+    {
+      "requestId": "pm-mwco1hoy-qze7y82jl3r-3",
+      "ok": true,
+      "data": {
+        "renamed": {
+          "box": "case",
+          "box_width": "case_width"
+        }
+      }
+    },
+    {
+      "requestId": "pm-mwco1hoy-qze7y82jl3r-6",
+      "ok": true,
+      "data": {
+        "renamed": "tray_caption"
+      }
+    },
+    {
+      "requestId": "pm-mwco1hoy-qze7y82jl3r-9",
+      "ok": true,
+      "data": {
+        "renamed": "caption"
+      }
+    },
+    {
+      "requestId": "pm-mwco1hoy-qze7y82jl3r-12",
+      "ok": true,
+      "data": {
+        "renamed": "tray_caption"
+      }
+    },
+    {
+      "requestId": "pm-mwco1hoy-qze7y82jl3r-15",
+      "ok": true,
+      "data": {
+        "renamed": "caption"
+      }
+    },
+    {
+      "requestId": "pm-mwco1hoy-qze7y82jl3r-18",
+      "ok": true,
+      "data": {
+        "renamed": {
+          "case": "tray_case",
+          "case_width": "tray_case_width"
+        }
+      }
+    },
+    {
+      "requestId": "pm-mwco1hoy-qze7y82jl3r-21",
+      "ok": true,
+      "data": {
+        "renamed": {
+          "tray_case": "case",
+          "tray_case_width": "case_width"
+        }
+      }
+    },
+    {
+      "requestId": "pm-mwco1hoy-qze7y82jl3r-25",
+      "ok": true,
+      "data": {
+        "renamed": "tray_height"
+      }
+    },
+    {
+      "requestId": "pm-mwco1hoy-qze7y82jl3r-30",
+      "ok": true,
+      "data": {
+        "favorite": true
+      }
+    },
+    {
+      "requestId": "repeat-invalid-target",
+      "ok": false,
+      "error": {
+        "code": "CONFLICT",
+        "message": "The parameter changed. Refresh and try again."
+      }
+    },
+    {
+      "requestId": "repeat-invalid-document",
+      "ok": false,
+      "error": {
+        "code": "STALE_DOCUMENT",
+        "message": "The active document changed. Refresh and try again."
+      }
+    },
+    {
+      "requestId": "repeat-invalid-payload",
+      "ok": false,
+      "error": {
+        "code": "BAD_REQUEST",
+        "message": "Payload must be an object."
+      }
+    },
+    {
+      "requestId": "repeat-delete-during-Circle",
+      "ok": true,
+      "data": {
+        "deleted": "delete_probe"
+      }
+    },
+    {
+      "requestId": "repeat-variant-apply-during-Circle",
+      "ok": true,
+      "data": {
+        "activeVariantId": "56e46555371c4625aef2f0b79d16784d"
+      }
+    },
+    {
+      "requestId": "repeat-variant-save-during-Circle",
+      "ok": true,
+      "data": {
+        "saved": 1
+      }
+    },
+    {
+      "requestId": "repeat-group-metadata-failure",
+      "ok": false,
+      "error": {
+        "code": "RENAME_FAILED",
+        "message": "Fusion could not rename the group: REACCEPT_INJECTED_FAILURE"
+      }
+    },
+    {
+      "requestId": "repeat-variant-free-during-Circle",
+      "ok": true,
+      "data": {
+        "activeVariantId": null
+      }
+    },
+    {
+      "requestId": "repeat-variant-delete-during-Circle",
+      "ok": true,
+      "data": {
+        "deleted": "56e46555371c4625aef2f0b79d16784d"
+      }
+    },
+    {
+      "requestId": "repeat-units-stale",
+      "ok": false,
+      "error": {
+        "code": "CONFLICT",
+        "message": "The model changed. Check the current units and retry."
+      }
+    },
+    {
+      "requestId": "repeat-units-during-Circle",
+      "ok": true,
+      "data": {
+        "defaultLengthUnit": "cm"
+      }
+    },
+    {
+      "requestId": "repeat-preview-changed-target",
+      "ok": false,
+      "error": {
+        "code": "CONFLICT",
+        "message": "The parameter or variants changed. Refresh and try again."
+      }
+    },
+    {
+      "requestId": "repeat-group-during-Circle",
+      "ok": true,
+      "data": {
+        "renamed": {
+          "case": "корпус",
+          "case_width": "корпус_width"
+        }
+      }
+    },
+    {
+      "requestId": "repeat-group-undo-redo",
+      "ok": true,
+      "data": {
+        "renamed": {
+          "case": "корпус",
+          "case_width": "корпус_width"
+        }
+      }
+    },
+    {
+      "requestId": "pm-mwco1hoy-qze7y82jl3r-65",
+      "ok": true,
+      "data": {
+        "created": [
+          "ui_new",
+          "ui_half"
+        ],
+        "updated": [
+          "baseline",
+          "caption"
+        ]
+      }
+    },
+    {
+      "requestId": "repeat-selection-preservation",
+      "ok": true,
+      "data": {
+        "created": [
+          "selected_probe"
+        ],
+        "updated": []
+      }
+    },
+    {
+      "requestId": "repeat-document-switch",
+      "ok": false,
+      "error": {
+        "code": "STALE_DOCUMENT",
+        "message": "The active document changed. Refresh and try again."
+      }
+    }
+  ],
+  "realHtmlRequests": [
+    {
+      "action": "parameters.renameGroup",
+      "requestId": "pm-mwco1hoy-qze7y82jl3r-3",
+      "payload": {
+        "group": "box",
+        "newGroup": "case",
+        "parameterNames": [
+          "box",
+          "box_width"
+        ]
+      }
+    },
+    {
+      "action": "parameters.rename",
+      "requestId": "pm-mwco1hoy-qze7y82jl3r-6",
+      "payload": {
+        "name": "caption",
+        "newName": "tray_caption",
+        "expression": "'Body'",
+        "unit": "Text"
+      }
+    },
+    {
+      "action": "parameters.rename",
+      "requestId": "pm-mwco1hoy-qze7y82jl3r-9",
+      "payload": {
+        "name": "tray_caption",
+        "newName": "caption",
+        "expression": "'Body'",
+        "unit": "Text"
+      }
+    },
+    {
+      "action": "parameters.rename",
+      "requestId": "pm-mwco1hoy-qze7y82jl3r-12",
+      "payload": {
+        "name": "caption",
+        "newName": "tray_caption",
+        "expression": "'Body'",
+        "unit": "Text"
+      }
+    },
+    {
+      "action": "parameters.rename",
+      "requestId": "pm-mwco1hoy-qze7y82jl3r-15",
+      "payload": {
+        "name": "tray_caption",
+        "newName": "caption",
+        "expression": "'Body'",
+        "unit": "Text"
+      }
+    },
+    {
+      "action": "parameters.renameGroup",
+      "requestId": "pm-mwco1hoy-qze7y82jl3r-18",
+      "payload": {
+        "group": "case",
+        "newGroup": "tray_case",
+        "parameterNames": [
+          "case",
+          "case_width"
+        ]
+      }
+    },
+    {
+      "action": "parameters.renameGroup",
+      "requestId": "pm-mwco1hoy-qze7y82jl3r-21",
+      "payload": {
+        "group": "tray_case",
+        "newGroup": "case",
+        "parameterNames": [
+          "tray_case",
+          "tray_case_width"
+        ]
+      }
+    },
+    {
+      "action": "parameters.rename",
+      "requestId": "pm-mwco1hoy-qze7y82jl3r-25",
+      "payload": {
+        "name": "tray_depth",
+        "newName": "tray_height",
+        "expression": "4 mm",
+        "unit": "mm"
+      }
+    },
+    {
+      "action": "parameters.favorite",
+      "requestId": "pm-mwco1hoy-qze7y82jl3r-30",
+      "payload": {
+        "name": "case",
+        "expected": false,
+        "favorite": true
+      }
+    },
+    {
+      "action": "parameters.apply",
+      "requestId": "pm-mwco1hoy-qze7y82jl3r-65",
+      "payload": {
+        "text": "ui_new=25mm;ui_half=ui_new/2;baseline=40mm;caption='Verified';"
+      }
+    }
+  ],
+  "cleanup": {
+    "originalDocuments": [
+      {
+        "document": 1,
+        "modified": true,
+        "sha256": "06c4a4895f1cd472eb29141e77b7f78335e13c64dcf9c82fe5310906947b9941",
+        "parameterCount": 16,
+        "timelineCount": 5
+      },
+      {
+        "document": 2,
+        "modified": true,
+        "sha256": "e4616117b57f464713374f44729b4c11dcd3aa3c0e51272b26ce118199bd1f37",
+        "parameterCount": 24,
+        "timelineCount": 9
+      },
+      {
+        "document": 3,
+        "modified": true,
+        "sha256": "27f61d135f2d192017a8b754409b0733d28055968ebae20ba218da323cc1c656",
+        "parameterCount": 6,
+        "timelineCount": 1
+      }
+    ],
+    "originalActiveDocumentRestored": true,
+    "command": "SelectCommand",
+    "documentCount": 3
+  },
+  "browserFocusReplay": {
+    "runs": 3,
+    "query": "523",
+    "focus": "Search parameters",
+    "restoredDraft": "50",
+    "applyRequests": 0
+  },
+  "browserGroupRequests": [
+    {
+      "action": "parameters.renameGroup",
+      "group": "box",
+      "newGroup": "tray_box",
+      "members": [
+        "box",
+        "box_width"
+      ]
+    },
+    {
+      "action": "parameters.renameGroup",
+      "group": "box",
+      "newGroup": "case",
+      "members": [
+        "box",
+        "box_width"
+      ]
+    }
+  ],
+  "candidateIdentity": "bfcfc569a8dfaa22f31d8c32ad21f1eb198047e2952ffd1212fc8ec91063a477",
+  "finalBundle": "index-SYGhOCcp.js",
+  "package": {
+    "name": "Paramood-2.1.0.zip",
+    "sha256": "40e07b589f8182355d9f8174c878b397f31eca121875f330f1942e8bad6abb4c",
+    "versionOverride": "2.1.0",
+    "published": false,
+    "entries": 27,
+    "deterministicRebuild": true,
+    "pythonMatchesSource": true,
+    "frontendMatchesBuild": true
+  },
+  "nativeFinalScrollFocus": {
+    "baseline": "50 mm",
+    "count": 93,
+    "events": 0,
+    "bundle": "index-SYGhOCcp.js",
+    "nativeScroll": "visual end position restored",
+    "numericSearch": "523 retained; Enter did not change baseline"
+  },
+  "finalCleanup": {
+    "originalActiveDocumentRestored": true,
+    "documentCount": 3,
+    "command": "SelectCommand",
+    "dock": 4,
+    "canvas": true,
+    "temporaryDocumentClosed": true
+  },
+  "browserFinalReplay": {
+    "bundle": "index-SYGhOCcp.js",
+    "focusReplays": 3,
+    "query": "523",
+    "applyRequests": 0,
+    "restoredDraft": "50",
+    "groupRenameAndDragMembers": [
+      "box",
+      "box_width"
+    ],
+    "viewportWidths": [
+      300,
+      360,
+      960
+    ],
+    "unitsPlain": true
+  },
+  "browserFinalScroll": {
+    "before": {
+      "top": 2058,
+      "max": 2058
+    },
+    "afterEscape": {
+      "top": 2014,
+      "max": 2014
+    },
+    "focus": "Show parameter search"
+  },
+  "checks": {
+    "python": {
+      "passed": 656,
+      "subtests": 22
+    },
+    "rootTests": 50,
+    "frontendTests": 289,
+    "frontendTestFiles": 17,
+    "ruff": "PASS",
+    "prettier": "PASS",
+    "eslint": "PASS",
+    "frontendBuild": "PASS",
+    "releaseContract": "PASS",
+    "nativeWindows": "NOT TESTED"
+  },
+  "fixThreads": [
+    "01a1cc96-b03e-70e2-9385-d695c528fe88",
+    "01a1cc96-fee4-7ff1-9ffe-e85b20a3e4ad",
+    "01a1cc97-4ac0-7580-ad0e-904e6649bc37"
+  ]
+}

@@ -13,6 +13,7 @@ export interface Parameter {
   favorite?: boolean;
   valueExpression?: string | null;
   configured?: boolean;
+  unused?: boolean;
 }
 export interface ModelState {
   draftId?: string;
@@ -80,6 +81,7 @@ export interface Calculation {
   formatted: string;
 }
 export interface CleanupItem extends Parameter {
+  dependencies: string[];
   reason: string;
   selected: boolean;
   protected: boolean;

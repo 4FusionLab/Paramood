@@ -21,7 +21,7 @@ def test_rejects_stale_mutations_without_calling_adapter():
     assert result['error']['code'] == 'STALE_DOCUMENT'
 
 
-def test_rejects_cleanup_until_graph_proven_complete():
+def test_cleanup_is_forwarded_for_adapter_safety_validation():
     result = dispatch(
         FakeAdapter(),
         {
@@ -31,8 +31,8 @@ def test_rejects_cleanup_until_graph_proven_complete():
             'payload': {'names': ['a']},
         },
     )
-    assert result['ok'] is False
-    assert result['error']['code'] == 'UNSUPPORTED'
+    assert result['ok'] is True
+    assert result['data']['action'] == 'cleanup.delete'
 
 
 def test_echoes_request_id_and_state():

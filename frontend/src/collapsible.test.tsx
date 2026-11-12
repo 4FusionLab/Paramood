@@ -28,10 +28,10 @@ function setup(motion = true) {
   });
   const host = document.createElement('div');
   document.body.appendChild(host);
-  const show = (open: boolean) =>
+  const show = (open: boolean, motion = true) =>
     act(() =>
       render(
-        <Collapsible open={open}>
+        <Collapsible open={open} animate={motion}>
           <button>Parameter</button>
         </Collapsible>,
         host,
@@ -89,4 +89,22 @@ it('removes collapsed children immediately with reduced motion', () => {
   show(false);
   expect(host.querySelector('button')).toBeNull();
   expect(animate).not.toHaveBeenCalled();
+});
+
+it('settles an interrupted opening when motion is disabled and resumes later toggles', () => {
+  const { host, show, animate, animations } = setup();
+  show(false);
+  show(true);
+  expect(animate).toHaveBeenCalledOnce();
+  show(true, false);
+  expect(animations[0].cancel).toHaveBeenCalledOnce();
+  expect(host.querySelector('button')).not.toBeNull();
+  expect((host.firstElementChild as HTMLElement).style.overflow).toBe('');
+  show(false, false);
+  expect(host.querySelector('button')).toBeNull();
+  expect(animate).toHaveBeenCalledOnce();
+  show(true, false);
+  show(true);
+  show(false);
+  expect(animate).toHaveBeenCalledTimes(2);
 });

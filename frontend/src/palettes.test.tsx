@@ -209,11 +209,13 @@ describe('separate palette views', () => {
     );
     expect(editor.state.doc.toString()).toBe('b');
   });
-  it('does not expose cleanup in the release interface', async () => {
-    mount('#parameters');
+  it('opens cleanup from the parameter tree toolbar', async () => {
+    const calls = mount('#parameters');
     await vi.waitFor(() => expect(host.textContent).toContain('Design'));
-    expect(host.textContent).not.toContain('Clean unused');
-    expect(host.textContent).not.toContain('Cleanup');
+    act(() =>
+      host.querySelector<HTMLButtonElement>('[aria-label="Clean unused parameters"]')!.click(),
+    );
+    expect(calls.some((call) => call.action === 'cleanup.open')).toBe(true);
   });
   it('parameters view accepts parameter prefill', async () => {
     const calls = mount('#parameters');
@@ -328,14 +330,15 @@ describe('separate palette views', () => {
     await vi.waitFor(() => expect(host.textContent).toContain('Design'));
     await vi.waitFor(() => expect(editor.state.doc.toString()).toBe('draft=12'));
   });
-  it('a cleanup hash opens the main view instead', async () => {
+  it('a cleanup hash opens the separate preview', async () => {
     mount('#cleanup');
     await vi.waitFor(() => expect(host.textContent).toContain('Design'));
     expect(host.textContent).not.toContain('Analyze parameters');
     expect(host.querySelector('header')).toBeNull();
     expect(host.querySelector('.context [aria-label="Refresh model"]')).toBeNull();
     expect(host.textContent).not.toContain('Deletion is not available yet');
-    expect(host.querySelector('.cm-content')).toBeTruthy();
+    expect(host.querySelector('.cm-content')).toBeNull();
+    expect(host.textContent).toContain('Review unused parameters');
   });
 });
 
@@ -1046,4 +1049,161 @@ it('preserves expanded parameter rows through reference menu and toast appearanc
     vi.useRealTimers();
     Reflect.deleteProperty(document, 'execCommand');
   }
+});
+
+it('enables Apply and sends the complete assignment with its trailing semicolon', async () => {
+  const text = 'width=15;';
+  const calls = mount('#parameters', false, [
+    { name: 'width', expression: '15 mm', value: 15, unit: 'mm', status: 'New' },
+  ]);
+  await vi.waitFor(() => expect(host.textContent).toContain('Design'));
+  const editor = EditorView.findFromDOM(host.querySelector<HTMLElement>('.cm-content')!)!;
+  act(() => editor.dispatch({ changes: { from: 0, insert: text } }));
+  await vi.waitFor(() =>
+    expect(calls.some((c) => c.action === 'parameters.preview' && c.payload.text === text)).toBe(
+      true,
+    ),
+  );
+  const apply = Array.from(host.querySelectorAll('button')).find((b) =>
+    b.textContent?.includes('Apply parameters'),
+  )!;
+  expect(apply.disabled).toBe(false);
+  await act(async () => {
+    apply.click();
+  });
+  expect(calls.some((c) => c.action === 'parameters.apply' && c.payload.text === text)).toBe(true);
+});
+
+it('sends a group rename with every descendant identity in the current document', async () => {
+  const parameters = [
+    { name: 'box_width', entityToken: 'width', expression: '10 mm', value: 10, unit: 'mm' },
+    {
+      name: 'box_inner_depth',
+      entityToken: 'depth',
+      expression: 'box_width/2',
+      value: 5,
+      unit: 'mm',
+    },
+    { name: 'boxish_width', entityToken: 'other', expression: '10 mm', value: 10, unit: 'mm' },
+  ];
+  const calls = mount('#parameters', false, undefined, parameters);
+  await vi.waitFor(() => expect(host.textContent).toContain('Design'));
+  act(() =>
+    host.querySelector<HTMLButtonElement>('button[aria-label="Rename group box"]')!.click(),
+  );
+  const input = host.querySelector<HTMLInputElement>('input[aria-label="Rename group box"]')!;
+  act(() => {
+    input.value = 'case';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () => {
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  });
+  expect(calls.find((c) => c.action === 'parameters.renameGroup')?.payload).toEqual({
+    group: 'box',
+    newGroup: 'case',
+    parameters: parameters
+      .slice(0, 2)
+      .map(({ name, entityToken, expression, unit }) => ({ name, entityToken, expression, unit })),
+  });
+});
+
+it('keeps the feedback panel when a calculation becomes an incomplete assignment', async () => {
+  mount('#parameters');
+  await vi.waitFor(() => expect(host.textContent).toContain('Design'));
+  const editor = EditorView.findFromDOM(host.querySelector<HTMLElement>('.cm-content')!)!;
+  act(() => editor.dispatch({ changes: { from: 0, insert: '2+3' } }));
+  await vi.waitFor(() => expect(host.querySelector('.result-value')?.textContent).toBe('5'));
+  const panel = host.querySelector('.feedback-sheet');
+  act(() =>
+    editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: 'width=' } }),
+  );
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(host.querySelector('.feedback-sheet')).toBe(panel);
+  expect(panel?.getAttribute('aria-label')).toBe('Parameter preview');
+  expect(host.querySelector('.preview-placeholder')).toBeTruthy();
+});
+
+it('keeps preview DOM through incomplete input, debounce and a delayed reply', async () => {
+  mount('#parameters', false, [
+    { name: 'width', expression: '20 mm', value: 20, unit: 'mm', status: 'New' },
+  ]);
+  await vi.waitFor(() => expect(host.textContent).toContain('Design'));
+  const editor = EditorView.findFromDOM(host.querySelector<HTMLElement>('.cm-content')!)!;
+  const change = (text: string) =>
+    act(() => editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: text } }));
+  change('width=20mm');
+  await vi.waitFor(() => expect(host.querySelector('.preview-row')).toBeTruthy());
+  const panel = host.querySelector('.feedback-sheet'),
+    row = host.querySelector('.preview-row');
+  const requests: { requestId: string; action: string }[] = [];
+  window.adsk = { fusionSendData: (_action, raw) => requests.push(JSON.parse(raw)) };
+  change('width=20mm+');
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(host.querySelector('.feedback-sheet')).toBe(panel);
+  expect(host.querySelector('.preview-row')).toBe(row);
+  const apply = Array.from(host.querySelectorAll<HTMLButtonElement>('button')).find((b) =>
+    b.textContent?.includes('Apply parameters'),
+  )!;
+  expect(apply.disabled).toBe(true);
+  change('width=20mm+2mm');
+  await vi.waitFor(() =>
+    expect(requests.some((r) => r.action === 'parameters.preview')).toBe(true),
+  );
+  expect(host.querySelector('.feedback-sheet')).toBe(panel);
+  expect(host.querySelector('.preview-row')).toBe(row);
+  const pending = requests.find((r) => r.action === 'parameters.preview')!;
+  await act(async () => {
+    window.fusionJavaScriptHandler!.handle(
+      'response',
+      JSON.stringify({
+        requestId: pending.requestId,
+        ok: true,
+        documentId: 'doc',
+        data: {
+          valid: true,
+          snapshotToken: 'next',
+          items: [
+            { name: 'width', expression: '20 mm + 2 mm', value: 22, unit: 'mm', status: 'New' },
+          ],
+        },
+      }),
+    );
+  });
+  await vi.waitFor(() => expect(row?.textContent).toContain('22'));
+  expect(host.querySelector('.feedback-sheet')).toBe(panel);
+  expect(host.querySelector('.preview-row')).toBe(row);
+  expect(requests.some((r) => r.action === 'parameters.apply')).toBe(false);
+});
+
+it('does not apply a retained preview when the draft returns to old text during revalidation', async () => {
+  mount('#parameters', false, [
+    { name: 'width', expression: '20 mm', value: 20, unit: 'mm', status: 'New' },
+  ]);
+  await vi.waitFor(() => expect(host.textContent).toContain('Design'));
+  const editor = EditorView.findFromDOM(host.querySelector<HTMLElement>('.cm-content')!)!;
+  const change = (text: string) =>
+    act(() => editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: text } }));
+  change('width=20mm');
+  await vi.waitFor(() => expect(host.querySelector('.preview-row')).toBeTruthy());
+  const requests: { action: string }[] = [];
+  window.adsk = { fusionSendData: (_action, raw) => requests.push(JSON.parse(raw)) };
+  change('width=21mm');
+  await act(async () => {
+    await Promise.resolve();
+  });
+  change('width=20mm');
+  await act(async () => {
+    await Promise.resolve();
+  });
+  const apply = Array.from(host.querySelectorAll<HTMLButtonElement>('button')).find((b) =>
+    b.textContent?.includes('Apply parameters'),
+  )!;
+  expect(apply.disabled).toBe(true);
+  act(() => apply.click());
+  expect(requests.some((r) => r.action === 'parameters.apply')).toBe(false);
 });

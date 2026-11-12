@@ -26,6 +26,7 @@ _pending_prefill = None
 _pending_palette = None
 _pending_selection = None
 _pending_preview = None
+_pending_validation = None
 _selection_restores = []
 _SELECTION_EVENT = 'ParamoodRestoreSelection'
 _ready_modes = set()
@@ -52,6 +53,20 @@ def _respond(mode, message):
     _send(mode, 'response', dispatch(_adapter, message))
 
 
+class _MutationValidator:
+    """Use bridge envelope validation without exposing a write-capable adapter."""
+
+    def __init__(self, adapter):
+        self.adapter = adapter
+
+    @property
+    def document_id(self):
+        return self.adapter.document_id
+
+    def request(self, action, payload):
+        return self.adapter.validate_mutation(action, payload)
+
+
 class HtmlHandler(adsk.core.HTMLEventHandler):
     def __init__(self, mode):
         super().__init__()
@@ -66,22 +81,6 @@ class HtmlHandler(adsk.core.HTMLEventHandler):
             if not isinstance(message, dict):
                 return
             action = message.get('action')
-            if action == 'cleanup.open':
-                _send(
-                    self.mode,
-                    'response',
-                    {
-                        'requestId': message.get('requestId'),
-                        'ok': False,
-                        'error': {
-                            'code': 'UNSUPPORTED',
-                            'message': 'Cleanup is unavailable in this release.',
-                        },
-                        'documentId': _adapter.document_id,
-                    },
-                )
-                args.returnData = 'OK'
-                return
             if action in ('cleanup.open', 'parameters.open', 'parameters.prefill.ack'):
                 request_id = message.get('requestId')
                 if not isinstance(request_id, str) or not request_id:
@@ -138,12 +137,14 @@ class HtmlHandler(adsk.core.HTMLEventHandler):
                 'parameters.apply',
                 'parameters.delete',
                 'parameters.rename',
+                'parameters.renameGroup',
                 'parameters.favorite',
                 'variants.table.save',
                 'variants.apply',
                 'variants.delete',
                 'variants.free',
                 'document.units',
+                'cleanup.delete',
             ):
                 active_command = _ui.activeCommand
                 if _pending is not None:
@@ -165,8 +166,8 @@ class HtmlHandler(adsk.core.HTMLEventHandler):
                         selection = SelectionSnapshot(_app, _ui)
                     except SelectionUnavailable:
                         # A preview can hide the selected entities from the API.
-                        # Starting our transaction ends that command, rather than
-                        # attempting an unsafe direct edit or blocking the request.
+                        # End it explicitly before starting an independent transaction;
+                        # accessible selection never authorizes a direct preview write.
                         selection = None
                     self._apply(message, active_command, selection)
             else:
@@ -186,7 +187,22 @@ class HtmlHandler(adsk.core.HTMLEventHandler):
 
     def _apply(self, message, active_command, selection):
         global _pending, _pending_palette, _pending_selection, _pending_preview
+        global _pending_validation
+        if active_command != 'SelectCommand':
+            # Native commands can roll palette writes back with their preview.
+            # End that transaction and revalidate before our own execute event.
+            selection = None
         _pending_preview = None
+        _pending_validation = None
+        if not isinstance(message.get('payload', {}), dict):
+            _send(self.mode, 'response', dispatch(_MutationValidator(_adapter), message))
+            return
+        if message.get('action') != 'parameters.apply':
+            validation = dispatch(_MutationValidator(_adapter), message)
+            if not validation['ok']:
+                _send(self.mode, 'response', validation)
+                return
+            _pending_validation = validation['data']
         if selection is None and message.get('action') == 'parameters.apply':
             preview = dispatch(
                 _adapter,
@@ -216,8 +232,15 @@ class HtmlHandler(adsk.core.HTMLEventHandler):
                 return
             _pending_preview = preview['data']
         if selection is None and active_command != 'SelectCommand':
-            if not _ui.terminateActiveCommand():
+            try:
+                terminated = _ui.terminateActiveCommand() and _ui.activeCommand == 'SelectCommand'
+            except Exception:
+                terminated = False
+                if _app:
+                    _app.log(traceback.format_exc())
+            if not terminated:
                 _pending_preview = None
+                _pending_validation = None
                 _send(
                     self.mode,
                     'response',
@@ -232,8 +255,11 @@ class HtmlHandler(adsk.core.HTMLEventHandler):
                     },
                 )
                 return
-        if selection is not None and (
-            active_command != 'SelectCommand' or _adapter.is_sketch_edit()
+        if (
+            message.get('action') == 'parameters.apply'
+            and selection is not None
+            and active_command == 'SelectCommand'
+            and _adapter.is_sketch_edit()
         ):
             _pending = message
             _adapter.in_direct_apply = True
@@ -250,11 +276,19 @@ class HtmlHandler(adsk.core.HTMLEventHandler):
             _pending = message
             _pending_palette = self.mode
             _pending_selection = selection
-            if not _ui.commandDefinitions.itemById('ParamoodApply').execute():
+            try:
+                definition = _ui.commandDefinitions.itemById('ParamoodApply')
+                started = definition is not None and definition.execute()
+            except Exception:
+                started = False
+                if _app:
+                    _app.log(traceback.format_exc())
+            if not started:
                 _pending = None
                 _pending_palette = None
                 _pending_selection = None
                 _pending_preview = None
+                _pending_validation = None
                 if selection is not None:
                     selection.restore()
                 _send(
@@ -278,6 +312,24 @@ class ApplyExecute(adsk.core.CommandEventHandler):
         _result = None
         _adapter.in_command = True
         try:
+            if _pending_validation is not None:
+                validation = dispatch(_MutationValidator(_adapter), _pending)
+                if not validation['ok']:
+                    _result = validation
+                elif validation['data'] != _pending_validation:
+                    _result = {
+                        'requestId': _pending['requestId'],
+                        'ok': False,
+                        'error': {
+                            'code': 'CONFLICT',
+                            'message': 'The parameter or variants changed. Refresh and try again.',
+                        },
+                        'documentId': _adapter.document_id,
+                    }
+                if _result is not None:
+                    args.executeFailed = True
+                    args.executeFailedMessage = _result['error']['message']
+                    return
             if _pending_preview is not None:
                 preview = dispatch(
                     _adapter,
@@ -334,6 +386,7 @@ class ApplyExecute(adsk.core.CommandEventHandler):
 class ApplyDestroy(adsk.core.CommandEventHandler):
     def notify(self, args):
         global _pending, _result, _pending_palette, _pending_selection, _pending_preview
+        global _pending_validation
         if _pending is not None:
             result = _result or {
                 'requestId': _pending.get('requestId'),
@@ -346,6 +399,7 @@ class ApplyDestroy(adsk.core.CommandEventHandler):
             _result = None
             _pending_palette = None
             _pending_preview = None
+            _pending_validation = None
             if _pending_selection is not None:
                 _selection_restores.append(_pending_selection)
                 _pending_selection = None
@@ -419,7 +473,9 @@ def _show_palette(mode):
         if mode == 'cleanup':
             anchor = _palettes.get('parameters')
             if anchor and anchor.isValid:
-                palette.setPosition(anchor.left + anchor.width, max(0, anchor.top - 100))
+                # The main palette normally sits at the right screen edge.
+                # Opening to its right places cleanup outside the visible desktop.
+                palette.setPosition(max(0, anchor.left - 372), max(0, anchor.top - 100))
         if mode == 'parameters':
             palette.isVisible = True
             if hasattr(palette, 'isDockedInCanvas'):

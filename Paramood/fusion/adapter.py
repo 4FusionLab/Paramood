@@ -1,5 +1,6 @@
 """Fusion-only adapter. All public methods run on Fusion's main thread."""
 
+import copy
 import hashlib
 import json
 import math
@@ -30,6 +31,9 @@ from ..core.inline_equation import solve_inline_equation
 from ..bridge.protocol import BridgeError
 from ..bridge.formatting import display_quantity
 from .variants import VariantsMixin
+from .parameter_groups import ParameterGroupsMixin
+from .references import ReferencesMixin
+from .cleanup import CleanupMixin
 from .expression_engine import NativeExpressionEngine
 from ..core.text import map_code, normalize_literals, split_definitions, text_literal
 
@@ -85,7 +89,14 @@ def _is_driven(parameter):
         return False
 
 
-class FusionAdapter(VariantsMixin):
+class _MutationValidated(Exception):
+    """Internal read-only preflight stop, raised before the first model write."""
+
+    def __init__(self, state):
+        self.state = state
+
+
+class FusionAdapter(CleanupMixin, ReferencesMixin, ParameterGroupsMixin, VariantsMixin):
     def __init__(self, app):
         self.app = app
         self._document = None
@@ -93,8 +104,59 @@ class FusionAdapter(VariantsMixin):
         self._draft_id = None
         self._draft_documents = []
         self._variant_sessions = {}
+        self._cleanup_preview = None
         self.in_command = False
         self.in_direct_apply = False
+        self._validating_mutation = False
+
+    def _require_mutation_context(self, transaction_only=False):
+        if self._validating_mutation:
+            return
+        if not self.in_command and not self.in_direct_apply:
+            raise BridgeError('BAD_CONTEXT', 'Changes require a Fusion command.')
+        if self.in_direct_apply and (
+            transaction_only or self.app.userInterface.activeCommand != 'SelectCommand'
+        ):
+            raise BridgeError(
+                'TRANSACTION_REQUIRED',
+                'This change requires a separate Fusion command. No parameter changes were made.',
+            )
+
+    def _before_mutation(self, state=None):
+        if self._validating_mutation:
+            raise _MutationValidated(state)
+
+    def validate_mutation(self, action, payload):
+        # Reuse the real action validation, stopping before any CAD/attribute write.
+        # Variant matching caches are session state; even these survive a failed preflight.
+        supported = {
+            'parameters.rename',
+            'parameters.favorite',
+            'parameters.delete',
+            'parameters.renameGroup',
+            'variants.table.save',
+            'variants.apply',
+            'variants.delete',
+            'variants.free',
+            'document.units',
+            'cleanup.delete',
+        }
+        if action not in supported or self._validating_mutation:
+            raise BridgeError('BAD_REQUEST', 'Unsupported mutation preflight.')
+        sessions = copy.deepcopy(self._variant_sessions)
+        self._validating_mutation = True
+        try:
+            try:
+                self.request(action, payload)
+            except _MutationValidated as validated:
+                return {
+                    'variantsToken': self._read_variants(self._design())[1],
+                    'target': validated.state,
+                }
+            raise BridgeError('BAD_CONTEXT', 'The operation did not reach a safe write boundary.')
+        finally:
+            self._validating_mutation = False
+            self._variant_sessions = sessions
 
     def is_sketch_edit(self):
         # A sketch edit may still report SelectCommand. Never start another command
@@ -362,7 +424,9 @@ class FusionAdapter(VariantsMixin):
             for column in variant_state.get('variantColumns', [])
             if column['kind'] == 'parameter' and not column.get('missing')
         }
+        unused = self._unused_parameter_names(design, variant_state)
         for parameter in parameters:
+            parameter['unused'] = parameter['name'] in unused
             parameter['configured'] = parameter['name'] in controlled
         return {
             'documentId': self._document_id,
@@ -660,6 +724,10 @@ class FusionAdapter(VariantsMixin):
         return {'created': [], 'updated': [op.name for op in ops]}
 
     def request(self, action, payload):
+        if action == 'parameters.references':
+            return self._find_references(payload)
+        if action == 'parameters.references.select':
+            return self._select_reference(payload)
         if action == 'variants.cell.preview':
             return self._preview_variant_cell(payload)
         if action == 'variants.selection.get':
@@ -667,8 +735,7 @@ class FusionAdapter(VariantsMixin):
         if action.startswith('variants.'):
             return self._request_variant(action, payload)
         if action == 'document.units':
-            if not self.in_command and not self.in_direct_apply:
-                raise BridgeError('BAD_CONTEXT', 'Changes require a Fusion command.')
+            self._require_mutation_context()
             design = self._design()
             if payload.get('snapshotToken') != self._snapshot_token(design, 'units'):
                 raise BridgeError(
@@ -685,13 +752,13 @@ class FusionAdapter(VariantsMixin):
             if not isinstance(unit, str) or unit not in names:
                 raise BridgeError('BAD_REQUEST', 'Choose a supported length unit.')
             manager = design.fusionUnitsManager
+            self._before_mutation()
             manager.distanceDisplayUnits = getattr(adsk.fusion.DistanceUnits, names[unit])
             if manager.defaultLengthUnits != unit:
                 raise BridgeError('UPDATE_FAILED', 'Fusion did not accept the model units.')
             return {'defaultLengthUnit': manager.defaultLengthUnits}
         if action == 'parameters.favorite':
-            if not self.in_command and not self.in_direct_apply:
-                raise BridgeError('BAD_CONTEXT', 'Changes require a Fusion command.')
+            self._require_mutation_context()
             name, token, expected, favorite = (
                 payload.get('name'),
                 payload.get('entityToken'),
@@ -717,6 +784,7 @@ class FusionAdapter(VariantsMixin):
                 or parameter.isFavorite != expected
             ):
                 raise BridgeError('CONFLICT', 'The parameter changed. Refresh and try again.')
+            self._before_mutation({'expression': parameter.expression, 'unit': parameter.unit})
             try:
                 parameter.isFavorite = favorite
                 if parameter.isFavorite != favorite:
@@ -726,9 +794,10 @@ class FusionAdapter(VariantsMixin):
                     'FAVORITE_FAILED', 'Fusion could not update the favorite: ' + str(exc)
                 ) from exc
             return {'favorite': favorite}
+        if action == 'parameters.renameGroup':
+            return self._rename_parameter_group(payload)
         if action == 'parameters.rename':
-            if not self.in_command and not self.in_direct_apply:
-                raise BridgeError('BAD_CONTEXT', 'Changes require a Fusion command.')
+            self._require_mutation_context()
             name, token, new_name = (
                 payload.get('name'),
                 payload.get('entityToken'),
@@ -758,6 +827,7 @@ class FusionAdapter(VariantsMixin):
             if existing and existing != parameter:
                 raise BridgeError('CONFLICT', 'A parameter with this name already exists.')
             variants, _ = self._read_variants(design)
+            self._before_mutation()
             try:
                 parameter.name = new_name
                 if parameter.name != new_name:
@@ -769,8 +839,7 @@ class FusionAdapter(VariantsMixin):
                 ) from exc
             return {'renamed': new_name}
         if action == 'parameters.delete':
-            if not self.in_command and not self.in_direct_apply:
-                raise BridgeError('BAD_CONTEXT', 'Changes require a Fusion command.')
+            self._require_mutation_context()
             name, token = payload.get('name'), payload.get('entityToken')
             if not isinstance(name, str) or not name or not isinstance(token, str) or not token:
                 raise BridgeError(
@@ -785,6 +854,7 @@ class FusionAdapter(VariantsMixin):
                 raise BridgeError(
                     'READ_ONLY', 'Driven dimensions cannot be deleted from this panel.'
                 )
+            self._before_mutation({'expression': parameter.expression, 'unit': parameter.unit})
             try:
                 deleted = parameter.deleteMe()
             except Exception as exc:
@@ -885,6 +955,12 @@ class FusionAdapter(VariantsMixin):
         if action == 'parameters.apply':
             if not self.in_command and not self.in_direct_apply:
                 raise BridgeError('BAD_CONTEXT', 'Changes require a Fusion command.')
+            if self.in_direct_apply and self.app.userInterface.activeCommand != 'SelectCommand':
+                raise BridgeError(
+                    'TRANSACTION_REQUIRED',
+                    'Finish or cancel the active Fusion command, then apply the parameters again. '
+                    'No parameter changes were made.',
+                )
             if payload.get('requireTransaction') is True and self.in_direct_apply:
                 raise BridgeError(
                     'TRANSACTION_REQUIRED',
@@ -958,34 +1034,8 @@ class FusionAdapter(VariantsMixin):
             )
             return {'value': display_value, 'unit': unit, 'formatted': formatted}
         if action == 'cleanup.analyze':
-            design = self._design()
-            items = []
-            for p in design.userParameters:
-                try:
-                    formatted = (
-                        p.textValue
-                        if _is_text(p)
-                        else (
-                            design.fusionUnitsManager.formatValue(p.value, p.unit)
-                            if p.unit
-                            else str(p.value)
-                        )
-                    )
-                except Exception:
-                    formatted = ''
-                items.append(
-                    {
-                        'name': p.name,
-                        'expression': p.expression,
-                        'value': formatted,
-                        'unit': p.unit,
-                        'comment': p.comment,
-                        'favorite': p.isFavorite,
-                        'protected': True,
-                        'selected': False,
-                        'reason': 'Protected: dependency coverage has not yet been verified.',
-                    }
-                )
-            return {'items': items}
+            return self._analyze_cleanup()
+        if action == 'cleanup.delete':
+            return self._delete_cleanup(payload)
 
         raise BridgeError('BAD_REQUEST', 'Unknown action.')

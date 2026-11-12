@@ -1,3 +1,5 @@
+import { parameterGroupMembers } from './parameter-tree';
+import { keptDependencyOwner, updateCleanupSelection } from './cleanup-selection';
 import { incompleteExpression } from '../../src/expression-language';
 import { render, type ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
@@ -24,7 +26,7 @@ import { hasAssignment } from './expression-syntax';
 import { Notice } from './notice';
 import { Presence } from './presence';
 import { useChangeMotion, valueHighlight } from './motion';
-const CLEANUP_ENABLED: boolean = false;
+
 function Section({ title, children }: { title: string; children: ComponentChildren }) {
   return (
     <section aria-label={title}>
@@ -48,6 +50,7 @@ export function App() {
   const [text, setText] = useState(''),
     [preview, setPreview] = useState<Preview | null>(null),
     [previewError, setPreviewError] = useState(''),
+    [previewReady, setPreviewReady] = useState(false),
     [previewText, setPreviewText] = useState(''),
     [previewDoc, setPreviewDoc] = useState(''),
     [previewRevision, setPreviewRevision] = useState(0);
@@ -70,8 +73,9 @@ export function App() {
   const resultFeedback = useChangeMotion(result?.formatted ?? '', valueHighlight, 500);
   const [history, setHistory] = useState<string[]>([]),
     [showHistory, setShowHistory] = useState(false);
-  const mode = CLEANUP_ENABLED && window.location.hash === '#cleanup' ? 'cleanup' : 'parameters';
+  const mode = window.location.hash === '#cleanup' ? 'cleanup' : 'parameters';
   const [cleanup, setCleanup] = useState<CleanupItem[] | null>(null),
+    [cleanupSnapshot, setCleanupSnapshot] = useState(''),
     [filter, setFilter] = useState(''),
     [confirm, setConfirm] = useState(false),
     [incomingPrefill, setIncomingPrefill] = useState<Prefill | null>(null),
@@ -106,6 +110,7 @@ export function App() {
     setPreview(null);
     setResult(null);
     setCleanup(null);
+    setCleanupSnapshot('');
     setConfirm(false);
     setConfirmPrefill(null);
     try {
@@ -163,9 +168,11 @@ export function App() {
       if (JSON.stringify(current) !== JSON.stringify(next)) {
         ++previewGen.current;
         ++calcGen.current;
-        setPreview(null);
+        setPreviewReady(false);
         setResult(null);
         setCleanup(null);
+        setCleanupSnapshot('');
+        setConfirm(false);
         ++editGeneration.current;
         setEditing(null);
         setModel(next);
@@ -205,13 +212,13 @@ export function App() {
   }, []);
   useEffect(() => {
     const gen = ++previewGen.current;
-    setPreview(null);
-    setPreviewError('');
+    setPreviewReady(false);
+    if (!available || !text.trim() || !assignment || !model?.documentId) {
+      setPreview(null);
+      setPreviewError('');
+      return;
+    }
     if (
-      !available ||
-      !text.trim() ||
-      !assignment ||
-      !model?.documentId ||
       incompleteExpression(
         text,
         model.parameters.flatMap((p) => [p.name, p.name.replace(/_/g, '.')]),
@@ -226,10 +233,16 @@ export function App() {
             setPreviewText(text);
             setPreviewDoc(id);
             setPreview(data);
+            setPreviewError('');
+            setPreviewReady(true);
           }
         })
         .catch((e) => {
-          if (gen === previewGen.current && doc.current === id) setPreviewError(message(e));
+          if (gen === previewGen.current && doc.current === id) {
+            setPreview(null);
+            setPreviewError(message(e));
+            setPreviewReady(true);
+          }
         });
     }, 300);
     return () => window.clearTimeout(timer);
@@ -269,6 +282,7 @@ export function App() {
       submitted = textRef.current;
     if (
       !id ||
+      !previewReady ||
       !canApplyPreview(
         preview
           ? {
@@ -442,6 +456,32 @@ export function App() {
       setBusy(false);
     }
   }
+  async function renameGroup(group: string, newGroup: string): Promise<boolean> {
+    const id = doc.current;
+    if (!id || busyRef.current || !model) return false;
+    if (newGroup === group) return true;
+    const parameters = parameterGroupMembers(model.parameters, group).map(
+      ({ name, entityToken, expression, unit }) => ({ name, entityToken, expression, unit }),
+    );
+    busyRef.current = true;
+    setBusy(true);
+    setProblem('');
+    try {
+      await request('parameters.renameGroup', { group, newGroup, parameters }, id);
+      if (refreshFlight.current) await refreshFlight.current;
+      if (doc.current === id) await refreshOnFocus(true);
+      return true;
+    } catch (e) {
+      if (doc.current === id) {
+        setProblem(message(e));
+        await refreshOnFocus(true);
+      }
+      return false;
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
   async function toggleFavorite(parameter: Parameter) {
     const id = doc.current;
     if (!id || busyRef.current || !parameter.entityToken || typeof parameter.favorite !== 'boolean')
@@ -505,17 +545,49 @@ export function App() {
       setBusy(false);
     }
   }
+  const autoAnalyzedModel = useRef<ModelState | null>(null);
+  useEffect(() => {
+    if (
+      mode === 'cleanup' &&
+      available &&
+      model &&
+      !busyRef.current &&
+      autoAnalyzedModel.current !== model
+    ) {
+      autoAnalyzedModel.current = model;
+      void analyze();
+    }
+  }, [mode, available, model, busy]);
   async function analyze() {
     const id = doc.current;
     if (!id || busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
     setProblem('');
+    const gen = generation.current;
+    const source = modelRef.current;
+    setCleanup(null);
+    setCleanupSnapshot('');
+    setConfirm(false);
     try {
-      const data = await request<{ items: CleanupItem[] }>('cleanup.analyze', {}, id);
-      if (doc.current === id) setCleanup(data.items);
+      const data = await request<{ items: CleanupItem[]; snapshot: string }>(
+        'cleanup.analyze',
+        {},
+        id,
+      );
+      if (doc.current === id && generation.current === gen && modelRef.current === source) {
+        setCleanup(
+          updateCleanupSelection(
+            data.items.map((item) => ({ ...item, selected: !item.protected && !item.favorite })),
+            '',
+            false,
+          ),
+        );
+        setCleanupSnapshot(data.snapshot);
+      }
     } catch (e) {
-      if (doc.current === id) setProblem(message(e));
+      if (doc.current === id && generation.current === gen && modelRef.current === source)
+        setProblem(message(e));
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -523,7 +595,7 @@ export function App() {
   }
   async function removeSelected() {
     const id = doc.current;
-    if (!id || !cleanup || busyRef.current) return;
+    if (!id || !cleanup || !cleanupSnapshot || busyRef.current) return;
     const names = cleanup
       .filter((x) => x.selected && !x.protected && !x.favorite)
       .map((x) => x.name);
@@ -532,14 +604,18 @@ export function App() {
     setBusy(true);
     setConfirm(false);
     try {
-      await request('cleanup.delete', { names }, id);
+      await request('cleanup.delete', { names, snapshot: cleanupSnapshot }, id);
       if (refreshFlight.current) await refreshFlight.current;
       if (doc.current === id) {
         showNotice('Selected parameters deleted.');
         await refresh();
       }
     } catch (e) {
-      if (doc.current === id) setProblem(message(e));
+      if (doc.current === id) {
+        setProblem(message(e));
+        setCleanup(null);
+        setCleanupSnapshot('');
+      }
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -547,7 +623,7 @@ export function App() {
   }
   const selected = cleanup?.filter((x) => x.selected && !x.protected && !x.favorite).length ?? 0;
   return (
-    <main class={view === 'hybrid' ? 'hybrid-palette' : ''}>
+    <main class={mode === 'parameters' && view === 'hybrid' ? 'hybrid-palette' : ''}>
       <div class="context">
         <span class={`dot ${available ? 'online' : ''}`} />
         <div class="model-context">
@@ -645,109 +721,124 @@ export function App() {
       {mode === 'parameters' && (
         <div key="parameters-layout" class={`palette-layout view-${view}`}>
           <div class="editor-pane">
-            {(!feedbackDismissed || view !== 'hybrid') &&
-              (showHistory || (assignment ? !!preview || !!previewError : !!text.trim())) && (
-                <div
-                  class="feedback-sheet"
-                  aria-label={assignment ? 'Parameter preview' : 'Calculation result'}
-                >
-                  {view === 'hybrid' && (
-                    <div class="feedback-sheet-header">
-                      <strong>{showHistory ? 'History' : assignment ? 'Preview' : 'Result'}</strong>
+            {(!feedbackDismissed || view !== 'hybrid') && (showHistory || !!text.trim()) && (
+              <div
+                class="feedback-sheet"
+                aria-label={assignment ? 'Parameter preview' : 'Calculation result'}
+                aria-busy={assignment && !previewReady}
+              >
+                {view === 'hybrid' && (
+                  <div class="feedback-sheet-header">
+                    <strong>
+                      {showHistory ? 'History' : assignment ? 'Preview' : 'Result'}
+                      {assignment && !previewReady && !previewError && (
+                        <span class="preview-update-status"> Updating…</span>
+                      )}
+                    </strong>
+                    <button
+                      class="icon"
+                      aria-label="Close result panel"
+                      onClick={() => {
+                        setFeedbackDismissed(true);
+                        setShowHistory(false);
+                      }}
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+                {assignment && !preview && !previewError && (
+                  <p class="helper preview-placeholder">
+                    Complete the expression to preview changes.
+                  </p>
+                )}
+                {assignment && previewError && (
+                  <div class="error" role="alert">
+                    {previewError}
+                  </div>
+                )}
+                {assignment && preview && (
+                  <div class="preview">
+                    <div class="minor-label">
+                      Preview{' '}
+                      <span class="preview-update-status" role="status">
+                        {!previewReady ? 'Updating…' : ''}
+                      </span>
+                    </div>
+                    {preview.items.map((item) => (
+                      <div class="preview-row" key={item.name}>
+                        <div>
+                          <strong>{item.name}</strong>
+                          <span class="formula">{item.expression}</span>
+                          {item.message && (
+                            <span class={item.estimated ? 'preview-note' : 'error'}>
+                              {item.message}
+                            </span>
+                          )}
+                        </div>
+                        <div class="row-end">
+                          <span>
+                            {item.previous ? `${item.previous} → ` : ''}
+                            {item.estimated ? '≈ ' : ''}
+                            {previewValue(item.value)} {item.unit ?? ''}
+                          </span>
+                          <span class={`badge ${item.status.toLowerCase()}`}>{item.status}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {showHistory && !assignment && (
+                  <div class="history">
+                    {history.length ? (
+                      history.map((item) => (
+                        <button
+                          onClick={() => {
+                            setText(item);
+                            setShowHistory(false);
+                          }}
+                        >
+                          {item}
+                        </button>
+                      ))
+                    ) : (
+                      <span>No calculations yet.</span>
+                    )}
+                  </div>
+                )}
+                {mode === 'parameters' && !assignment && !!text.trim() && (
+                  <Section title="Result">
+                    {calcError && (
+                      <div class="error" role="alert">
+                        {calcError}
+                      </div>
+                    )}
+                    <div class="result">
+                      <div>
+                        <span class="minor-label">Result</span>
+                        <div ref={resultFeedback} class="result-value">
+                          {result?.formatted ?? '—'}
+                        </div>
+                      </div>
                       <button
                         class="icon"
-                        aria-label="Close result panel"
-                        onClick={() => {
-                          setFeedbackDismissed(true);
-                          setShowHistory(false);
-                        }}
+                        title="Copy value and unit"
+                        aria-label="Copy value and unit"
+                        disabled={!result}
+                        onClick={() => result && void copy(result.formatted)}
                       >
-                        <X size={14} />
+                        <Copy size={15} />
                       </button>
                     </div>
-                  )}
-                  {assignment && previewError && (
-                    <div class="error" role="alert">
-                      {previewError}
+                    <div class="actions secondary-actions">
+                      <button disabled={!expression} onClick={() => void copy(expression)}>
+                        Copy expression
+                      </button>
                     </div>
-                  )}
-                  {assignment && preview && (
-                    <div class="preview">
-                      <div class="minor-label">Preview</div>
-                      {preview.items.map((item) => (
-                        <div class="preview-row" key={item.name}>
-                          <div>
-                            <strong>{item.name}</strong>
-                            <span class="formula">{item.expression}</span>
-                            {item.message && (
-                              <span class={item.estimated ? 'preview-note' : 'error'}>
-                                {item.message}
-                              </span>
-                            )}
-                          </div>
-                          <div class="row-end">
-                            <span>
-                              {item.previous ? `${item.previous} → ` : ''}
-                              {item.estimated ? '≈ ' : ''}
-                              {previewValue(item.value)} {item.unit ?? ''}
-                            </span>
-                            <span class={`badge ${item.status.toLowerCase()}`}>{item.status}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {showHistory && !assignment && (
-                    <div class="history">
-                      {history.length ? (
-                        history.map((item) => (
-                          <button
-                            onClick={() => {
-                              setText(item);
-                              setShowHistory(false);
-                            }}
-                          >
-                            {item}
-                          </button>
-                        ))
-                      ) : (
-                        <span>No calculations yet.</span>
-                      )}
-                    </div>
-                  )}
-                  {mode === 'parameters' && !assignment && !!text.trim() && (
-                    <Section title="Result">
-                      {calcError && (
-                        <div class="error" role="alert">
-                          {calcError}
-                        </div>
-                      )}
-                      <div class="result">
-                        <div>
-                          <span class="minor-label">Result</span>
-                          <div ref={resultFeedback} class="result-value">
-                            {result?.formatted ?? '—'}
-                          </div>
-                        </div>
-                        <button
-                          class="icon"
-                          title="Copy value and unit"
-                          aria-label="Copy value and unit"
-                          disabled={!result}
-                          onClick={() => result && void copy(result.formatted)}
-                        >
-                          <Copy size={15} />
-                        </button>
-                      </div>
-                      <div class="actions secondary-actions">
-                        <button disabled={!expression} onClick={() => void copy(expression)}>
-                          Copy expression
-                        </button>
-                      </div>
-                    </Section>
-                  )}
-                </div>
-              )}
+                  </Section>
+                )}
+              </div>
+            )}
 
             {mode === 'parameters' && (
               <Section title="Paramood">
@@ -775,18 +866,6 @@ export function App() {
                       Show result
                     </button>
                   )}
-                  {CLEANUP_ENABLED && (
-                    <button
-                      disabled={!available || busy}
-                      onClick={() => {
-                        const id = doc.current;
-                        if (id)
-                          void request('cleanup.open', {}, id).catch((e) => setProblem(message(e)));
-                      }}
-                    >
-                      Clean unused…
-                    </button>
-                  )}
                   <button
                     class="icon"
                     aria-label="Calculation history"
@@ -805,6 +884,7 @@ export function App() {
                       disabled={
                         !available ||
                         busy ||
+                        !previewReady ||
                         !canApplyPreview(
                           preview
                             ? {
@@ -831,9 +911,16 @@ export function App() {
             <ParameterList
               key={lastDocument.current}
               parameters={model?.parameters || []}
+              documentId={model?.documentId ?? undefined}
               onDelete={(parameter) => void deleteParameter(parameter)}
+              onCleanup={() => {
+                const id = doc.current;
+                if (id && !busyRef.current)
+                  void request('cleanup.open', {}, id).catch((error) => setProblem(message(error)));
+              }}
               onCopyReference={(name) => void copy(name, false)}
               onRename={renameParameter}
+              onRenameGroup={renameGroup}
               onFavorite={(parameter) => void toggleFavorite(parameter)}
               busy={busy}
               editingName={editing?.name}
@@ -885,9 +972,12 @@ export function App() {
       {mode === 'cleanup' && (
         <div key="cleanup-layout" id="cleanup-section">
           <Section title="Paramood-Cleanup">
-            <p class="helper">Analyze current parameters. Deletion is not available yet.</p>
+            <p class="helper">
+              Review unused parameters before deleting. Favorites, model uses and saved variants are
+              protected. Keeping a parameter also keeps its dependencies.
+            </p>
             <button disabled={!available || busy} onClick={() => void analyze()}>
-              Analyze parameters
+              Refresh preview
             </button>
             {cleanup && (
               <div class="cleanup">
@@ -899,15 +989,21 @@ export function App() {
                 />
                 <div class="cleanup-actions">
                   <button
+                    disabled={busy}
                     onClick={() =>
                       setCleanup(
-                        cleanup.map((x) => ({ ...x, selected: !x.protected && !x.favorite })),
+                        updateCleanupSelection(
+                          cleanup.map((x) => ({ ...x, selected: !x.protected && !x.favorite })),
+                          '',
+                          false,
+                        ),
                       )
                     }
                   >
                     Select all
                   </button>
                   <button
+                    disabled={busy}
                     onClick={() => setCleanup(cleanup.map((x) => ({ ...x, selected: false })))}
                   >
                     Deselect all
@@ -916,38 +1012,40 @@ export function App() {
                 </div>
                 {cleanup
                   .filter((x) => x.name.toLowerCase().includes(filter.toLowerCase()))
-                  .map((item) => (
-                    <label class="cleanup-row">
-                      <input
-                        type="checkbox"
-                        checked={item.selected && !item.protected && !item.favorite}
-                        disabled={item.protected || item.favorite}
-                        onChange={(e) =>
-                          setCleanup(
-                            cleanup.map((x) =>
-                              x.name === item.name
-                                ? { ...x, selected: e.currentTarget.checked }
-                                : x,
-                            ),
-                          )
-                        }
-                      />
-                      <span>
-                        <strong>{item.name}</strong>
-                        <small>
-                          {item.expression} · {item.value} {item.unit}
-                        </small>
-                        <small>
-                          {item.favorite ? 'Favorite · ' : ''}
-                          {item.reason}
-                        </small>
-                      </span>
-                    </label>
-                  ))}
+                  .map((item) => {
+                    const keptBy = keptDependencyOwner(cleanup, item.name);
+                    return (
+                      <label class="cleanup-row" key={item.name}>
+                        <input
+                          type="checkbox"
+                          checked={item.selected && !item.protected && !item.favorite}
+                          aria-label={`Delete ${item.name}`}
+                          aria-describedby={keptBy ? `cleanup-reason-${item.name}` : undefined}
+                          disabled={busy || item.protected || item.favorite || !!keptBy}
+                          onChange={(e) =>
+                            setCleanup(
+                              updateCleanupSelection(cleanup, item.name, e.currentTarget.checked),
+                            )
+                          }
+                        />
+                        <span>
+                          <strong>{item.name}</strong>
+                          <small>
+                            {item.expression} · {item.value}
+                            {typeof item.value === 'number' && item.unit ? ` ${item.unit}` : ''}
+                          </small>
+                          <small id={`cleanup-reason-${item.name}`}>
+                            {item.favorite ? 'Favorite · ' : ''}
+                            {keptBy ? `Required by kept parameter ${keptBy}.` : item.reason}
+                          </small>
+                        </span>
+                      </label>
+                    );
+                  })}
                 {!cleanup.length && <p class="helper">No candidates found.</p>}
                 <button
                   class="danger"
-                  disabled={!selected || busy}
+                  disabled={!selected || !cleanupSnapshot || busy}
                   onClick={() => setConfirm(true)}
                 >
                   Delete selected…
@@ -985,7 +1083,9 @@ export function App() {
         {confirm && (
           <div class="overlay">
             <div role="dialog" aria-modal="true" aria-labelledby="confirm-title" class="dialog">
-              <h2 id="confirm-title">Delete {selected} parameters?</h2>
+              <h2 id="confirm-title">
+                Delete {selected} {selected === 1 ? 'parameter' : 'parameters'}?
+              </h2>
               <p>Dependencies will be checked again before deletion.</p>
               <div class="actions">
                 <button onClick={() => setConfirm(false)}>Cancel</button>

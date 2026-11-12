@@ -1,8 +1,22 @@
 export type ParameterNode<T extends { name: string }> = {
   children: Map<string, ParameterNode<T>>;
   parameter?: T;
+  /** Structural identity from the full tree, independent of visible search results. */
+  isGroup?: boolean;
 };
 const virtualName = /^[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё0-9]*(?:_[A-Za-zА-Яа-яЁё0-9]+)+$/;
+
+/** Use the same virtual subtree membership for drag snapshots and bridge requests. */
+export function parameterGroupMembers<T extends { name: string }>(
+  parameters: T[],
+  group: string,
+): T[] {
+  return parameters.filter(
+    (parameter) =>
+      parameter.name === group ||
+      (virtualName.test(parameter.name) && parameter.name.startsWith(`${group}_`)),
+  );
+}
 
 export function nameInParameterGroup(name: string, group: string): string {
   const leaf = virtualName.test(name) ? name.slice(name.lastIndexOf('_') + 1) : name;
@@ -20,6 +34,7 @@ export function parameterTree<T extends { name: string }>(parameters: T[]): Para
     const parts = virtualName.test(parameter.name) ? parameter.name.split('_') : [parameter.name];
     let node = root;
     for (const part of parts) {
+      node.isGroup = true;
       if (!node.children.has(part)) node.children.set(part, { children: new Map() });
       node = node.children.get(part)!;
     }

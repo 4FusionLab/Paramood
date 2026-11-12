@@ -228,3 +228,10 @@ test('unit completion waits for a typed unit prefix after a value', async () => 
     assert.equal(unitCompletionFrom(text, text.length), text.length - 1, text);
   }
 });
+
+test('completed assignments allow trailing batch separators', () => {
+  for (const input of ['w=15;', 'w=15;  \n', 'w=15;h=min(1;2);', 'caption="a;b";', 'w=15;;'])
+    assert.equal(incompleteExpression(input), false, input);
+  for (const input of [';', 'w=;', 'w=1+;', 'w=min(1;', 'w=min(1;);'])
+    assert.equal(incompleteExpression(input), true, input);
+});

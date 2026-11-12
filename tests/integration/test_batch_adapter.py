@@ -69,7 +69,11 @@ def make_adapter(module):
     design = SimpleNamespace(
         allParameters=params, userParameters=params, fusionUnitsManager=Units(params)
     )
-    app = SimpleNamespace(activeDocument=object(), activeProduct=design)
+    app = SimpleNamespace(
+        activeDocument=object(),
+        activeProduct=design,
+        userInterface=SimpleNamespace(activeCommand='SelectCommand'),
+    )
     adapter = module.FusionAdapter(app)
     adapter.in_command = True
     return adapter, params
@@ -128,6 +132,46 @@ def test_direct_apply_creates_one_parameter_without_command(adapter_module):
     )
     assert result == {'created': ['width'], 'updated': []}
     assert params.entries['width'].expression == '15 mm'
+
+
+@pytest.mark.parametrize('command', ['CircleCenterRadius', 'SketchDimension', 'Extrude'])
+@pytest.mark.parametrize('text', ['new_size=15', 'width=15', 'width=15;new_size=10'])
+def test_native_command_cannot_absorb_parameter_changes(adapter_module, command, text):
+    adapter, params = make_adapter(adapter_module)
+    adapter.in_command = False
+    adapter.in_direct_apply = True
+    adapter.app.userInterface.activeCommand = command
+    adapter_module.adsk.fusion.ParameterValueTypes = SimpleNamespace(NumericParameterValueType=0)
+    params.entries['width'] = SimpleNamespace(
+        name='width',
+        expression='10 mm',
+        unit='mm',
+        value=1.0,
+        valueType=0,
+        dependencyParameters=[],
+        dependentParameters=[],
+    )
+
+    def modify(parameters, expressions):
+        params.log.append(('modify', expressions))
+        for parameter, expression in zip(parameters, expressions):
+            parameter.expression = expression
+            parameter.value = 1.5
+        return True
+
+    adapter.app.activeProduct.modifyParameters = modify
+    token = adapter.request('parameters.preview', {'text': text})['snapshotToken']
+    params.log.clear()
+
+    with pytest.raises(adapter_module.BridgeError) as error:
+        adapter.request('parameters.apply', {'text': text, 'snapshotToken': token})
+
+    assert error.value.code == 'TRANSACTION_REQUIRED'
+    assert 'No parameter changes were made' in str(error.value)
+    assert list(params.entries) == ['width']
+    assert params.entries['width'].expression == '10 mm'
+    assert params.log == []
+    assert adapter.app.userInterface.activeCommand == command
 
 
 def test_direct_apply_rejects_stale_preview_before_write(adapter_module):
@@ -1043,7 +1087,7 @@ def test_delete_parameter_checks_identity_and_reports_fusion_refusal(adapter_mod
     adapter, params = make_adapter(adapter_module)
 
     class Parameter:
-        name = 'width'
+        name, expression, unit = 'width', '10 mm', 'mm'
 
         def __init__(self):
             self.result = False
@@ -1074,7 +1118,7 @@ def test_delete_reports_fusion_exception(adapter_module):
     adapter, params = make_adapter(adapter_module)
 
     class Parameter:
-        name = 'width'
+        name, expression, unit = 'width', '10 mm', 'mm'
 
         def deleteMe(self):
             raise RuntimeError('Referenced parameter')
@@ -1271,7 +1315,7 @@ def test_equation_preview_plans_solved_new_parameter_and_target(adapter_module, 
 
 def test_favorite_checks_identity_and_expected_state(adapter_module):
     adapter, params = make_adapter(adapter_module)
-    parameter = SimpleNamespace(name='width', isFavorite=False)
+    parameter = SimpleNamespace(name='width', expression='10 mm', unit='mm', isFavorite=False)
     params.entries['width'] = parameter
     adapter._design().findEntityByToken = lambda token: [parameter] if token == 'valid' else []
     payload = {'name': 'width', 'entityToken': 'valid', 'expected': False, 'favorite': True}
@@ -1410,3 +1454,184 @@ def test_random_write_preserves_expression_and_checks_type_instead_of_sample_equ
     adapter._execute_new_batch(adapter._design(), operations)
     assert parameters.entries['roll'].expression == 'random()'
     assert parameters.entries['roll'].value != operations[0].quantity.value
+
+
+def group_rename_fixture(adapter_module):
+    adapter, params = make_adapter(adapter_module)
+    for name in ('box_width', 'box_inner_depth', 'boxish_width', 'box__private'):
+        params.entries[name] = SimpleNamespace(name=name, expression='10 mm', unit='mm')
+    design = adapter._design()
+    design.findEntityByToken = lambda token: (
+        [params.entries[token]] if token in params.entries else []
+    )
+    expected = [
+        {'name': name, 'entityToken': name, 'expression': '10 mm', 'unit': 'mm'}
+        for name in ('box_width', 'box_inner_depth')
+    ]
+    return adapter, params, {'group': 'box', 'newGroup': 'case', 'parameters': expected}
+
+
+def test_rename_virtual_group_and_nested_parameters(adapter_module):
+    adapter, params, payload = group_rename_fixture(adapter_module)
+    assert adapter.request('parameters.renameGroup', payload) == {
+        'renamed': {'box_width': 'case_width', 'box_inner_depth': 'case_inner_depth'}
+    }
+    assert [p.name for p in params] == [
+        'case_width',
+        'case_inner_depth',
+        'boxish_width',
+        'box__private',
+    ]
+
+
+@pytest.mark.parametrize(
+    'change', ['collision', 'member', 'token', 'expression', 'unit', 'duplicate', 'readonly']
+)
+def test_group_rename_rejects_stale_or_conflicting_batch_before_writing(adapter_module, change):
+    adapter, params, payload = group_rename_fixture(adapter_module)
+    if change == 'collision':
+        params.entries['case_inner_depth'] = SimpleNamespace(name='case_inner_depth')
+    elif change == 'member':
+        params.entries['box_extra'] = SimpleNamespace(name='box_extra')
+    elif change in ('token', 'expression', 'unit'):
+        key = 'entityToken' if change == 'token' else change
+        payload['parameters'][-1][key] = 'stale'
+    elif change == 'duplicate':
+        payload['parameters'][-1] = payload['parameters'][0]
+    else:
+        adapter._editable_parameter = lambda design, name: (
+            None if name.endswith('depth') else params.entries[name]
+        )
+    with pytest.raises(adapter_module.BridgeError):
+        adapter.request('parameters.renameGroup', payload)
+    assert params.entries['box_width'].name == 'box_width'
+    assert params.entries['box_inner_depth'].name == 'box_inner_depth'
+
+
+@pytest.mark.parametrize('new_group', ['', 'bad.name', '2box', 'box__bad'])
+def test_group_rename_rejects_invalid_names(adapter_module, new_group):
+    adapter, params, payload = group_rename_fixture(adapter_module)
+    payload['newGroup'] = new_group
+    with pytest.raises(adapter_module.BridgeError):
+        adapter.request('parameters.renameGroup', payload)
+    assert params.entries['box_width'].name == 'box_width'
+
+
+def test_group_rename_requires_transaction_even_in_direct_context(adapter_module):
+    adapter, params, payload = group_rename_fixture(adapter_module)
+    adapter.in_direct_apply = True
+    with pytest.raises(adapter_module.BridgeError, match='command'):
+        adapter.request('parameters.renameGroup', payload)
+    assert params.entries['box_width'].name == 'box_width'
+
+
+def test_group_rename_updates_variant_columns_and_unquoted_references(adapter_module):
+    from Paramood.core.variants import decode_variant_table
+
+    adapter, params, payload = group_rename_fixture(adapter_module)
+    table = {
+        'columns': [
+            {'kind': 'parameter', 'name': 'box_width', 'entityToken': 'width', 'unit': 'mm'},
+            {'kind': 'parameter', 'name': 'caption', 'entityToken': 'caption', 'unit': 'Text'},
+            {'kind': 'feature', 'name': 'box_width', 'entityToken': 'feature'},
+        ],
+        'variants': [
+            {
+                'id': 'one',
+                'name': 'One',
+                'features': [{'name': 'box_width', 'entityToken': 'feature', 'enabled': True}],
+                'parameters': [
+                    {
+                        'name': 'box_width',
+                        'entityToken': 'width',
+                        'unit': 'mm',
+                        'expression': '10 mm',
+                        'value': 10,
+                    },
+                    {
+                        'name': 'caption',
+                        'entityToken': 'caption',
+                        'unit': 'Text',
+                        'expression': "'box_width;' + box_width + box_inner_depth + boxish_width",
+                        'value': 'text',
+                    },
+                ],
+            }
+        ],
+    }
+    adapter._read_variant_table = lambda design: (table, 'token')
+    saved = []
+    adapter._store_variant_raw = lambda design, raw: saved.append(raw)
+    adapter.request('parameters.renameGroup', payload)
+    result = decode_variant_table(saved[0])
+    assert result['columns'][0]['name'] == 'case_width'
+    assert result['columns'][2]['name'] == 'box_width'
+    assert result['variants'][0]['parameters'][0]['name'] == 'case_width'
+    assert result['variants'][0]['parameters'][1]['expression'] == (
+        "'box_width;' + case_width + case_inner_depth + boxish_width"
+    )
+
+
+def test_rename_nested_group_includes_its_own_value_and_preserves_siblings(adapter_module):
+    adapter, params = make_adapter(adapter_module)
+    for name in ('корпус_внутри', 'корпус_внутри_2_глубина', 'корпус_ширина'):
+        params.entries[name] = SimpleNamespace(name=name, expression='10 mm', unit='mm')
+    adapter._design().findEntityByToken = lambda token: [params.entries[token]]
+    entries = [
+        {'name': name, 'entityToken': name, 'expression': '10 mm', 'unit': 'mm'}
+        for name in ('корпус_внутри', 'корпус_внутри_2_глубина')
+    ]
+    result = adapter.request(
+        'parameters.renameGroup',
+        {
+            'group': 'корпус_внутри',
+            'newGroup': 'корпус_снаружи',
+            'parameters': entries,
+        },
+    )
+    assert result['renamed'] == {
+        'корпус_внутри': 'корпус_снаружи',
+        'корпус_внутри_2_глубина': 'корпус_снаружи_2_глубина',
+    }
+    assert params.entries['корпус_ширина'].name == 'корпус_ширина'
+
+
+@pytest.mark.parametrize(
+    'action',
+    [
+        'parameters.rename',
+        'parameters.favorite',
+        'parameters.delete',
+        'parameters.renameGroup',
+        'variants.table.save',
+        'variants.apply',
+        'variants.delete',
+        'variants.free',
+        'document.units',
+    ],
+)
+def test_direct_native_context_rejects_all_mutations_before_model_access(adapter_module, action):
+    adapter, params = make_adapter(adapter_module)
+    adapter.in_command, adapter.in_direct_apply = False, True
+    adapter.app.userInterface.activeCommand = 'CircleCenterRadius'
+    with pytest.raises(adapter_module.BridgeError) as error:
+        adapter.request(action, {})
+    assert error.value.code == 'TRANSACTION_REQUIRED'
+    assert params.log == []
+    assert adapter._variant_sessions == {}
+
+
+def test_group_preflight_does_not_rename_and_restores_validation_state(adapter_module):
+    adapter, params, payload = group_rename_fixture(adapter_module)
+    adapter.in_command = False
+    before = {key: vars(parameter).copy() for key, parameter in params.entries.items()}
+    adapter.validate_mutation('parameters.renameGroup', payload)
+    assert {key: vars(parameter) for key, parameter in params.entries.items()} == before
+    assert not adapter._validating_mutation
+    assert not adapter.in_command
+    assert not adapter.in_direct_apply
+    payload['parameters'][-1]['entityToken'] = 'stale'
+    with pytest.raises(adapter_module.BridgeError):
+        adapter.validate_mutation('parameters.renameGroup', payload)
+    assert not adapter._validating_mutation
+    assert {key: vars(parameter) for key, parameter in params.entries.items()} == before

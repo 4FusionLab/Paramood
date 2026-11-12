@@ -6,12 +6,14 @@ export function Collapsible({
   children,
   class: className = '',
   animateOnMount = false,
+  animate = true,
   onExited,
 }: {
   open: boolean;
   children: ComponentChildren;
   class?: string;
   animateOnMount?: boolean;
+  animate?: boolean;
   onExited?: () => void;
 }) {
   const [retained, setRetained] = useState(open);
@@ -22,12 +24,13 @@ export function Collapsible({
   exited.current = onExited;
 
   useLayoutEffect(() => {
-    if (previousOpen.current === open) return;
+    if (previousOpen.current === open && animate) return;
     previousOpen.current = open;
     const region = element.current;
     if (!region) return;
     setRetained(open);
     if (
+      !animate ||
       !region.animate ||
       !window.matchMedia?.('(prefers-reduced-motion: no-preference)').matches
     ) {
@@ -71,7 +74,7 @@ export function Collapsible({
       animation.cancel();
       region.style.overflow = '';
     };
-  }, [open]);
+  }, [open, animate]);
 
   return open || retained ? (
     <div ref={element} class={className} inert={!open} aria-hidden={!open}>

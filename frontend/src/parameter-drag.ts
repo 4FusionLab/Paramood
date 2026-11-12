@@ -1,16 +1,25 @@
 import type { ComponentChildren } from 'preact';
 import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { Parameter } from './bridge';
-import { nameInParameterGroup } from './parameter-tree';
+import { nameInParameterGroup, parameterGroupMembers } from './parameter-tree';
 
 type Preview = { group: string | null; name?: string; error?: string; source: string };
-type Drag = { parameter: Parameter; pointerId: number; x: number; y: number; moved: boolean };
+type Drag = {
+  name: string;
+  parameter?: Parameter;
+  members?: Parameter[];
+  pointerId: number;
+  x: number;
+  y: number;
+  moved: boolean;
+};
 
 export function useParameterDrag(
   parameters: Parameter[],
   onRename: ((parameter: Parameter, name: string) => Promise<boolean>) | undefined,
   busy: boolean | undefined,
   editing: ComponentChildren,
+  onRenameGroup?: (group: string, newGroup: string) => Promise<boolean>,
 ) {
   const root = useRef<HTMLElement>(null);
   const drag = useRef<Drag | null>(null);
@@ -30,26 +39,40 @@ export function useParameterDrag(
         .elementFromPoint(event.clientX, event.clientY)
         ?.closest<HTMLElement>('[data-parameter-group]');
       if (!target || !root.current?.contains(target) || target.closest('[inert]'))
-        return { source: source.parameter.name, group: null };
+        return { source: source.name, group: null };
       const group = target.dataset.parameterGroup!;
       try {
-        const name = nameInParameterGroup(source.parameter.name, group);
+        if (
+          group === source.name.replaceAll('_', '.') ||
+          group.startsWith(`${source.name.replaceAll('_', '.')}.`)
+        )
+          throw new Error('Choose a different group.');
+        const name = nameInParameterGroup(source.name, group);
+        if (source.members) {
+          if (name !== source.name) {
+            const prefix = name.toLocaleLowerCase();
+            if (
+              parameters.some(
+                (p) =>
+                  p.name.toLocaleLowerCase() === prefix ||
+                  p.name.toLocaleLowerCase().startsWith(`${prefix}_`),
+              )
+            )
+              throw new Error(`A group or parameter named ${name} already exists.`);
+          }
+          return { source: source.name, group, name };
+        }
         if (
           parameters.some(
             (parameter) =>
-              parameter.name !== source.parameter.name &&
+              parameter.name !== source.name &&
               parameter.name.toLocaleLowerCase() === name.toLocaleLowerCase(),
           )
         )
           throw new Error(`A parameter named ${name} already exists.`);
-        if (
-          group === source.parameter.name.replaceAll('_', '.') ||
-          group.startsWith(`${source.parameter.name.replaceAll('_', '.')}.`)
-        )
-          throw new Error('Choose a different group.');
-        return { source: source.parameter.name, group, name };
+        return { source: source.name, group, name };
       } catch (error) {
-        return { source: source.parameter.name, group, error: (error as Error).message };
+        return { source: source.name, group, error: (error as Error).message };
       }
     }
     function move(event: PointerEvent) {
@@ -74,14 +97,36 @@ export function useParameterDrag(
       cancel();
       if (!target) return;
       if (target.error) setError(target.error);
-      else if (target.name && target.name !== source.parameter.name) {
-        const current = parameters.find((parameter) => parameter.name === source.parameter.name);
-        if (!current || current.entityToken !== source.parameter.entityToken || busy || editing)
-          return;
-        setRevealGroup({ path: target.group! });
-        void onRename?.(current, target.name).catch((error: unknown) => {
-          setError(error instanceof Error ? error.message : String(error));
-        });
+      else if (target.name && target.name !== source.name) {
+        if (busy || editing) return;
+        let result: Promise<boolean> | undefined;
+        if (source.members) {
+          const members = parameterGroupMembers(parameters, source.name);
+          if (
+            members.length !== source.members.length ||
+            members.some(
+              (p, i) =>
+                p.name !== source.members![i].name ||
+                p.entityToken !== source.members![i].entityToken ||
+                p.expression !== source.members![i].expression ||
+                p.unit !== source.members![i].unit ||
+                p.driven,
+            )
+          )
+            return;
+          result = onRenameGroup?.(source.name, target.name);
+        } else {
+          const current = parameters.find((parameter) => parameter.name === source.name);
+          if (!current || current.entityToken !== source.parameter?.entityToken) return;
+          result = onRename?.(current, target.name);
+        }
+        void result
+          ?.then((ok) => {
+            if (ok) setRevealGroup({ path: target.group! });
+          })
+          .catch((error: unknown) => {
+            setError(error instanceof Error ? error.message : String(error));
+          });
       }
     }
     function escape(event: KeyboardEvent) {
@@ -105,7 +150,7 @@ export function useParameterDrag(
       window.removeEventListener('keydown', escape, true);
       cancel();
     };
-  }, [parameters, onRename, busy, editing]);
+  }, [parameters, onRename, onRenameGroup, busy, editing]);
 
   return {
     root,
@@ -118,18 +163,30 @@ export function useParameterDrag(
         busy ||
         editing ||
         root.current?.querySelector('input.tree-name') ||
-        !onRename ||
+        (!onRename && !onRenameGroup) ||
         event.button !== 0 ||
         event.isPrimary === false
       )
         return;
       const handle = (event.target as Element).closest<HTMLElement>('.tree-name-button');
       if (!handle || handle.closest('[inert]')) return;
-      const name = handle.closest<HTMLElement>('[data-parameter-name]')?.dataset.parameterName;
-      const parameter = parameters.find((item) => item.name === name);
-      if (!parameter?.entityToken || parameter.driven) return;
+      const row = handle.closest<HTMLElement>('.tree-row');
+      const group = row?.dataset.parameterGroup;
+      const name = group?.replaceAll('.', '_') || row?.dataset.parameterName;
+      if (!name) return;
+      const members =
+        group !== undefined && onRenameGroup ? parameterGroupMembers(parameters, name) : undefined;
+      const parameter = members ? undefined : parameters.find((item) => item.name === name);
+      if (members) {
+        if (!members.length || members.some((p) => !p.entityToken || p.driven)) {
+          setError('Every parameter in this group must be editable before moving it.');
+          return;
+        }
+      } else if (!onRename || !parameter?.entityToken || parameter.driven) return;
       setError('');
       drag.current = {
+        name,
+        members,
         parameter,
         pointerId: event.pointerId,
         x: event.clientX,

@@ -53,11 +53,13 @@ export function AnimatedList<T>({
   itemKey,
   children,
   class: className = 'parameter-entry',
+  animate = true,
 }: {
   items: T[];
   itemKey: (item: T) => string;
   children: (item: T) => ComponentChildren;
   class?: string;
+  animate?: boolean;
 }) {
   const records = useRef(new Map(items.map((item) => [itemKey(item), item])));
   const order = useRef(items.map(itemKey));
@@ -68,8 +70,10 @@ export function AnimatedList<T>({
   const added = new Set(items.map(itemKey).filter((key) => !records.current.has(key)));
   const next = items.map(itemKey);
   order.current.forEach((key, index) => {
-    if (!live.has(key) && records.current.has(key))
-      next.splice(Math.min(index, next.length), 0, key);
+    if (!live.has(key) && records.current.has(key)) {
+      if (animate) next.splice(Math.min(index, next.length), 0, key);
+      else records.current.delete(key);
+    }
   });
   order.current = next;
   items.forEach((item) => records.current.set(itemKey(item), item));
@@ -80,7 +84,8 @@ export function AnimatedList<T>({
         <Collapsible
           key={key}
           open={live.has(key)}
-          animateOnMount={added.has(key)}
+          animate={animate}
+          animateOnMount={animate && added.has(key)}
           class={className}
           onExited={() => {
             if (current.current.has(key)) return;

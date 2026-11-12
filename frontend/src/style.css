@@ -299,6 +299,14 @@ kbd {
   border-top: 1px solid var(--border);
   padding: 8px 0;
 }
+.cleanup-row > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.cleanup-row input {
+  flex-shrink: 0;
+  align-self: flex-start;
+}
 .cleanup-row small {
   display: block;
   color: var(--muted);
@@ -643,6 +651,51 @@ kbd {
   flex: 0 0 28px;
   color: var(--muted);
   white-space: nowrap;
+}
+.parameter-delete,
+.parameter-references {
+  opacity: 0;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+.tree-row:hover .parameter-delete,
+.tree-row:focus-within .parameter-delete,
+.tree-row:hover .parameter-references,
+.tree-row:focus-within .parameter-references {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (hover: none) {
+  .parameter-delete,
+  .parameter-references {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+.parameter-search-reveal {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.parameter-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding-block: 4px;
+  background: var(--surface);
+}
+.parameter-search input {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 4px 6px;
+  color: inherit;
+  background: var(--surface);
+}
+.parameter-search input::-webkit-search-cancel-button {
+  display: none;
 }
 
 .parameter-list-header {
@@ -1657,4 +1710,125 @@ main > .notice {
       transform: translateY(0);
     }
   }
+}
+
+.parameter-unused {
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-color: var(--muted);
+  text-underline-offset: 4px;
+}
+.parameter-references {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.references-overlay {
+  z-index: 100;
+}
+.references-dialog {
+  width: 100%;
+  max-width: 420px;
+  max-height: calc(100dvh - 32px);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.references-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.references-heading p {
+  margin: 5px 0 8px;
+  overflow-wrap: anywhere;
+}
+.references-hint {
+  font-size: 12px;
+  margin: 4px 0 10px;
+}
+.references-results {
+  overflow-y: auto;
+  min-height: 0;
+}
+.reference-feature {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 6px;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.reference-feature:hover,
+.reference-feature[aria-pressed='true'] {
+  background: var(--subtle);
+}
+.reference-feature-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.reference-feature-title > span {
+  color: var(--muted);
+  font-size: 11px;
+  margin-left: auto;
+}
+.reference-use {
+  display: block;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+.reference-use small {
+  display: block;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.reference-parameters {
+  padding: 4px 10px 10px;
+}
+.reference-parameters h3 {
+  font-size: 12px;
+  color: var(--muted);
+}
+.references-status {
+  font-size: 12px;
+  margin-bottom: 0;
+  min-height: 1em;
+}
+.reference-parameter {
+  width: 100%;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 8px;
+  border-radius: 4px;
+}
+.reference-parameter:hover {
+  background: var(--subtle);
+}
+.reference-breadcrumbs {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  margin-bottom: 8px;
+}
+.reference-breadcrumbs button {
+  padding: 2px 4px;
+  font-size: inherit;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .references-results {
+    animation: paramood-fade-in var(--motion-fast) ease-out;
+  }
+}
+
+.preview-update-status {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: normal;
+  margin-left: 6px;
 }

@@ -71,9 +71,10 @@ Download the latest [Paramood release](https://github.com/4FusionLab/Paramood/re
 | **Quick input** | One field for calculations and parameter assignments. Expressions without `=` are evaluated; assignments open a preview and require an explicit **Apply parameters** action. |
 | **Batch parameters** | Create and update parameters from semicolon-separated definitions, preserving formula references. |
 | **IntelliSense** | CodeMirror completion for parameters, virtual paths, all 26 Fusion functions and four constants; nested Signature Help, active arguments, and conservative diagnostics. [Expression reference](docs/EXPRESSION_REFERENCE.md). |
-| **Parameter browser** | A collapsible, hierarchical list of named parameters and Fusion-generated model parameters, with displayed values and units. |
+| **Parameter browser** | A searchable, collapsible tree of named and model parameters; search names, paths, expressions and comments while preserving editor focus and prior scroll. |
 | **Inline editing** | Click a value to edit with IntelliSense. Press **Enter** to validate and apply or **Escape** to cancel. |
-| **Naming and dependencies** | Click an editable parameter name to rename it, or drag the name into an existing virtual group. A model value such as `20 (d_min)` shows its expression; driven sketch dimensions are displayed in parentheses and are read-only. |
+| **Naming and dependencies** | Click an editable parameter name to rename it, or drag the name into an existing virtual group. Rename or drag a group to move its full subtree. A model value such as `20 (d_min)` shows its expression; driven sketch dimensions are displayed in parentheses and are read-only. |
+| **Find References** | Magnifying-glass search for direct and indirect parameter uses, drill-down through dependent parameters, and timeline selection. Dashed names mark verified unused user parameters. |
 | **Create while editing** | Enter a new name, `name=25`, or a supported equation such as `-name/5=50` in an editable value to create and link a new parameter. |
 | **Parameter removal** | Delete individual parameters from the list when Fusion permits it; failed or unsupported deletions return an error. |
 | **Model awareness** | Refresh on document changes; show indicators for known sketch, feature, or other parameter links. |
@@ -174,7 +175,7 @@ The packaged add-in includes the compiled frontend. **Node.js is not required fo
 - **Platforms:** Windows and macOS are declared in the manifest. Automated checks run on both (and Linux); interactive Fusion testing has been performed on macOS, while native Windows validation remains outstanding.
 - **Scope:** the active Fusion design. User parameters and editable model parameters are supported where Fusion allows changes; parameters in externally linked components are not edited.
 - **Safety:** assignment previews are validated again against the current document before applying. Original numeric formulas are checked and evaluated by Fusion; stale previews are rejected. Random-dependent preview values are marked as samples, while Apply preserves the original formula. Fusion may still report downstream feature errors after a legitimate parameter change. Timeline errors and warnings do not cause Paramood to roll back an applied value or variant; inspect the geometry after switching.
-- **Deletion:** per-parameter deletion is available, subject to Fusion's restrictions. **Automatic unused-parameter cleanup is not available in the current release.**
+- **Deletion:** individual deletion follows Fusion restrictions. The broom beside tree search opens an unused-user-parameter preview. Uncheck anything to keep; its dependencies are kept too. Favorites, geometry and saved variants are protected. Delete selected requires confirmation and a fresh model snapshot; the complete operation is one undoable Fusion transaction. Unknown dependency coverage blocks cleanup.
 - **Known limitations:** Native expression evaluation supports the documented Fusion functions, physical and compound units, and random formulas. Virtual dotted names do not create objects inside Fusion; they are a convenience in Paramood.
 
 ## Frequently asked questions
