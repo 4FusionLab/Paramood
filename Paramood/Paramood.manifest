@@ -1,6 +1,7 @@
 {
   "autodeskProduct": "Fusion360",
   "type": "addin",
+  "id": "a9bb74fa-fade-4ff1-8dfd-976eef745994",
   "author": "4FusionLab",
   "description": { "": "Quick access to Fusion design parameters." },
   "version": "1.3.1",

@@ -32,6 +32,7 @@ def test_release_package_is_self_contained_and_reproducible(tmp_path):
         )
         assert not any('__pycache__' in name or 'node_modules' in name for name in names)
         manifest = json.loads(archive.read('Paramood/Paramood.manifest'))
+        assert manifest['id'] == 'a9bb74fa-fade-4ff1-8dfd-976eef745994'
         assert manifest['version'] == '1.3.1'
         assert manifest['supportedOS'] == 'windows|mac'
     subprocess.run(
