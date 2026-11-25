@@ -19,6 +19,7 @@ export interface ModelState {
   draftId?: string;
   documentId: string | null;
   documentName?: string;
+  isDirect?: boolean;
   defaultLengthUnit?: string;
   unitsSnapshotToken?: string;
   parameters: Parameter[];

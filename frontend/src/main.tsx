@@ -46,6 +46,7 @@ export function App() {
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
     [problem, setProblem] = useState(''),
+    [refreshProblem, setRefreshProblem] = useState(''),
     [notice, setNotice] = useState('');
   const [text, setText] = useState(''),
     [preview, setPreview] = useState<Preview | null>(null),
@@ -96,7 +97,7 @@ export function App() {
   modelRef.current = model;
   textRef.current = text;
   historyRef.current = history;
-  const available = !!model?.documentId && !loading;
+  const available = !!model?.documentId && !model.isDirect && !loading;
   async function refreshNow() {
     const gen = ++generation.current;
     ++focusGeneration.current;
@@ -130,11 +131,12 @@ export function App() {
         setHistory(saved?.history || []);
         setConfirmPrefill(null);
       }
+      setRefreshProblem('');
       lastDocument.current = draftId;
       doc.current = next.documentId;
       setModel(next);
     } catch (e) {
-      if (gen === generation.current) setProblem(message(e));
+      if (gen === generation.current) setRefreshProblem(message(e));
     } finally {
       if (gen === generation.current) setLoading(false);
     }
@@ -522,7 +524,7 @@ export function App() {
       setProblem(message(e));
     }
   }
-  async function variantAction(action: string, payload: Record<string, unknown>): Promise<boolean> {
+  async function modelAction(action: string, payload: Record<string, unknown>): Promise<boolean> {
     const id = doc.current;
     if (!id || busyRef.current) return false;
     busyRef.current = true;
@@ -643,7 +645,7 @@ export function App() {
               disabled={!available || busy || !model.unitsSnapshotToken}
               onChange={(event) => {
                 const unit = event.currentTarget.value;
-                void variantAction('document.units', {
+                void modelAction('document.units', {
                   unit,
                   snapshotToken: model.unitsSnapshotToken,
                 });
@@ -666,7 +668,7 @@ export function App() {
             model={model}
             disabled={!available || busy}
             error={problem}
-            onAction={variantAction}
+            onAction={modelAction}
           />
         )}
         {mode === 'parameters' && (
@@ -709,15 +711,31 @@ export function App() {
           {model.variantsError}
         </div>
       )}
-      {problem && (
+      {(refreshProblem || problem) && (
         <div class="alert" role="alert">
-          {problem}
-          <button class="icon" aria-label="Dismiss" onClick={() => setProblem('')}>
+          {refreshProblem || problem}
+          <button
+            class="icon"
+            aria-label="Dismiss"
+            onClick={() => (refreshProblem ? setRefreshProblem('') : setProblem(''))}
+          >
             <X size={13} />
           </button>
         </div>
       )}
-      {notice && <Notice key={noticeVersion} text={notice} onDismiss={() => setNotice('')} />}
+      {model?.isDirect ? (
+        <div class="notice direct-notice">
+          <span role="status">Direct modeling</span>
+          <button
+            disabled={loading || busy}
+            onClick={() => void modelAction('document.switchToParametric', {})}
+          >
+            Switch To Parametric
+          </button>
+        </div>
+      ) : (
+        notice && <Notice key={noticeVersion} text={notice} onDismiss={() => setNotice('')} />
+      )}
       {mode === 'parameters' && (
         <div key="parameters-layout" class={`palette-layout view-${view}`}>
           <div class="editor-pane">
@@ -915,7 +933,7 @@ export function App() {
               onDelete={(parameter) => void deleteParameter(parameter)}
               onCleanup={() => {
                 const id = doc.current;
-                if (id && !busyRef.current)
+                if (available && id && !busyRef.current)
                   void request('cleanup.open', {}, id).catch((error) => setProblem(message(error)));
               }}
               onCopyReference={(name) => void copy(name, false)}

@@ -45,6 +45,7 @@ def model(monkeypatch):
     core, fusion = types.ModuleType('adsk.core'), types.ModuleType('adsk.fusion')
     core.ValueInput = SimpleNamespace(createByString=lambda value: value)
     fusion.Design = SimpleNamespace(cast=lambda product: product)
+    fusion.DesignTypes = SimpleNamespace(DirectDesignType=0, ParametricDesignType=1)
     fusion.ModelParameter = SimpleNamespace(cast=lambda parameter: None)
     fusion.ParameterValueTypes = SimpleNamespace(
         NumericParameterValueType=0, TextParameterValueType=1
@@ -83,6 +84,7 @@ def model(monkeypatch):
         return True
 
     design = SimpleNamespace(
+        designType=1,
         attributes=Attributes(),
         allParameters=params,
         userParameters=params,

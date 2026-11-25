@@ -194,6 +194,8 @@ class VariantTableMixin:
         design = self._design()
         if not design:
             raise BridgeError('NO_DESIGN', 'Open a Fusion design first.')
+        if self._is_direct(design):
+            return {'documentId': self._document_id, 'features': []}
         ui = self.app.userInterface
         if ui.activeCommand != 'SelectCommand':
             raise BridgeError(

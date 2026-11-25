@@ -656,6 +656,7 @@ def native_transaction(entry, monkeypatch):
     params, attributes = Parameters([parameter]), Attributes()
     original = dict(vars(parameter))
     design = SimpleNamespace(
+        designType=1,
         allParameters=params,
         userParameters=params,
         attributes=attributes,
@@ -674,6 +675,7 @@ def native_transaction(entry, monkeypatch):
         NumericParameterValueType=0, TextParameterValueType=1
     )
     entry.adsk.fusion.Design = SimpleNamespace(cast=lambda product: product)
+    entry.adsk.fusion.DesignTypes = SimpleNamespace(DirectDesignType=0, ParametricDesignType=1)
     entry.adsk.fusion.ModelParameter = SimpleNamespace(cast=lambda p: None)
     app = SimpleNamespace(activeDocument=object(), activeProduct=design, log=pytest.fail)
     ui = SimpleNamespace(activeCommand='CircleCenterRadius', selection_available=True)

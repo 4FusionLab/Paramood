@@ -139,6 +139,7 @@ class FusionAdapter(CleanupMixin, ReferencesMixin, ParameterGroupsMixin, Variant
             'variants.delete',
             'variants.free',
             'document.units',
+            'document.switchToParametric',
             'cleanup.delete',
         }
         if action not in supported or self._validating_mutation:
@@ -149,6 +150,8 @@ class FusionAdapter(CleanupMixin, ReferencesMixin, ParameterGroupsMixin, Variant
             try:
                 self.request(action, payload)
             except _MutationValidated as validated:
+                if action == 'document.switchToParametric':
+                    return {'target': validated.state}
                 return {
                     'variantsToken': self._read_variants(self._design())[1],
                     'target': validated.state,
@@ -193,6 +196,10 @@ class FusionAdapter(CleanupMixin, ReferencesMixin, ParameterGroupsMixin, Variant
                 self._draft_id = uuid.uuid4().hex
                 self._draft_documents.append((doc, self._draft_id))
         return design
+
+    @staticmethod
+    def _is_direct(design):
+        return design.designType == adsk.fusion.DesignTypes.DirectDesignType
 
     @property
     def document_id(self):
@@ -359,6 +366,13 @@ class FusionAdapter(CleanupMixin, ReferencesMixin, ParameterGroupsMixin, Variant
         design = self._design()
         if not design:
             return {'documentId': None, 'parameters': []}
+        document = {
+            'documentId': self._document_id,
+            'draftId': self._draft_id,
+            'documentName': self._document.name,
+        }
+        if self._is_direct(design):
+            return {**document, 'isDirect': True, 'parameters': []}
         manager = design.fusionUnitsManager
         parameters = []
         for param in design.allParameters:
@@ -429,9 +443,7 @@ class FusionAdapter(CleanupMixin, ReferencesMixin, ParameterGroupsMixin, Variant
             parameter['unused'] = parameter['name'] in unused
             parameter['configured'] = parameter['name'] in controlled
         return {
-            'documentId': self._document_id,
-            'draftId': self._draft_id,
-            'documentName': self._document.name,
+            **document,
             'defaultLengthUnit': manager.defaultLengthUnits,
             'unitsSnapshotToken': (
                 self._snapshot_token(design, 'units')
@@ -724,6 +736,27 @@ class FusionAdapter(CleanupMixin, ReferencesMixin, ParameterGroupsMixin, Variant
         return {'created': [], 'updated': [op.name for op in ops]}
 
     def request(self, action, payload):
+        design = self._design()
+        direct = design is not None and self._is_direct(design)
+        if action == 'document.switchToParametric':
+            if not direct:
+                raise BridgeError('CONFLICT', 'The active design is no longer in direct modeling.')
+            if (
+                self._validating_mutation
+                and not self.in_command
+                and (
+                    self.app.userInterface.activeCommand != 'SelectCommand' or self.is_sketch_edit()
+                )
+            ):
+                raise BridgeError('BAD_CONTEXT', 'Finish the active Fusion command first.')
+            self._require_mutation_context(transaction_only=True)
+            self._before_mutation(self._document_id)
+            design.designType = adsk.fusion.DesignTypes.ParametricDesignType
+            if design.designType != adsk.fusion.DesignTypes.ParametricDesignType:
+                raise BridgeError('UPDATE_FAILED', 'Fusion could not enable parametric modeling.')
+            return {}
+        if direct:
+            raise BridgeError('DIRECT_DESIGN', 'This action requires a parametric design.')
         if action == 'parameters.references':
             return self._find_references(payload)
         if action == 'parameters.references.select':

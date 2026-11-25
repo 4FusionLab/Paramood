@@ -144,6 +144,7 @@ class HtmlHandler(adsk.core.HTMLEventHandler):
                 'variants.delete',
                 'variants.free',
                 'document.units',
+                'document.switchToParametric',
                 'cleanup.delete',
             ):
                 active_command = _ui.activeCommand

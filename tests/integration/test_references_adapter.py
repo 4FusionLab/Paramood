@@ -17,6 +17,7 @@ class Collection(list):
 def model(monkeypatch):
     core, fusion = types.ModuleType('adsk.core'), types.ModuleType('adsk.fusion')
     fusion.Design = NS(cast=lambda p: p)
+    fusion.DesignTypes = NS(DirectDesignType=0, ParametricDesignType=1)
     fusion.SketchDimension = NS(cast=lambda p: p if getattr(p, 'dimension', False) else None)
     fusion.Sketch = NS(cast=lambda p: p if getattr(p, 'sketch', False) else None)
     adsk = types.ModuleType('adsk')
@@ -72,6 +73,7 @@ def model(monkeypatch):
     all_parameters = Collection([width, half, d1, d2, d3, unused])
     entities = {p.entityToken: p for p in [*all_parameters, feature, sketch]}
     design = NS(
+        designType=1,
         allParameters=all_parameters,
         userParameters=Collection([width, half, unused]),
         findEntityByToken=lambda token: [entities[token]] if token in entities else [],

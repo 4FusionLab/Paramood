@@ -285,6 +285,55 @@ it('shows and toggles native favorites and collapses all groups', () => {
   );
 });
 
+it('shows only favorite values and their ancestors in an independently collapsible tree', () => {
+  const host = document.createElement('div');
+  const parameters = [
+    { name: 'box', favorite: false },
+    { name: 'box_inner', favorite: true },
+    { name: 'box_inner_width', favorite: true },
+    { name: 'box_inner_depth', favorite: false },
+    { name: 'box_outer_height', favorite: false },
+    { name: 'd1', kind: 'model' as const, favorite: true },
+  ].map((parameter) => ({ expression: '10 mm', value: 10, unit: 'mm', ...parameter }));
+  const update = () =>
+    act(() =>
+      render(<ParameterList parameters={parameters} onEdit={() => {}} onDelete={() => {}} />, host),
+    );
+  update();
+  const favorites = host.querySelector('.featured-parameters')!;
+  const heading = favorites.querySelector('button')!;
+  expect(heading.textContent).toContain('Favorite parameters (3)');
+  act(() => heading.click());
+  const box = favorites.querySelector('[aria-label="Collapse box"]')!.closest('.tree-node')!;
+  const inner = box.querySelector('[aria-label="Collapse box.inner"]')!.closest('.tree-node')!;
+  expect(
+    inner.querySelector('.tree-children [data-parameter-name="box_inner_width"]'),
+  ).not.toBeNull();
+  const favoriteNames = () =>
+    Array.from(favorites.querySelectorAll('[data-parameter-name]'), (row) =>
+      row.getAttribute('data-parameter-name'),
+    );
+  expect(favoriteNames()).toEqual(['box_inner', 'box_inner_width', 'd1']);
+  expect(host.querySelectorAll('[aria-label="Expand box"]')).toHaveLength(1);
+  act(() => inner.querySelector<HTMLButtonElement>('[aria-label="Collapse box.inner"]')!.click());
+  expect(favoriteNames()).toEqual(['box_inner', 'd1']);
+  act(() => host.querySelector<HTMLButtonElement>('[aria-label="Expand all groups"]')!.click());
+  expect(favoriteNames()).toEqual(['box_inner', 'd1']);
+
+  parameters[1] = { ...parameters[1], favorite: false };
+  update();
+  expect(heading.textContent).toContain('Favorite parameters (2)');
+  expect(favoriteNames()).toEqual(['d1']);
+  act(() => inner.querySelector<HTMLButtonElement>('[aria-label="Expand box.inner"]')!.click());
+  expect(favoriteNames()).toEqual(['box_inner_width', 'd1']);
+
+  parameters[2] = { ...parameters[2], favorite: false };
+  update();
+  expect(heading.textContent).toContain('Favorite parameters (1)');
+  expect(favorites.querySelector('[aria-label="Collapse box"]')).toBeNull();
+  expect(favoriteNames()).toEqual(['d1']);
+});
+
 it('shows computed text while preserving its source expression for edits', () => {
   const parameter = {
     name: 'caption',

@@ -75,7 +75,7 @@ function Branch({
   busy,
   expansion,
   dropGroup,
-  searching = false,
+  inFavorites = false,
   animate = true,
 }: {
   name: string;
@@ -84,7 +84,7 @@ function Branch({
   busy?: boolean;
   documentId?: string;
   expansion: Expansion;
-  searching?: boolean;
+  inFavorites?: boolean;
   animate?: boolean;
   dropGroup?: string | null;
   node: Node;
@@ -96,10 +96,11 @@ function Branch({
   editingName?: string;
   editor?: ComponentChildren;
 }) {
-  const open = Object.prototype.hasOwnProperty.call(expansion.states, path)
-    ? expansion.states[path]
+  const expansionPath = inFavorites ? `$favorites.${path}` : path;
+  const open = Object.prototype.hasOwnProperty.call(expansion.states, expansionPath)
+    ? expansion.states[expansionPath]
     : expansion.open;
-  const setOpen = (value: boolean) => expansion.toggle(path, value);
+  const setOpen = (value: boolean) => expansion.toggle(expansionPath, value);
   const renameSession = useContext(RenameContext);
   const renameId = useRef(Symbol('rename'));
   const renameInput = useRef<HTMLInputElement>(null);
@@ -111,7 +112,8 @@ function Branch({
   }, [renaming]);
   const [newName, setNewName] = useState('');
   const parameter = node.parameter;
-  const isGroup = node.isGroup ?? node.children.size > 0;
+  // Favorites groups provide context while parameter actions still target one native parameter.
+  const isGroup = !inFavorites && (node.isGroup ?? node.children.size > 0);
   const groupRename = isGroup && !!onRenameGroup;
   const renameLabel = groupRename ? `Rename group ${path}` : `Rename ${parameter?.name}`;
   const rename = () =>
@@ -132,7 +134,7 @@ function Branch({
       path={`${path}.${child}`}
       sort={sort}
       expansion={expansion}
-      searching={searching}
+      inFavorites={inFavorites}
       animate={animate}
       documentId={documentId}
       onFavorite={onFavorite}
@@ -383,6 +385,7 @@ export function ParameterList({
     open: true,
     states: {} as Record<string, boolean>,
   });
+  const [favoriteGroupStates, setFavoriteGroupStates] = useState<Record<string, boolean>>({});
   useEffect(() => {
     if (!moving.revealGroup) return;
     // Reveal once per completed move, not again when a filtered branch remounts.
@@ -438,6 +441,13 @@ export function ParameterList({
     toggle: (path, open) =>
       setExpansion((state) => ({ ...state, states: { ...state.states, [path]: open } })),
   };
+  const favoriteExpansion: Expansion = searching
+    ? expansion
+    : {
+        open: true,
+        states: favoriteGroupStates,
+        toggle: (path, open) => setFavoriteGroupStates((states) => ({ ...states, [path]: open })),
+      };
   const [featuredOpen, setFeaturedOpen] = useState(false);
   const [modelsOpen, setModelsOpen] = useState(false);
   const favoritesExpanded = searching
@@ -460,14 +470,14 @@ export function ParameterList({
     tree(parameters.filter((p) => p.kind === 'model' && /^d\d+$/i.test(p.name))),
     query,
   );
-  const renderNodes = (root: Node, order?: Sort) => {
+  const renderNodes = (root: Node, order?: Sort, inFavorites = false) => {
     const renderBranch = ([name, node]: [string, Node]) => (
       <Branch
         key={name}
         sort={order}
         dropGroup={moving.preview?.error ? null : moving.preview?.group}
-        expansion={expansion}
-        searching={searching}
+        expansion={inFavorites ? favoriteExpansion : expansion}
+        inFavorites={inFavorites}
         animate={animate}
         documentId={documentId}
         onFavorite={onFavorite}
@@ -476,13 +486,13 @@ export function ParameterList({
         path={name}
         node={node}
         onEdit={(parameter) => {
-          setEditInFeatured(false);
+          setEditInFeatured(inFavorites);
           onEdit(parameter);
         }}
         onDelete={onDelete}
         onRename={onRename}
-        onRenameGroup={onRenameGroup}
-        editingName={editInFeatured ? undefined : editingName}
+        onRenameGroup={inFavorites ? undefined : onRenameGroup}
+        editingName={editInFeatured === inFavorites ? editingName : undefined}
         editor={editor}
       />
     );
@@ -492,6 +502,7 @@ export function ParameterList({
       <AnimatedList
         items={sortedChildren(root, order)}
         itemKey={([name]) => name}
+        class={inFavorites ? 'featured-entry' : undefined}
         animate={animate}
       >
         {renderBranch}
@@ -611,33 +622,7 @@ export function ParameterList({
                 <ChevronRight size={14} /> Favorite parameters ({featured.length})
               </button>
               <Collapsible open={favoritesExpanded} animate={animate}>
-                <AnimatedList
-                  items={featured}
-                  itemKey={(parameter) => parameter.name}
-                  class="featured-entry"
-                  animate={animate}
-                >
-                  {(parameter) => (
-                    <Branch
-                      name={parameter.name}
-                      path={parameter.name}
-                      node={{ children: new Map(), parameter }}
-                      expansion={expansion}
-                      documentId={documentId}
-                      onFavorite={onFavorite}
-                      busy={busy}
-                      onEdit={(item) => {
-                        setEditInFeatured(true);
-                        onEdit(item);
-                      }}
-                      onDelete={onDelete}
-                      onRename={onRename}
-                      onRenameGroup={onRenameGroup}
-                      editingName={editInFeatured ? editingName : undefined}
-                      editor={editor}
-                    />
-                  )}
-                </AnimatedList>
+                {renderNodes(tree(featured), undefined, true)}
               </Collapsible>
             </div>
           </Collapsible>

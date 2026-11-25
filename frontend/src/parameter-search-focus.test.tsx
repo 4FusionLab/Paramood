@@ -114,7 +114,7 @@ async function enter() {
 it.each([
   ['root', 'box', false],
   ['nested', 'box_inner_size', false],
-  ['favorite', 'box', true],
+  ['nested favorite', 'box_inner_size', true],
 ] as const)(
   'preserves the %s editor and draft through sequential matching search',
   async (_, name, favorite) => {

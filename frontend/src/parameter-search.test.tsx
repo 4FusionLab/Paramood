@@ -114,7 +114,9 @@ it('keeps editing, favorites, deletion and native reference copying available in
   expect(onFavorite).toHaveBeenCalledWith(parameters[1]);
   click('Delete box_inner_ширина');
   expect(onDelete).toHaveBeenCalledWith(parameters[1]);
-  const row = host.querySelector('[data-parameter-name="box_inner_ширина"]')!;
+  const favorites = host.querySelector('.featured-parameters')!;
+  expect(favorites.querySelector('[aria-label="Collapse box.inner"]')).not.toBeNull();
+  const row = favorites.querySelector('[data-parameter-name="box_inner_ширина"]')!;
   act(() => {
     row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
   });

@@ -1620,6 +1620,12 @@ main > .notice {
   box-shadow: 0 3px 12px #0003;
 }
 
+main > .direct-notice {
+  background: var(--surface);
+  color: var(--text);
+  flex-wrap: wrap;
+}
+
 .tree-toggle[aria-expanded='true'] > svg,
 .featured-heading[aria-expanded='true'] > svg {
   transform: rotate(90deg);

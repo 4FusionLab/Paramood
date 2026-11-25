@@ -184,10 +184,16 @@ it('moves a filtered nested Unicode group to the root with all hidden members', 
   expectGroup(calls, 'корпус_ящик', 'ящик', items.slice(0, 3));
 });
 
-it('keeps Favorites duplicates single-parameter operations while the tree row stays grouped', async () => {
-  const calls = await mount();
+it('keeps nested Favorites rows single-parameter operations while the main tree row stays grouped', async () => {
+  const calls = await mount([
+    parameters[0],
+    { ...parameters[1], favorite: true, comment: 'needle' },
+    ...parameters.slice(2),
+  ]);
   search();
   const favorites = host.querySelector('.featured-parameters')!;
+  expect(button('Collapse box', favorites)).toBeTruthy();
+  expect(button('Rename box_width', favorites)).toBeTruthy();
   expect(
     button('Rename box', favorites).closest('.tree-row')?.hasAttribute('data-parameter-group'),
   ).toBe(false);
@@ -202,7 +208,11 @@ it('keeps Favorites duplicates single-parameter operations while the tree row st
 });
 
 it('drags a Favorite duplicate as a single parameter', async () => {
-  const calls = await mount();
+  const calls = await mount([
+    parameters[0],
+    { ...parameters[1], favorite: true, comment: 'needle' },
+    ...parameters.slice(2),
+  ]);
   search();
   await drag(
     button('Rename box', host.querySelector('.featured-parameters')!),

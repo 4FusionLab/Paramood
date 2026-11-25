@@ -19,6 +19,7 @@ class Collection(list):
 def cleanup(monkeypatch):
     core, fusion = types.ModuleType('adsk.core'), types.ModuleType('adsk.fusion')
     fusion.Design = NS(cast=lambda p: p)
+    fusion.DesignTypes = NS(DirectDesignType=0, ParametricDesignType=1)
     adsk = types.ModuleType('adsk')
     adsk.core, adsk.fusion = core, fusion
     for name, value in [('adsk', adsk), ('adsk.core', core), ('adsk.fusion', fusion)]:
@@ -71,12 +72,18 @@ def cleanup(monkeypatch):
     add('d1', 'used', [used], user=False)
     favorite = add('favorite', favorite=True)
     design = NS(
+        designType=1,
         allParameters=parameters,
         userParameters=users,
         fusionUnitsManager=NS(defaultLengthUnits='mm', formatValue=lambda value, unit: '5 mm'),
         findEntityByToken=lambda token: [p for p in parameters if p.entityToken == token],
     )
-    app = NS(activeDocument=NS(name='TEMP'), activeProduct=design)
+    app = NS(
+        activeDocument=NS(name='TEMP'),
+        activeProduct=design,
+        activeEditObject=None,
+        userInterface=NS(activeCommand='SelectCommand'),
+    )
     adapter = module.FusionAdapter(app)
     table = {'columns': [], 'variants': []}
     monkeypatch.setattr(adapter, '_read_variant_table', lambda d: (table, str(table)))
@@ -102,6 +109,71 @@ def delete(cleanup, state, names):
     return cleanup.adapter.request(
         'cleanup.delete', {'snapshot': state['snapshot'], 'names': names}
     )
+
+
+def test_direct_export_document_does_not_read_parameters_and_original_state_returns(cleanup):
+    adapter = cleanup.adapter
+
+    class DirectDesign:
+        designType = 0
+        fusionUnitsManager = None
+
+        @property
+        def allParameters(self):
+            raise RuntimeError('3 : this is not a parametric design')
+
+    def state():
+        response = dispatch(adapter, {'requestId': 'state', 'action': 'state.get'})
+        assert response['ok'], response
+        return response['data']
+
+    original = adapter.app.activeDocument
+    before = state()
+    adapter.app.activeDocument = NS(name='Temporary export')
+    adapter.app.activeProduct = DirectDesign()
+    adapter.invalidate()
+    during = state()
+    assert during['isDirect']
+    assert during['parameters'] == []
+    assert during['documentId'] != before['documentId']
+    adapter.app.activeDocument = original
+    adapter.app.activeProduct = cleanup.design
+    adapter.invalidate()
+    after = state()
+    assert not after.get('isDirect')
+    assert after['parameters'] == before['parameters']
+    assert after['draftId'] == before['draftId']
+    assert after['documentId'] != during['documentId']
+
+
+def test_switch_to_parametric_requires_matching_document_and_command(cleanup):
+    adapter = cleanup.adapter
+    design = cleanup.design
+    design.designType = 0
+    message = {
+        'action': 'document.switchToParametric',
+        'requestId': 'switch',
+        'documentId': adapter.document_id,
+    }
+
+    rejected = dispatch(adapter, message)
+    assert rejected['error']['code'] == 'BAD_CONTEXT'
+    assert adapter.validate_mutation(message['action'], {}) == {'target': message['documentId']}
+    assert design.designType == 0
+
+    adapter.app.userInterface.activeCommand = 'Extrude'
+    with pytest.raises(BridgeError, match='Finish the active Fusion command'):
+        adapter.validate_mutation(message['action'], {})
+    adapter.app.userInterface.activeCommand = 'SelectCommand'
+    adapter.in_command = True
+    assert (
+        dispatch(adapter, {**message, 'documentId': 'other'})['error']['code'] == 'STALE_DOCUMENT'
+    )
+    assert design.designType == 0
+
+    assert dispatch(adapter, message)['ok']
+    assert design.designType == 1
+    assert dispatch(adapter, message)['error']['code'] == 'CONFLICT'
 
 
 def test_analyze_is_read_only_and_protects_model_and_favorites(cleanup):

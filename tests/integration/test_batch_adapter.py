@@ -13,6 +13,7 @@ def adapter_module(monkeypatch):
     fusion = types.ModuleType('adsk.fusion')
     core.ValueInput = SimpleNamespace(createByString=lambda s: s)
     fusion.Design = SimpleNamespace(cast=lambda p: p)
+    fusion.DesignTypes = SimpleNamespace(DirectDesignType=0, ParametricDesignType=1)
     fusion.ModelParameter = SimpleNamespace(cast=lambda p: None)
     adsk.core, adsk.fusion = core, fusion
     for name, module in [('adsk', adsk), ('adsk.core', core), ('adsk.fusion', fusion)]:
@@ -67,7 +68,7 @@ class Timeline(list):
 def make_adapter(module):
     params = Parameters()
     design = SimpleNamespace(
-        allParameters=params, userParameters=params, fusionUnitsManager=Units(params)
+        designType=1, allParameters=params, userParameters=params, fusionUnitsManager=Units(params)
     )
     app = SimpleNamespace(
         activeDocument=object(),

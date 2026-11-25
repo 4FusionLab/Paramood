@@ -38,6 +38,7 @@ def dispatch(adapter, message):
             'variants.delete',
             'variants.free',
             'document.units',
+            'document.switchToParametric',
             'calculator.evaluate',
             'cleanup.analyze',
             'cleanup.delete',
